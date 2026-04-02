@@ -4,8 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "bun run --watch src/index.ts",
+    "dev": "bun run --env-file ../../.env --watch src/index.ts",
     "build": "bun build src/index.ts --outdir dist --target bun",
+    "start": "bun run --env-file ../../.env src/index.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },
