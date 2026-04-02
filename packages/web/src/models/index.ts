@@ -19,11 +19,11 @@ export interface Settings {
  * Settings update input
  */
 export interface SettingsUpdate {
-  llm_base_url?: string
-  llm_api_key?: string
-  llm_model?: string
-  max_turns?: number
-  max_budget_usd?: number
+  llm_base_url?: string | undefined
+  llm_api_key?: string | undefined
+  llm_model?: string | undefined
+  max_turns?: number | undefined
+  max_budget_usd?: number | undefined
 }
 
 /**
