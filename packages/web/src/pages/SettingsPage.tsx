@@ -2,11 +2,12 @@
  * Settings Page
  *
  * Configure API settings, model, and budget limits.
- * Includes API test functionality to verify connection and load available models.
+ * Uses shared models store for model selection.
  */
 
 import { useEffect, useState, useMemo } from 'react'
 import { useSettingsStore } from '@/viewmodels/settings.viewmodel'
+import { useModelsStore, getModelDisplayInfo } from '@/viewmodels/models.viewmodel'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -27,103 +28,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Loader2, Save, AlertCircle, CheckCircle2, Zap } from 'lucide-react'
+import { Loader2, Save, AlertCircle, CheckCircle2, RefreshCw } from 'lucide-react'
 import { toast } from 'sonner'
-
-const API_BASE = '/api'
-
-interface ModelInfo {
-  id: string
-  name: string
-  createdAt: string
-}
-
-interface ModelGroup {
-  label: string
-  icon: string
-  models: ModelInfo[]
-}
-
-/**
- * Categorize models by provider based on ID patterns
- */
-function categorizeModels(models: ModelInfo[]): ModelGroup[] {
-  const claude: ModelInfo[] = []
-  const gpt: ModelInfo[] = []
-  const gemini: ModelInfo[] = []
-  const embedding: ModelInfo[] = []
-  const other: ModelInfo[] = []
-
-  for (const model of models) {
-    const id = model.id.toLowerCase()
-    const name = model.name.toLowerCase()
-
-    // Skip embedding models for chat
-    if (id.includes('embedding') || name.includes('embedding')) {
-      embedding.push(model)
-    } else if (id.includes('claude') || name.includes('claude')) {
-      claude.push(model)
-    } else if (id.includes('gpt') || name.includes('gpt')) {
-      gpt.push(model)
-    } else if (id.includes('gemini') || name.includes('gemini')) {
-      gemini.push(model)
-    } else {
-      other.push(model)
-    }
-  }
-
-  const result: ModelGroup[] = []
-
-  if (claude.length > 0) {
-    result.push({ label: 'Claude (Anthropic)', icon: '🟠', models: claude })
-  }
-  if (gpt.length > 0) {
-    result.push({ label: 'GPT (OpenAI)', icon: '🟢', models: gpt })
-  }
-  if (gemini.length > 0) {
-    result.push({ label: 'Gemini (Google)', icon: '🔵', models: gemini })
-  }
-  if (other.length > 0) {
-    result.push({ label: 'Other Models', icon: '⚪', models: other })
-  }
-  // Embedding models at the end (usually not for chat)
-  if (embedding.length > 0) {
-    result.push({ label: 'Embedding Models', icon: '📊', models: embedding })
-  }
-
-  return result
-}
-
-/**
- * Get display info for a model (for showing selected value)
- */
-function getModelDisplayInfo(
-  modelId: string,
-  availableModels: ModelInfo[]
-): { name: string; icon: string } | null {
-  const model = availableModels.find((m) => m.id === modelId)
-  if (!model) return null
-
-  const id = modelId.toLowerCase()
-  const name = model.name.toLowerCase()
-
-  let icon = '⚪'
-  if (id.includes('claude') || name.includes('claude')) {
-    icon = '🟠'
-  } else if (id.includes('gpt') || name.includes('gpt')) {
-    icon = '🟢'
-  } else if (id.includes('gemini') || name.includes('gemini')) {
-    icon = '🔵'
-  } else if (id.includes('embedding') || name.includes('embedding')) {
-    icon = '📊'
-  }
-
-  return { name: model.name, icon }
-}
 
 export function SettingsPage() {
   const { settings, isLoading, error, fetchSettings, updateSettings, clearError } =
     useSettingsStore()
+
+  const {
+    models: availableModels,
+    isLoading: isLoadingModels,
+    error: modelsError,
+    fetchModels,
+    getGroupedModels,
+    setDefaultModel,
+  } = useModelsStore()
 
   // Local form state
   const [baseUrl, setBaseUrl] = useState('')
@@ -134,17 +53,8 @@ export function SettingsPage() {
   const [isDirty, setIsDirty] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
 
-  // API test state
-  const [isTesting, setIsTesting] = useState(false)
-  const [testError, setTestError] = useState<string | null>(null)
-  const [availableModels, setAvailableModels] = useState<ModelInfo[]>([])
-  const [apiVerified, setApiVerified] = useState(false)
-
   // Categorized models for grouped display
-  const modelGroups = useMemo(
-    () => categorizeModels(availableModels),
-    [availableModels]
-  )
+  const modelGroups = useMemo(() => getGroupedModels(), [getGroupedModels, availableModels])
 
   // Selected model display info
   const selectedModelInfo = useMemo(
@@ -157,6 +67,11 @@ export function SettingsPage() {
     void fetchSettings()
   }, [fetchSettings])
 
+  // Fetch models on mount and when entering page
+  useEffect(() => {
+    void fetchModels()
+  }, [fetchModels])
+
   // Sync form state with settings
   useEffect(() => {
     if (settings) {
@@ -166,12 +81,11 @@ export function SettingsPage() {
       setMaxTurns(String(settings.maxTurns))
       setMaxBudget(String(settings.maxBudgetUsd))
       setIsDirty(false)
-      // If there's already a model set, consider API verified
-      if (settings.llmModel) {
-        setApiVerified(true)
-      }
+
+      // Update shared default model
+      setDefaultModel(settings.llmModel)
     }
-  }, [settings])
+  }, [settings, setDefaultModel])
 
   // Validate base URL format
   const validateBaseUrl = (url: string): string | null => {
@@ -184,52 +98,8 @@ export function SettingsPage() {
 
   const baseUrlError = validateBaseUrl(baseUrl)
 
-  const handleTestApi = async () => {
-    setIsTesting(true)
-    setTestError(null)
-    setAvailableModels([])
-
-    try {
-      const res = await fetch(`${API_BASE}/settings/test-api`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          base_url: baseUrl || undefined,
-          api_key: apiKey || undefined,
-        }),
-      })
-
-      const data = (await res.json()) as {
-        success: boolean
-        error?: string
-        models?: ModelInfo[]
-      }
-
-      if (!data.success) {
-        setTestError(data.error ?? 'API test failed')
-        setApiVerified(false)
-        return
-      }
-
-      setAvailableModels(data.models ?? [])
-      setApiVerified(true)
-      toast.success(`API connection verified (${String(data.models?.length ?? 0)} models available)`)
-
-      // Auto-select first Claude model if none selected
-      const claudeModel = data.models?.find((m) =>
-        m.id.toLowerCase().includes('claude')
-      )
-      const firstModel = claudeModel ?? data.models?.[0]
-      if (!model && firstModel) {
-        setModel(firstModel.id)
-        markDirty()
-      }
-    } catch {
-      setTestError('Failed to test API connection')
-      setApiVerified(false)
-    } finally {
-      setIsTesting(false)
-    }
+  const handleRefreshModels = () => {
+    void fetchModels()
   }
 
   const handleSave = async () => {
@@ -257,6 +127,9 @@ export function SettingsPage() {
         max_budget_usd: maxBudget ? parseFloat(maxBudget) : undefined,
       })
 
+      // Update shared default model
+      setDefaultModel(model)
+
       toast.success('Settings saved successfully')
       setApiKey('') // Clear API key input after save
       setIsDirty(false)
@@ -271,18 +144,13 @@ export function SettingsPage() {
     if (!isDirty) setIsDirty(true)
   }
 
-  // Reset API verification when credentials change
   const handleBaseUrlChange = (value: string) => {
     setBaseUrl(value)
-    setApiVerified(false)
-    setAvailableModels([])
     markDirty()
   }
 
   const handleApiKeyChange = (value: string) => {
     setApiKey(value)
-    setApiVerified(false)
-    setAvailableModels([])
     markDirty()
   }
 
@@ -354,49 +222,29 @@ export function SettingsPage() {
               Your Anthropic API key. Leave empty to keep existing key.
             </p>
           </div>
-
-          {/* Test API Button */}
-          <div className="flex items-center gap-3">
-            <Button
-              variant="outline"
-              onClick={() => {
-                void handleTestApi()
-              }}
-              disabled={isTesting || !!baseUrlError}
-            >
-              {isTesting ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <Zap className="h-4 w-4 mr-2" />
-              )}
-              Test Connection
-            </Button>
-
-            {apiVerified && !testError && (
-              <span className="flex items-center gap-1 text-sm text-green-600 dark:text-green-400">
-                <CheckCircle2 className="h-4 w-4" />
-                Connected ({availableModels.length} models)
-              </span>
-            )}
-          </div>
-
-          {testError && (
-            <div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
-              <AlertCircle className="h-4 w-4 shrink-0" />
-              <span>{testError}</span>
-            </div>
-          )}
         </CardContent>
       </Card>
 
       {/* Model Configuration */}
       <Card>
         <CardHeader>
-          <CardTitle>Model</CardTitle>
-          <CardDescription>
-            Select the default AI model for new sessions.
-            {!apiVerified && ' Test API connection first to load available models.'}
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Model</CardTitle>
+              <CardDescription>
+                Select the default AI model for new sessions
+              </CardDescription>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleRefreshModels}
+              disabled={isLoadingModels}
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${isLoadingModels ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="space-y-2">
@@ -414,8 +262,10 @@ export function SettingsPage() {
             >
               <SelectTrigger id="model" className="h-auto min-h-10">
                 <SelectValue placeholder={
-                  availableModels.length === 0
-                    ? 'Test API connection to load models'
+                  isLoadingModels
+                    ? 'Loading models...'
+                    : availableModels.length === 0
+                    ? 'No models available'
                     : 'Select a model'
                 }>
                   {selectedModelInfo ? (
@@ -459,19 +309,30 @@ export function SettingsPage() {
                     </div>
                   ))
                 ) : model ? (
-                  // Show current model if no models loaded yet
                   <SelectItem value={model}>{model}</SelectItem>
                 ) : null}
               </SelectContent>
             </Select>
-            {!model && (
+
+            {modelsError && (
+              <p className="text-xs text-destructive">{modelsError}</p>
+            )}
+
+            {!model && !modelsError && (
               <p className="text-xs text-destructive">
-                Model is required. Test API connection to load available models.
+                Model is required. Select a model from the list.
               </p>
             )}
+
             {model && (
               <p className="text-xs text-muted-foreground font-mono">
                 ID: {model}
+              </p>
+            )}
+
+            {availableModels.length > 0 && (
+              <p className="text-xs text-muted-foreground">
+                {availableModels.length} models available
               </p>
             )}
           </div>

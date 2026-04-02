@@ -47,8 +47,8 @@ export function ChatInput({
   }, [disabled])
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    // Cmd/Ctrl + Enter to send
-    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+    // Enter to send (without Shift for newline)
+    if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       if (!isLoading && !disabled && value.trim()) {
         onSend()
@@ -113,10 +113,11 @@ export function ChatInput({
       )}
 
       <div className="absolute bottom-full left-3 mb-1 text-xs text-muted-foreground">
-        <kbd className="px-1 py-0.5 rounded bg-muted text-[10px]">
-          {navigator.platform.includes('Mac') ? '⌘' : 'Ctrl'}+Enter
-        </kbd>
+        <kbd className="px-1 py-0.5 rounded bg-muted text-[10px]">Enter</kbd>
         <span className="ml-1">to send</span>
+        <span className="mx-2 text-muted-foreground/50">·</span>
+        <kbd className="px-1 py-0.5 rounded bg-muted text-[10px]">Shift+Enter</kbd>
+        <span className="ml-1">for new line</span>
       </div>
     </div>
   )

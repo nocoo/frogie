@@ -71,7 +71,7 @@ interface ChatState {
   disconnect: () => void
 
   /** Send a chat message */
-  sendMessage: (workspaceId: string, sessionId: string, prompt: string) => void
+  sendMessage: (workspaceId: string, sessionId: string, prompt: string, model?: string) => void
 
   /** Interrupt current execution */
   interrupt: () => void
@@ -183,7 +183,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
   },
 
-  sendMessage: (workspaceId: string, sessionId: string, prompt: string) => {
+  sendMessage: (workspaceId: string, sessionId: string, prompt: string, model?: string) => {
     const { ws, status } = get()
 
     if (!ws || status !== 'connected') {
@@ -200,6 +200,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       sessionId,
       workspaceId,
       prompt,
+      ...(model && { model }),
     }
 
     ws.send(JSON.stringify(message))

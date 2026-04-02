@@ -149,6 +149,7 @@ export interface ChatMessage {
   sessionId: string
   workspaceId: string
   prompt: string
+  model?: string
 }
 
 /**
