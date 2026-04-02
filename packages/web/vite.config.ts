@@ -13,6 +13,8 @@ export default defineConfig({
   },
   server: {
     port: 7033,
+    host: true,
+    allowedHosts: ['frogie.dev.hexly.ai'],
     proxy: {
       '/api': {
         target: 'http://localhost:7034',
