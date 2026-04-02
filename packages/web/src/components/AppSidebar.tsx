@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import {
-  MessageSquare,
   FolderOpen,
   Settings,
   ChevronUp,
@@ -38,17 +37,12 @@ interface NavGroup {
 
 const NAV_GROUPS: NavGroup[] = [
   {
-    label: 'Main',
-    defaultOpen: true,
-    items: [
-      { title: 'Chat', icon: MessageSquare, path: '/' },
-      { title: 'Workspaces', icon: FolderOpen, path: '/workspaces' },
-    ],
-  },
-  {
     label: 'System',
     defaultOpen: true,
-    items: [{ title: 'Settings', icon: Settings, path: '/settings' }],
+    items: [
+      { title: 'Workspaces', icon: FolderOpen, path: '/workspaces' },
+      { title: 'Settings', icon: Settings, path: '/settings' },
+    ],
   },
 ]
 
