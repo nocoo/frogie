@@ -47,33 +47,38 @@ This project synthesizes the best ideas from:
 
 ### Code Inheritance Strategy
 
-**Principle**: Core code should be **directly extracted and adapted** from reference projects, not reinvented. This ensures battle-tested implementations while meeting 6DQ (六维质量) requirements.
+**Principle**: Core modules (prompts, agentic loop, tools) should be **directly inherited** from reference projects — no reinventing wheels. Our focus is on:
 
-#### From Claude Code CLI
+1. **6DQ Compliance**: Add comprehensive tests to inherited code
+2. **Integration**: Wire everything together with proper architecture
+3. **UI/UX**: Build excellent browser-based experience
 
-| Module | Source Path | Target | Priority |
-|--------|-------------|--------|----------|
-| Tool Prompts | `src/tools/*.ts` (prompt functions) | `packages/server/src/tools/prompts/` | P0 |
-| Tool Definitions | `src/tools/*.ts` (schemas, call) | `packages/server/src/tools/` | P0 |
-| Permission Model | `src/permissions/` | `packages/server/src/permissions/` | P1 |
-| Skill System | `src/skills/` | `packages/server/src/skills/` | P2 |
-| Context Compression | `src/context/` | `packages/server/src/engine/compact.ts` | P0 |
+#### From Claude Code CLI (Direct Inheritance)
 
-#### From open-agent-sdk-typescript
+| Module | Source | Notes |
+|--------|--------|-------|
+| **Tool Prompts** | `src/tools/*.ts` | Core value, inherit as-is |
+| **Tool Definitions** | `src/tools/*.ts` | Schemas + execution logic |
+| **Context Compression** | `src/context/` | Proven compaction algorithm |
+| Permission Model | `src/permissions/` | Adapt for web |
+| Skill System | `src/skills/` | Future phase |
 
-| Module | Source Path | Target | Priority |
-|--------|-------------|--------|----------|
-| Agentic Loop | `src/agent.ts` | `packages/server/src/engine/query.ts` | P0 |
-| MCP Client | `src/mcp/` | `packages/server/src/mcp/` | P0 |
-| Message Types | `src/types/` | `packages/server/src/types/` | P0 |
-| Streaming Handler | `src/streaming/` | `packages/server/src/engine/stream.ts` | P1 |
+#### From open-agent-sdk-typescript (Direct Inheritance)
 
-#### Extraction Process
+| Module | Source | Notes |
+|--------|--------|-------|
+| **Agentic Loop** | `src/agent.ts` | Core loop logic |
+| **MCP Client** | `src/mcp/` | All transports |
+| **Message Types** | `src/types/` | Type definitions |
+| Streaming Handler | `src/streaming/` | SSE parsing |
 
-1. **Copy & Adapt**: Extract source code, adapt to Frogie's architecture
-2. **Add Tests First**: Write L1 tests before modifying (TDD)
-3. **Maintain Coverage**: Every extracted module must meet ≥ 95% coverage
-4. **Document Origin**: Add comments linking to source for traceability
+#### Our Value-Add (Frogie's Focus)
+
+| Area | What We Build |
+|------|---------------|
+| **6DQ** | L1/L2/L3 tests, G1/G2 gates, D1 isolation for all modules |
+| **Integration** | Hono server, WebSocket protocol, SQLite persistence |
+| **UI/UX** | Basalt Gen 2 MVVM, chat experience, tool visualization |
 
 ## Target Architecture
 
