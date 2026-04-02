@@ -3,12 +3,11 @@
   "compilerOptions": {
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "jsx": "react-jsx",
-    "outDir": "dist",
-    "rootDir": "src",
-    "baseUrl": ".",
+    "noEmit": true,
     "paths": {
-      "@/*": ["src/*"]
-    }
+      "@/*": ["./src/*"]
+    },
+    "types": ["vite/client"]
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]
