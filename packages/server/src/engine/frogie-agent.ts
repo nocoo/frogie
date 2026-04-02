@@ -112,11 +112,29 @@ export class FrogieAgent {
   }
 
   /**
-   * Set tools for the agent
+   * Set tools for the agent (replaces existing tools)
    */
   setTools(tools: ToolDefinition[], executor: ToolExecutor): void {
     this.tools = tools
     this.toolExecutor = executor
+  }
+
+  /**
+   * Add tools to the agent (appends to existing tools)
+   */
+  addTools(tools: ToolDefinition[], executor: ToolExecutor): void {
+    this.tools = [...this.tools, ...tools]
+    // Create a combined executor that routes to the appropriate executor
+    const existingExecutor = this.toolExecutor
+    const existingToolNames = new Set(this.tools.slice(0, -tools.length).map((t) => t.name))
+
+    this.toolExecutor = async (name, input, abortSignal) => {
+      // Route to existing executor for existing tools, new executor for new tools
+      if (existingToolNames.has(name) && existingExecutor) {
+        return existingExecutor(name, input, abortSignal)
+      }
+      return executor(name, input, abortSignal)
+    }
   }
 
   /**

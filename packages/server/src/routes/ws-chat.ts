@@ -215,11 +215,11 @@ async function handleChat(
       // Connect all enabled MCP servers for this workspace
       await state.mcpManager.connectForWorkspace(workspaceId, transportConfigs)
 
-      // Get MCP tools and inject them
+      // Get MCP tools and inject them (append to built-in tools)
       const mcpTools = state.mcpManager.getToolsForWorkspace(workspaceId)
       if (mcpTools.length > 0) {
         const mcpToolExecutor = createMCPToolExecutor()
-        agent.setTools(mcpTools, mcpToolExecutor)
+        agent.addTools(mcpTools, mcpToolExecutor)
       }
     } catch (err) {
       // Log MCP errors but don't fail the chat - continue with built-in tools
@@ -252,6 +252,9 @@ async function handleChat(
     // Save messages after query completes (append to history, not replace)
     const allMessages = agent.getMessages()
     await state.sessionSync.saveMessages(sessionId, allMessages)
+
+    // Emit session_saved event to confirm persistence
+    sendEvent(ws, { type: 'session_saved' })
   } catch (err) {
     sendEvent(ws, {
       type: 'error',
