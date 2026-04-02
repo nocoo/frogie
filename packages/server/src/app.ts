@@ -6,7 +6,7 @@
 
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
-import { errorHandler, logger } from './middleware'
+import { logger, ApiError, ErrorCodes } from './middleware'
 
 /**
  * Create the Hono application
@@ -26,8 +26,26 @@ export function createApp(): Hono {
   // Request logging
   app.use('*', logger)
 
-  // Error handling (wraps all routes)
-  app.use('*', errorHandler)
+  // Global error handler
+  app.onError((err, c) => {
+    if (err instanceof ApiError) {
+      return c.json(
+        { error: { code: err.code, message: err.message } },
+        err.status
+      )
+    }
+
+    console.error('Unexpected error:', err)
+    return c.json(
+      {
+        error: {
+          code: ErrorCodes.INTERNAL_ERROR,
+          message: err instanceof Error ? err.message : 'Internal server error',
+        },
+      },
+      500
+    )
+  })
 
   // Health check
   app.get('/health', (c) => {
