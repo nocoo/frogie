@@ -1,0 +1,18 @@
+{
+  "name": "frogie",
+  "private": true,
+  "workspaces": ["packages/*"],
+  "scripts": {
+    "dev": "bun run --parallel dev:server dev:web",
+    "dev:server": "bun run --cwd packages/server dev",
+    "dev:web": "bun run --cwd packages/web dev",
+    "build": "bun run --parallel build:server build:web",
+    "build:server": "bun run --cwd packages/server build",
+    "build:web": "bun run --cwd packages/web build",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint . --max-warnings 0",
+    "test": "vitest run",
+    "test:l2": "vitest run --project l2",
+    "test:l3": "playwright test"
+  }
+}

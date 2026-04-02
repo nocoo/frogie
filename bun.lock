@@ -1,0 +1,22 @@
+{
+  "lockfileVersion": 1,
+  "configVersion": 1,
+  "workspaces": {
+    "": {
+      "name": "frogie",
+    },
+    "packages/server": {
+      "name": "@frogie/server",
+      "version": "0.1.0",
+    },
+    "packages/web": {
+      "name": "@frogie/web",
+      "version": "0.1.0",
+    },
+  },
+  "packages": {
+    "@frogie/server": ["@frogie/server@workspace:packages/server"],
+
+    "@frogie/web": ["@frogie/web@workspace:packages/web"],
+  }
+}
