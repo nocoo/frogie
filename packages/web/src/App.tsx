@@ -1,5 +1,8 @@
 import { BrowserRouter, Routes, Route } from 'react-router'
 import { DashboardLayout } from '@/components/DashboardLayout'
+import { AuthProvider } from '@/components/AuthProvider'
+import { ProtectedRoute, PublicOnlyRoute } from '@/components/ProtectedRoute'
+import { LoginPage } from '@/pages/LoginPage'
 import { Toaster } from '@/components/ui/sonner'
 
 // Pages
@@ -37,14 +40,33 @@ function SettingsPage() {
 export default function App() {
   return (
     <BrowserRouter>
-      <Routes>
-        <Route element={<DashboardLayout />}>
-          <Route path="/" element={<ChatPage />} />
-          <Route path="/workspaces" element={<WorkspacesPage />} />
-          <Route path="/settings" element={<SettingsPage />} />
-        </Route>
-      </Routes>
-      <Toaster />
+      <AuthProvider>
+        <Routes>
+          {/* Public route - login page */}
+          <Route
+            path="/login"
+            element={
+              <PublicOnlyRoute>
+                <LoginPage />
+              </PublicOnlyRoute>
+            }
+          />
+
+          {/* Protected routes */}
+          <Route
+            element={
+              <ProtectedRoute>
+                <DashboardLayout />
+              </ProtectedRoute>
+            }
+          >
+            <Route path="/" element={<ChatPage />} />
+            <Route path="/workspaces" element={<WorkspacesPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
+          </Route>
+        </Routes>
+        <Toaster />
+      </AuthProvider>
     </BrowserRouter>
   )
 }
