@@ -3,20 +3,13 @@ import { DashboardLayout } from '@/components/DashboardLayout'
 import { AuthProvider } from '@/components/AuthProvider'
 import { ProtectedRoute, PublicOnlyRoute } from '@/components/ProtectedRoute'
 import { LoginPage } from '@/pages/LoginPage'
+import { SettingsPage } from '@/pages/SettingsPage'
+import { ChatPanel } from '@/components/chat'
 import { Toaster } from '@/components/ui/sonner'
 
 // Pages
 function ChatPage() {
-  return (
-    <div className="h-full flex flex-col items-center justify-center">
-      <div className="text-center">
-        <h2 className="text-2xl font-semibold mb-2">Start a conversation</h2>
-        <p className="text-muted-foreground">
-          Type a message to begin chatting with Frogie
-        </p>
-      </div>
-    </div>
-  )
+  return <ChatPanel />
 }
 
 function WorkspacesPage() {
@@ -24,15 +17,6 @@ function WorkspacesPage() {
     <div className="h-full">
       <h2 className="text-xl font-semibold mb-4">Workspaces</h2>
       <p className="text-muted-foreground">Manage your project workspaces</p>
-    </div>
-  )
-}
-
-function SettingsPage() {
-  return (
-    <div className="h-full">
-      <h2 className="text-xl font-semibold mb-4">Settings</h2>
-      <p className="text-muted-foreground">Configure your Frogie instance</p>
     </div>
   )
 }

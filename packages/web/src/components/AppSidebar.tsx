@@ -5,7 +5,6 @@ import {
   Settings,
   ChevronUp,
   PanelLeft,
-  Plus,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useNavigate, useLocation } from 'react-router'
@@ -16,6 +15,8 @@ import {
   TooltipTrigger,
   TooltipProvider,
 } from '@/components/ui/tooltip'
+import { WorkspaceSelector } from '@/components/sidebar/workspace-selector'
+import { SessionList } from '@/components/sidebar/session-list'
 
 // Navigation data model
 
@@ -146,7 +147,6 @@ interface AppSidebarProps {
 
 export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
   const location = useLocation()
-  const navigate = useNavigate()
 
   return (
     <TooltipProvider delayDuration={0}>
@@ -185,37 +185,16 @@ export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
           </Tooltip>
         </div>
 
-        {/* New Chat Button */}
-        <div className={cn('px-3 mb-2', collapsed && 'px-2')}>
-          {collapsed ? (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  onClick={() => {
-                    void navigate('/')
-                  }}
-                  className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors mx-auto"
-                >
-                  <Plus className="h-5 w-5" strokeWidth={2} />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="right">New Chat</TooltipContent>
-            </Tooltip>
-          ) : (
-            <button
-              onClick={() => {
-                void navigate('/')
-              }}
-              className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
-            >
-              <Plus className="h-4 w-4" strokeWidth={2} />
-              New Chat
-            </button>
-          )}
+        {/* Workspace Selector */}
+        <WorkspaceSelector collapsed={collapsed} />
+
+        {/* Session List */}
+        <div className="border-t border-sidebar-border">
+          <SessionList collapsed={collapsed} />
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto">
+        <nav className="flex-1 overflow-y-auto border-t border-sidebar-border">
           {NAV_GROUPS.map((group) => (
             <NavGroupSection
               key={group.label}
