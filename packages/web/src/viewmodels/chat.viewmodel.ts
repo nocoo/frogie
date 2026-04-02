@@ -2,6 +2,7 @@
  * Chat ViewModel
  *
  * Zustand store for real-time chat with WebSocket.
+ * Includes auto-reconnection with exponential backoff.
  */
 
 import { create } from 'zustand'
@@ -16,6 +17,16 @@ import type {
  * Chat connection status
  */
 type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error'
+
+/**
+ * Reconnection config
+ */
+const RECONNECT_CONFIG = {
+  initialDelay: 1000, // 1s
+  maxDelay: 30000, // 30s
+  backoffMultiplier: 2,
+  maxRetries: 10,
+} as const
 
 /**
  * Chat store state
@@ -48,6 +59,11 @@ interface ChatState {
     durationMs: number
   } | null
 
+  /** Reconnection state (internal) */
+  _reconnectAttempts: number
+  _reconnectTimeout: ReturnType<typeof setTimeout> | null
+  _intentionalDisconnect: boolean
+
   /** Connect to WebSocket */
   connect: () => void
 
@@ -71,6 +87,9 @@ interface ChatState {
 
   /** Handle incoming events (internal) */
   handleEvent: (event: AgentEvent) => void
+
+  /** Schedule reconnection (internal) */
+  _scheduleReconnect: () => void
 }
 
 /**
@@ -91,23 +110,42 @@ export const useChatStore = create<ChatState>((set, get) => ({
   isProcessing: false,
   error: null,
   turnStats: null,
+  _reconnectAttempts: 0,
+  _reconnectTimeout: null,
+  _intentionalDisconnect: false,
 
   connect: () => {
-    const { ws, status } = get()
+    const { ws, status, _reconnectTimeout } = get()
     if (ws || status === 'connecting') return
 
-    set({ status: 'connecting', error: null })
+    // Clear any pending reconnect
+    if (_reconnectTimeout) {
+      clearTimeout(_reconnectTimeout)
+      set({ _reconnectTimeout: null })
+    }
+
+    set({ status: 'connecting', error: null, _intentionalDisconnect: false })
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     const wsUrl = `${protocol}//${window.location.host}/ws`
     const socket = new WebSocket(wsUrl)
 
     socket.onopen = () => {
-      set({ ws: socket, status: 'connected' })
+      set({
+        ws: socket,
+        status: 'connected',
+        _reconnectAttempts: 0, // Reset on successful connection
+      })
     }
 
     socket.onclose = () => {
       set({ ws: null, status: 'disconnected' })
+
+      // Auto-reconnect if not intentional
+      const state = get()
+      if (!state._intentionalDisconnect) {
+        state._scheduleReconnect()
+      }
     }
 
     socket.onerror = () => {
@@ -125,7 +163,20 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   disconnect: () => {
-    const { ws } = get()
+    const { ws, _reconnectTimeout } = get()
+
+    // Clear any pending reconnect
+    if (_reconnectTimeout) {
+      clearTimeout(_reconnectTimeout)
+    }
+
+    // Mark as intentional disconnect to prevent auto-reconnect
+    set({
+      _intentionalDisconnect: true,
+      _reconnectTimeout: null,
+      _reconnectAttempts: 0,
+    })
+
     if (ws) {
       ws.close()
       set({ ws: null, status: 'disconnected' })
@@ -328,5 +379,30 @@ export const useChatStore = create<ChatState>((set, get) => ({
         // These events are informational, no state update needed
         break
     }
+  },
+
+  _scheduleReconnect: () => {
+    const { _reconnectAttempts, _intentionalDisconnect } = get()
+
+    // Don't reconnect if intentionally disconnected or max retries reached
+    if (_intentionalDisconnect || _reconnectAttempts >= RECONNECT_CONFIG.maxRetries) {
+      if (_reconnectAttempts >= RECONNECT_CONFIG.maxRetries) {
+        set({ error: 'Connection lost. Please refresh the page.' })
+      }
+      return
+    }
+
+    // Calculate delay with exponential backoff
+    const delay = Math.min(
+      RECONNECT_CONFIG.initialDelay * Math.pow(RECONNECT_CONFIG.backoffMultiplier, _reconnectAttempts),
+      RECONNECT_CONFIG.maxDelay
+    )
+
+    const timeout = setTimeout(() => {
+      set({ _reconnectAttempts: _reconnectAttempts + 1 })
+      get().connect()
+    }, delay)
+
+    set({ _reconnectTimeout: timeout })
   },
 }))
