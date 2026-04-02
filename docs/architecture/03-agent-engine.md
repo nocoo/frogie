@@ -516,7 +516,7 @@ export function microCompact(messages: Message[], maxChars = 50000): Message[] {
 
 ### Concurrency Control
 
-Inspired by Claude Code CLI's `StreamingToolExecutor`:
+Tool execution implements concurrent read-only operations with serial mutations:
 
 ```typescript
 // packages/server/src/engine/tool-executor.ts

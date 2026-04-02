@@ -33,19 +33,19 @@ Frogie is a **local-first web shell for an agent engine** — a browser-based in
 
 - Mobile-first design (desktop browser is primary target)
 - Collaborative editing (single-user focus)
-- Cloud deployment (local-only, equivalent to Claude Code CLI with a web UI)
-- Sandboxed execution (runs with full user permissions, like Claude Code CLI)
+- Cloud deployment (local-only)
+- Sandboxed execution (runs with full user permissions)
 
 ## Reference Projects
 
-| Project | Link | Role |
-|---------|------|------|
-| **open-agent-sdk** | [GitHub](https://github.com/codeany-ai/open-agent-sdk-typescript) | **Engine base** — Agent, QueryEngine, MCP, session |
-| **Claude Code CLI** | [Anthropic](https://claude.com/claude-code) | **Design reference** — product patterns, prompts, permission design |
+| Project | Role |
+|---------|------|
+| **open-agent-sdk** | **Engine base** — Agent, QueryEngine, MCP, session ([GitHub](https://github.com/codeany-ai/open-agent-sdk-typescript)) |
+| **Claude Code CLI** | **Design reference** — product patterns, prompts, permission design |
 
 ### Architecture Strategy
 
-**Principle**: open-agent-sdk is the engine; Claude Code is the design reference. We don't clone Claude Code — we build a web shell around a working agent engine.
+**Principle**: open-agent-sdk is the engine; Claude Code CLI is an important design reference. We study mature products to build a web-based coding platform.
 
 #### open-agent-sdk as Engine Base
 
@@ -68,9 +68,9 @@ Frogie builds a **thin adapter layer** on top:
 
 This follows open-agent-sdk's own web example pattern (`examples/web/server.ts`).
 
-#### Claude Code as Design Reference (Not Code Base)
+#### Claude Code CLI as Design Reference
 
-Claude Code CLI is a heavy product system — permissions, bridges, UI, remote, feature flags, skills, workers are all intertwined. We **study its product design**, not copy its code:
+Claude Code CLI is an important reference for product design. We study its patterns to inform our implementation:
 
 | What We Study | Source | What We Build |
 |---------------|--------|---------------|
@@ -197,7 +197,7 @@ These settings are persisted in SQLite (`~/.frogie/frogie.db`).
 ```
 
 **Key Points**:
-- Everything runs locally on user's machine (like Claude Code CLI)
+- Everything runs locally on user's machine
 - No cloud deployment, no sandboxing
 - MCP servers are spawned as child processes by Frogie Server
 - Tool execution has full user permissions (cwd = workspace path)

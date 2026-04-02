@@ -182,7 +182,7 @@ LLM configuration is stored in the `settings` table and managed via the web UI:
 
 ## Security Model
 
-Frogie runs locally with **full user permissions**, identical to Claude Code CLI. There is no sandbox.
+Frogie runs locally with **full user permissions**. There is no sandbox.
 
 1. **No Sandbox**
    - Tools execute with the same permissions as the user running Frogie
@@ -190,7 +190,7 @@ Frogie runs locally with **full user permissions**, identical to Claude Code CLI
    - Bash commands run unrestricted in the workspace directory
 
 2. **Trust Model**
-   - User trusts the AI agent (same as trusting Claude Code CLI)
+   - User trusts the AI agent
    - No permission confirmation dialogs - operations execute immediately
    - This is intentional: Frogie is a power-user tool, not a restricted environment
 

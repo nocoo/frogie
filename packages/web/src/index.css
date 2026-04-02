@@ -4,8 +4,12 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /*
- * Map the shadcn/ui CSS-variable design tokens to Tailwind v4 theme
- * namespace so utilities like bg-background, text-foreground, etc. work.
+ * Map CSS-variable design tokens to Tailwind v4 theme namespace
+ * so utilities like bg-background, text-foreground, etc. work.
+ *
+ * Color space: HSL (basalt design system).
+ * Primary: Green.
+ * Luminance: 3-tier (L0 body > L1 card > L2 secondary).
  */
 @theme inline {
   --color-border: hsl(var(--border));
@@ -47,14 +51,18 @@
   --color-success: hsl(var(--success));
   --color-success-foreground: hsl(var(--success-foreground));
 
+  /* Radius tokens */
   --radius-card: 14px;
   --radius-widget: 10px;
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 2px);
   --radius-sm: calc(var(--radius) - 4px);
 
+  /* Animations */
   --animate-accordion-down: accordion-down 0.2s ease-out;
   --animate-accordion-up: accordion-up 0.2s ease-out;
+  --animate-collapsible-down: collapsible-down 0.2s ease-out;
+  --animate-collapsible-up: collapsible-up 0.2s ease-out;
 }
 
 @keyframes accordion-down {
@@ -67,22 +75,38 @@
   to { height: 0; }
 }
 
+@keyframes collapsible-down {
+  from { height: 0; }
+  to { height: var(--radix-collapsible-content-height); }
+}
+
+@keyframes collapsible-up {
+  from { height: var(--radix-collapsible-content-height); }
+  to { height: 0; }
+}
+
 /*
- * Light theme (default)
+ * Design tokens — light (default) & dark mode
+ * 3-tier luminance: L0 (background) > L1 (card) > L2 (secondary)
+ * Primary: Green
  */
 :root {
-  --background: 0 0% 96%;
+  /* L0 body */
+  --background: 220 14% 94%;
   --foreground: 0 0% 12%;
 
-  --card: 0 0% 100%;
+  /* L1 content panel */
+  --card: 220 14% 97%;
   --card-foreground: 0 0% 12%;
 
-  --secondary: 220 14% 95%;
+  /* L2 inner cards */
+  --secondary: 0 0% 100%;
   --secondary-foreground: 0 0% 12%;
 
   --popover: 0 0% 100%;
   --popover-foreground: 0 0% 12%;
 
+  /* Green primary */
   --primary: 142 71% 45%;
   --primary-foreground: 0 0% 100%;
 
@@ -116,20 +140,25 @@
 
 /*
  * Dark theme
+ * 3-tier luminance: L0 #171717 > L1 #1b1b1b > L2 #1f1f1f
  */
 .dark {
+  /* L0 body: #171717 */
   --background: 0 0% 9%;
   --foreground: 0 0% 93%;
 
+  /* L1 content panel: #1b1b1b */
   --card: 0 0% 10.6%;
   --card-foreground: 0 0% 93%;
 
+  /* L2 inner cards: #1f1f1f */
   --secondary: 0 0% 12.2%;
   --secondary-foreground: 0 0% 93%;
 
   --popover: 0 0% 10.6%;
   --popover-foreground: 0 0% 93%;
 
+  /* Green primary */
   --primary: 142 71% 45%;
   --primary-foreground: 0 0% 100%;
 

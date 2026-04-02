@@ -2,7 +2,7 @@
 
 ## Overview
 
-Frogie's tool system is directly inspired by Claude Code CLI's design. The key insight is that **tool prompts are the core value** - detailed instructions that guide the LLM on how to use each tool effectively.
+Frogie's tool system is inspired by mature CLI tools like Claude Code CLI. The key insight is that **tool prompts are the core value** - detailed instructions that guide the LLM on how to use each tool effectively.
 
 ## Tool Definition
 
@@ -156,7 +156,7 @@ export const BashTool = defineTool({
 
 #### Read Tool
 
-Following Claude Code's defensive patterns (`FileReadTool.ts:96`), the Read tool handles:
+The Read tool implements defensive patterns for file reading:
 - Path expansion (~ → home, symlink resolution)
 - Device file rejection (/dev/*, /proc/*)
 - Size limits to prevent memory exhaustion
@@ -235,7 +235,7 @@ export const ReadTool = defineTool({
 
 #### Edit Tool
 
-Following Claude Code's defensive patterns (`FileEditTool.ts:137`), the Edit tool handles:
+The Edit tool implements defensive patterns for file editing:
 - File existence validation before edit
 - Uniqueness check for old_string
 - Diff feedback showing what changed
@@ -313,7 +313,7 @@ export const EditTool = defineTool({
 
 ## Tool Prompts (Core Value)
 
-The detailed prompts are the heart of Claude Code's effectiveness. These will be ported from Claude Code CLI.
+Detailed prompts are the heart of effective tool usage. Well-crafted prompts guide the LLM on how to use each tool correctly.
 
 ### Bash Prompt
 
@@ -385,7 +385,7 @@ Usage:
 
 ## Tool Pool Assembly
 
-Following Claude Code CLI's pattern (`src/tools.ts:354`), tool pool assembly uses **built-in-first precedence** with `uniqBy` to resolve name conflicts:
+Tool pool assembly uses **built-in-first precedence** with `uniqBy` to resolve name conflicts:
 
 ```typescript
 // packages/server/src/tools/pool.ts
@@ -405,7 +405,7 @@ export interface DenyRule {
 }
 
 /**
- * Assemble final tool pool with Claude Code-style precedence:
+ * Assemble final tool pool with built-in-first precedence:
  * 1. Apply deny rules to MCP tools first
  * 2. Sort built-in tools by name (stable for prompt cache)
  * 3. Sort allowed MCP tools by name
@@ -413,9 +413,8 @@ export interface DenyRule {
  * 5. uniqBy('name') — preserves first occurrence, so BUILT-IN WINS on conflict
  * 6. Apply allowlist filter (if set)
  * 
- * Key insight from Claude Code: built-ins are kept as a contiguous prefix
- * for prompt-cache stability. uniqBy preserves insertion order, so built-ins
- * win on name conflict (not MCP).
+ * Built-ins are kept as a contiguous prefix for prompt-cache stability.
+ * uniqBy preserves insertion order, so built-ins win on name conflict.
  */
 export function assembleToolPool(config: ToolPoolConfig): ToolDefinition[] {
   const { builtinTools, mcpTools, denyRules = [], allowedTools } = config
@@ -474,7 +473,7 @@ export function formatToolsForAPI(tools: ToolDefinition[]): AnthropicTool[] {
 
 ## Future: Skill System
 
-Skills are user-defined prompt templates that extend agent capabilities. This will be implemented in a future version, following Claude Code CLI's pattern.
+Skills are user-defined prompt templates that extend agent capabilities. This will be implemented in a future version.
 
 ```typescript
 // Future: packages/server/src/skills/types.ts

@@ -21,7 +21,7 @@
 
 ## 这是什么
 
-Frogie 是一个浏览器端的 Agent 交互界面，封装了 [open-agent-sdk](https://github.com/codeany-ai/open-agent-sdk-typescript)，提供多工作区管理、会话持久化和丰富的工具可视化。它运行在本地机器上，拥有完整的文件系统访问权限——类似 Claude Code CLI 的 Web 版本。
+Frogie 是一个基于 Web 的 Coding 平台，封装了 [open-agent-sdk](https://github.com/codeany-ai/open-agent-sdk-typescript)，提供多工作区管理、会话持久化和丰富的工具可视化。它运行在本地机器上，拥有完整的文件系统访问权限。
 
 ```
 ┌─────────────────────────────────────────────────────┐
