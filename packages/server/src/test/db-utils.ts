@@ -12,15 +12,20 @@ import { join } from 'path'
 
 const TEST_DB_DIR = join(tmpdir(), 'frogie-test-dbs')
 
-// Ensure test DB directory exists
-if (!existsSync(TEST_DB_DIR)) {
-  mkdirSync(TEST_DB_DIR, { recursive: true })
+/**
+ * Ensure test DB directory exists
+ */
+function ensureTestDbDir(): void {
+  if (!existsSync(TEST_DB_DIR)) {
+    mkdirSync(TEST_DB_DIR, { recursive: true })
+  }
 }
 
 /**
  * Generate a unique test database path
  */
 export function getTestDbPath(): string {
+  ensureTestDbDir()
   const id = randomUUID()
   return join(TEST_DB_DIR, `frogie-test-${id}.db`)
 }
