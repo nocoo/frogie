@@ -75,7 +75,57 @@ This project synthesizes the best ideas from:
 |----------|--------|-----------|
 | Runtime | Bun | Fast startup, native TypeScript, good DX |
 | Web Framework | Hono | Lightweight, fast, good WebSocket support |
-| Frontend | React + Vite | Modern, fast HMR, rich ecosystem |
+| Frontend | React 19 + Vite 7 | Modern, fast HMR, Basalt template ecosystem |
+| UI Architecture | MVVM (Basalt Gen 2) | Clear separation: Model → ViewModel → View |
 | Database | SQLite (better-sqlite3) | Simple, no external deps, sufficient for single-user |
 | API Format | OpenAI-compatible | Works with many providers, well-documented |
 | Communication | WebSocket | Bidirectional, supports streaming, interrupts |
+
+## Quality System (六维质量体系)
+
+Frogie follows the **Six-Dimension Quality System**: 3 test layers (L1/L2/L3) + 2 quality gates (G1/G2) + 1 isolation layer (D1).
+
+### Development Approach
+
+- **Test-Driven Development (TDD)**: Tests first, implementation follows
+- **Coverage Target**: ≥ 95% for core modules (Model, ViewModel, transformers, utilities)
+- **UI Exception**: View components (thin UI shells) are exempt from coverage requirements
+
+### Quality Dimensions
+
+| Dimension | Description | Timing | Target |
+|-----------|-------------|--------|--------|
+| **L1** Unit/Component | ViewModel, Model, transformers, hooks, utils | pre-commit | ≥ 95% coverage |
+| **L2** Integration/API | Real HTTP requests, WebSocket, DB operations | pre-push | 100% API endpoints |
+| **L3** System/E2E | Playwright browser tests, user flows | CI/manual | Core business paths |
+| **G1** Static Analysis | TypeScript strict + ESLint strict + 0 warnings | pre-commit | 0 errors/warnings |
+| **G2** Security Scan | osv-scanner (deps) + gitleaks (secrets) | pre-push | 0 vulnerabilities |
+| **D1** Test Isolation | Separate test DB instance, never touch prod | always | Physical isolation |
+
+### Tier Target: S
+
+To achieve S-tier quality rating, all six dimensions must pass:
+
+```
+L1 ✅ + L2 ✅ + L3 ✅ + G1 ✅ + G2 ✅ + D1 ✅ = Tier S
+```
+
+### Hook Mapping (Husky)
+
+```
+pre-commit (<30s):  L1 (unit tests + coverage) + G1 (typecheck + lint)
+pre-push (<3min):   D1 (verify test DB) → L2 (API E2E) ‖ G2 (security scan)
+CI/manual:          L3 (Playwright E2E)
+```
+
+### Coverage Strategy
+
+| Module Type | Coverage Requirement | Rationale |
+|-------------|---------------------|-----------|
+| **Model** (types, schemas) | ≥ 95% | Core data structures |
+| **ViewModel** (state logic) | ≥ 95% | Business logic hub |
+| **Transformers** (data conversion) | ≥ 95% | Critical data flow |
+| **Hooks** (custom React hooks) | ≥ 95% | Reusable logic |
+| **Utils** (pure functions) | ≥ 95% | Foundational utilities |
+| **View** (UI components) | Exempt | Thin presentation layer |
+| **page.tsx / layout.tsx** | Exempt | Routing shells |
