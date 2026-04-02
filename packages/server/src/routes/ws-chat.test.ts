@@ -34,8 +34,15 @@ vi.mock('../engine/frogie-agent', () => ({
       }),
       interrupt: vi.fn(),
       getMessages: vi.fn(() => []),
+      setTools: vi.fn(),
     })),
   },
+}))
+
+// Mock builtin-tools
+vi.mock('../engine/builtin-tools', () => ({
+  BUILTIN_TOOLS: [],
+  createBuiltinToolExecutor: vi.fn(() => vi.fn()),
 }))
 
 /**
@@ -274,6 +281,36 @@ describe('ws-chat', () => {
       const response = JSON.parse(ws.sentMessages[0] ?? '{}') as { type: string; code: string }
       expect(response.type).toBe('error')
       expect(response.code).toBe('SESSION_NOT_FOUND')
+    })
+    it('should send error for session not belonging to workspace', async () => {
+      // Create another workspace
+      const otherDir = createTempDir('other-workspace')
+      tempDirs.push(otherDir)
+      const otherWorkspace = createWorkspace(db, { name: 'Other', path: otherDir })
+
+      const handler = createWSHandler(db, messageStore)
+      const ws = createMockWebSocket()
+      const state = handler.handleOpen(ws)
+
+      // Try to use session from first workspace with second workspace ID
+      handler.handleMessage(
+        ws,
+        state,
+        JSON.stringify({
+          type: 'chat',
+          sessionId, // belongs to first workspace
+          workspaceId: otherWorkspace.id, // but using second workspace
+          prompt: 'Hello',
+        })
+      )
+
+      // Wait for async handling
+      await new Promise((resolve) => setTimeout(resolve, 10))
+
+      expect(ws.sentMessages.length).toBe(1)
+      const response = JSON.parse(ws.sentMessages[0] ?? '{}') as { type: string; code: string }
+      expect(response.type).toBe('error')
+      expect(response.code).toBe('SESSION_WORKSPACE_MISMATCH')
     })
   })
 

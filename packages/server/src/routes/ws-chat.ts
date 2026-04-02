@@ -15,6 +15,7 @@ import type {
 } from '../engine/types'
 import { FrogieAgent } from '../engine/frogie-agent'
 import { SessionSync, type MessageStore } from '../engine/session-sync'
+import { BUILTIN_TOOLS, createBuiltinToolExecutor } from '../engine/builtin-tools'
 import { getWorkspace, getSettings } from '../db'
 
 /**
@@ -129,8 +130,22 @@ async function handleChat(
     return
   }
 
+  // CRITICAL: Verify session belongs to the specified workspace
+  if (session.workspace_id !== workspaceId) {
+    sendEvent(ws, {
+      type: 'error',
+      message: `Session ${sessionId} does not belong to workspace ${workspaceId}`,
+      code: 'SESSION_WORKSPACE_MISMATCH',
+    })
+    return
+  }
+
   // Get global settings
   const settings = getSettings(state.db)
+
+  // Load existing conversation history for multi-turn context
+  const sessionWithMessages = await state.sessionSync.getSessionWithMessages(sessionId)
+  const existingMessages = sessionWithMessages?.messages ?? []
 
   // Create abort controller for this query
   const abortController = new AbortController()
@@ -147,8 +162,14 @@ async function handleChat(
     abortController,
   }
 
-  // Create agent
-  const agent = FrogieAgent.create(config)
+  // Create agent with restored conversation context
+  const agent = FrogieAgent.create(config, existingMessages)
+
+  // Inject built-in tools
+  const toolExecutor = createBuiltinToolExecutor(workspace.path)
+  agent.setTools(BUILTIN_TOOLS, toolExecutor)
+
+  // TODO: Load MCP tools from workspace config and inject them
 
   // Track active session
   state.activeSessions.set(sessionId, { agent, abortController })
@@ -169,9 +190,9 @@ async function handleChat(
       }
     }
 
-    // Save messages after query completes
-    const messages = agent.getMessages()
-    await state.sessionSync.saveMessages(sessionId, messages)
+    // Save messages after query completes (append to history, not replace)
+    const allMessages = agent.getMessages()
+    await state.sessionSync.saveMessages(sessionId, allMessages)
   } catch (err) {
     sendEvent(ws, {
       type: 'error',

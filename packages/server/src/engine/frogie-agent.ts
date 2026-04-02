@@ -78,12 +78,17 @@ export class FrogieAgent {
   private tools: ToolDefinition[] = []
   private toolExecutor: ToolExecutor | null = null
 
-  private constructor(config: AgentConfig) {
+  private constructor(config: AgentConfig, initialMessages?: Message[]) {
     this.config = config
     this.client = new Anthropic({
       apiKey: config.apiKey,
       baseURL: config.baseUrl,
     })
+
+    // Restore conversation history if provided
+    if (initialMessages && initialMessages.length > 0) {
+      this.messages = [...initialMessages]
+    }
 
     // Set up abort handler
     if (config.abortController) {
@@ -95,9 +100,12 @@ export class FrogieAgent {
 
   /**
    * Create a new FrogieAgent instance
+   *
+   * @param config - Agent configuration
+   * @param initialMessages - Optional initial messages to restore conversation context
    */
-  static create(config: AgentConfig): FrogieAgent {
-    return new FrogieAgent(config)
+  static create(config: AgentConfig, initialMessages?: Message[]): FrogieAgent {
+    return new FrogieAgent(config, initialMessages)
   }
 
   /**
