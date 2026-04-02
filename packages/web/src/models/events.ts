@@ -66,7 +66,7 @@ export interface CompactStartEvent {
  */
 export interface CompactDoneEvent {
   type: 'compact_done'
-  tokensSaved: number
+  summary: string
 }
 
 /**
@@ -94,7 +94,6 @@ export interface BudgetExceededEvent {
  */
 export interface SessionSavedEvent {
   type: 'session_saved'
-  sessionId: string
 }
 
 /**

@@ -11,7 +11,7 @@ Frogie uses a combination of WebSocket (for real-time chat) and REST (for CRUD o
 ### Connection
 
 ```
-ws://localhost:7034/ws/chat
+ws://localhost:7034/ws
 ```
 
 ### Client → Server Messages
@@ -362,7 +362,7 @@ app.route('/api/workspaces', workspacesRouter)
 app.route('/api/settings', settingsRouter)
 
 // WebSocket
-app.get('/ws/chat', upgradeWebSocket((c) => ({
+app.get('/ws', upgradeWebSocket((c) => ({
   onMessage(event, ws) {
     const msg = JSON.parse(event.data.toString())
     handleWebSocketMessage(msg, ws)
