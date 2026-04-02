@@ -1,0 +1,18 @@
+# L1 + G1: pre-commit hook
+# Target: <30s execution time
+
+echo "🔍 Running pre-commit checks..."
+
+# G1: TypeScript type check
+echo "📝 Type checking..."
+bun run typecheck || exit 1
+
+# G1: ESLint
+echo "🧹 Linting..."
+bun run lint || exit 1
+
+# L1: Unit tests
+echo "🧪 Running tests..."
+bun run test || exit 1
+
+echo "✅ Pre-commit checks passed!"
