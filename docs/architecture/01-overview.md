@@ -38,11 +38,10 @@ Frogie is a **local-first web shell for an agent engine** — a browser-based in
 
 ## Reference Projects
 
-| Project | Path | Role |
+| Project | Link | Role |
 |---------|------|------|
-| **open-agent-sdk** | `/Users/nocoo/workspace/reference/open-agent-sdk-typescript` | **Engine base** — Agent, QueryEngine, MCP, session |
-| **Claude Code CLI** | `/Users/nocoo/workspace/reference/claude-code` | **Design reference** — product patterns, prompts, permission design |
-| **Raven Proxy** | `/Users/nocoo/workspace/personal/raven` | LLM API proxy, upstream routing |
+| **open-agent-sdk** | [GitHub](https://github.com/codeany-ai/open-agent-sdk-typescript) | **Engine base** — Agent, QueryEngine, MCP, session |
+| **Claude Code CLI** | [Anthropic](https://claude.com/claude-code) | **Design reference** — product patterns, prompts, permission design |
 
 ### Architecture Strategy
 
@@ -101,14 +100,14 @@ Frogie uses **Anthropic Messages API** as the primary protocol:
 
 ### Port Allocation
 
-Following the family project port convention (ascending from 7002):
+Default development ports:
 
-| Port | Component | Domain | Notes |
-|------|-----------|--------|-------|
-| 7033 | frogie-web | `frogie.dev.hexly.ai` | Web UI (Vite dev server) |
-| 7034 | frogie-server | — | Agent Server (Hono), no Caddy |
-| 17033 | — | — | Reserved for L2 API E2E tests |
-| 27033 | — | — | Reserved for L3 Playwright E2E |
+| Port | Component | Notes |
+|------|-----------|-------|
+| 7033 | frogie-web | Web UI (Vite dev server) |
+| 7034 | frogie-server | Agent Server (Hono) |
+| 17033 | — | Reserved for L2 API E2E tests |
+| 27033 | — | Reserved for L3 Playwright E2E |
 
 ### Local Development
 
@@ -117,26 +116,26 @@ Following the family project port convention (ascending from 7002):
 bun run dev
 
 # Or start individually
-bun run dev:web      # Web UI at https://frogie.dev.hexly.ai (via Caddy)
+bun run dev:web      # Web UI at http://localhost:7033
 bun run dev:server   # Agent Server at http://localhost:7034
 ```
 
-### Domain Setup
+### Custom Domain Setup (Optional)
 
-Uses the standard `*.dev.hexly.ai` Caddy + mkcert setup:
+For HTTPS local development, you can configure a reverse proxy (e.g., Caddy, nginx) with custom certificates.
 
-```
-https://frogie.dev.hexly.ai → Caddy TLS → localhost:7033
-```
-
-Add to `/opt/homebrew/etc/Caddyfile`:
+Example Caddy configuration:
 
 ```caddyfile
-frogie.dev.hexly.ai {
+your-domain.local {
     reverse_proxy localhost:7033
-    tls /Users/nocoo/workspace/personal/workflow/certs/cert.pem /Users/nocoo/workspace/personal/workflow/certs/key.pem
+    tls /path/to/cert.pem /path/to/key.pem
 }
 ```
+
+Then add your domain to environment variables:
+- `VITE_ALLOWED_HOSTS=your-domain.local` (for Vite)
+- `CORS_ORIGINS=https://your-domain.local` (for server)
 
 ## LLM API Configuration
 
@@ -146,10 +145,12 @@ Frogie connects to LLM APIs through **Raven Proxy**.
 
 ```
 ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│  Frogie Server  │────▶│  Raven Proxy    │────▶│  Anthropic API  │
-│  :7034          │     │  :7024          │     │  (Claude)       │
+│  Frogie Server  │────▶│  LLM API Proxy  │────▶│  Anthropic API  │
+│  :7034          │     │  (optional)     │     │  (Claude)       │
 └─────────────────┘     └─────────────────┘     └─────────────────┘
 ```
+
+You can connect directly to Anthropic API or use a proxy for upstream routing.
 
 ### User Configuration
 
@@ -157,7 +158,7 @@ Settings are configured in the Frogie web UI Settings page:
 
 | Setting | Description | Example |
 |---------|-------------|---------|
-| **API URL** | Anthropic API base URL | `http://localhost:7024/v1` |
+| **API URL** | Anthropic API base URL | `https://api.anthropic.com` |
 | **API Key** | Bearer token for authentication | (from Raven or provider) |
 | **Model** | Default model for new sessions | `claude-sonnet-4-6` |
 
@@ -167,7 +168,7 @@ These settings are persisted in SQLite (`~/.frogie/frogie.db`).
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│           Browser (frogie.dev.hexly.ai)             │
+│              Browser (localhost:7033)               │
 │  React 19 + Vite 7 + Tailwind CSS 4                │
 │  - Chat interface                                   │
 │  - Tool visualization                               │
@@ -185,8 +186,8 @@ These settings are persisted in SQLite (`~/.frogie/frogie.db`).
 └───────────┬─────────────────────────┬───────────────┘
             │ HTTP                    │ stdio/sse/http
 ┌───────────▼───────────┐   ┌────────▼────────┐
-│   Raven Proxy (:7024) │   │   MCP Servers   │
-│   (upstream routing)  │   │   (local spawn) │
+│   LLM API Proxy       │   │   MCP Servers   │
+│   (optional)          │   │   (local spawn) │
 └───────────┬───────────┘   └─────────────────┘
             │
 ┌───────────▼───────────┐
