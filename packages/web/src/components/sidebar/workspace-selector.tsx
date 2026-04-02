@@ -103,7 +103,7 @@ export function WorkspaceSelector({ collapsed = false }: WorkspaceSelectorProps)
           }}
           className={cn(
             'flex w-full items-center justify-between rounded-lg border px-3 py-2 text-sm',
-            'bg-background hover:bg-accent transition-colors'
+            'bg-input hover:bg-accent transition-colors'
           )}
           disabled={isLoading}
         >
