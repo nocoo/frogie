@@ -10,7 +10,7 @@ import { createAuthRouter } from './router'
 import { authMiddleware } from './middleware'
 import { createToken } from './jwt'
 import { getTestDbPath, cleanupTestDb } from '../test/db-utils'
-import type { Database as DatabaseType } from 'better-sqlite3'
+import type { DatabaseLike } from '../db/connection'
 import type { AuthConfig } from './config'
 
 // Mock fetch for Google OAuth
@@ -19,7 +19,7 @@ vi.stubGlobal('fetch', mockFetch)
 
 describe('auth/router', () => {
   let testDbPath: string
-  let db: DatabaseType
+  let db: DatabaseLike
   let app: Hono
   const testSecret = 'test-jwt-secret-12345'
 

@@ -4,7 +4,7 @@
  * Manages global application settings (single row, id='global')
  */
 
-import type { Database as DatabaseType } from 'better-sqlite3'
+import type { DatabaseLike } from '../connection'
 import type { Settings, SettingsUpdate } from '../types'
 
 const SETTINGS_ID = 'global'
@@ -14,7 +14,7 @@ const SETTINGS_ID = 'global'
  *
  * @returns Current settings (always exists after migrations)
  */
-export function getSettings(db: DatabaseType): Settings {
+export function getSettings(db: DatabaseLike): Settings {
   const settings = db.prepare('SELECT * FROM settings WHERE id = ?').get(SETTINGS_ID) as
     | Settings
     | undefined
@@ -33,7 +33,7 @@ export function getSettings(db: DatabaseType): Settings {
  * @returns Updated settings
  */
 export function updateSettings(
-  db: DatabaseType,
+  db: DatabaseLike,
   update: SettingsUpdate
 ): Settings {
   const current = getSettings(db)
@@ -77,7 +77,7 @@ export function updateSettings(
  *
  * @returns Reset settings
  */
-export function resetSettings(db: DatabaseType): Settings {
+export function resetSettings(db: DatabaseLike): Settings {
   const now = Date.now()
 
   db.prepare(

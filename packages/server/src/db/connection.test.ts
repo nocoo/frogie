@@ -23,14 +23,15 @@ describe('db/connection', () => {
 
     it('should enable WAL mode', () => {
       const db = initDb(testDbPath)
-      const result = db.pragma('journal_mode') as { journal_mode: string }[]
-      expect(result[0]?.journal_mode).toBe('wal')
+      // better-sqlite3 uses pragma(), bun:sqlite uses query()
+      const result = db.prepare('PRAGMA journal_mode').get() as { journal_mode: string }
+      expect(result.journal_mode).toBe('wal')
     })
 
     it('should enable foreign keys', () => {
       const db = initDb(testDbPath)
-      const result = db.pragma('foreign_keys') as { foreign_keys: number }[]
-      expect(result[0]?.foreign_keys).toBe(1)
+      const result = db.prepare('PRAGMA foreign_keys').get() as { foreign_keys: number }
+      expect(result.foreign_keys).toBe(1)
     })
 
     it('should return same instance on subsequent calls', () => {

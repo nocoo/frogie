@@ -9,7 +9,7 @@
 
 import { Hono } from 'hono'
 import { z } from 'zod'
-import type { Database as DatabaseType } from 'better-sqlite3'
+import type { DatabaseLike } from '../db/connection'
 import type { Session } from '../db'
 import { getWorkspace } from '../db'
 import { SessionSync, type MessageStore } from '../engine/session-sync'
@@ -45,7 +45,7 @@ function toApiSession(session: Session) {
  * Create sessions router
  */
 export function createSessionsRouter(
-  db: DatabaseType,
+  db: DatabaseLike,
   messageStore: MessageStore
 ): Hono {
   const router = new Hono()

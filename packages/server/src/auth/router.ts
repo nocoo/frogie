@@ -6,7 +6,7 @@
 
 import { Hono } from 'hono'
 import { setCookie, deleteCookie } from 'hono/cookie'
-import type { Database as DatabaseType } from 'better-sqlite3'
+import type { DatabaseLike } from '../db/connection'
 import { z } from 'zod'
 import { upsertUser, getUserById } from '../db/repositories/users'
 import { createToken } from './jwt'
@@ -62,7 +62,7 @@ function generateState(): string {
  * Create auth router
  */
 export function createAuthRouter(
-  db: DatabaseType,
+  db: DatabaseLike,
   config: AuthConfig
 ): Hono {
   const app = new Hono()

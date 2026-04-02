@@ -10,11 +10,11 @@ import {
   deleteUser,
 } from './users'
 import { getTestDbPath, cleanupTestDb } from '../../test/db-utils'
-import type { Database as DatabaseType } from 'better-sqlite3'
+import type { DatabaseLike } from '../connection'
 
 describe('repositories/users', () => {
   let testDbPath: string
-  let db: DatabaseType
+  let db: DatabaseLike
 
   beforeEach(() => {
     testDbPath = getTestDbPath()

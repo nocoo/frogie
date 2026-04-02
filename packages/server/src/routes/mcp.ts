@@ -10,7 +10,7 @@
 
 import { Hono } from 'hono'
 import { z } from 'zod'
-import type { Database as DatabaseType } from 'better-sqlite3'
+import type { DatabaseLike } from '../db/connection'
 import type { MCPConfig, MCPServerConfig, CreateMCPConfig } from '../db'
 import {
   getWorkspace,
@@ -129,7 +129,7 @@ function toMCPTransportConfig(config: MCPConfig): MCPTransportConfig {
 /**
  * Create MCP router
  */
-export function createMCPRouter(db: DatabaseType, mcpManager: WorkspaceMCPManager): Hono {
+export function createMCPRouter(db: DatabaseLike, mcpManager: WorkspaceMCPManager): Hono {
   const router = new Hono()
 
   /**

@@ -4,7 +4,7 @@
  * Manages MCP server configurations for workspaces
  */
 
-import type { Database as DatabaseType } from 'better-sqlite3'
+import type { DatabaseLike } from '../connection'
 import type {
   MCPConfig,
   MCPConfigRow,
@@ -34,7 +34,7 @@ function parseConfigRow(row: MCPConfigRow): MCPConfig {
  * @returns Created or updated config
  */
 export function saveMCPConfig(
-  db: DatabaseType,
+  db: DatabaseLike,
   workspaceId: string,
   input: CreateMCPConfig
 ): MCPConfig {
@@ -85,7 +85,7 @@ export function saveMCPConfig(
  * @returns MCP config or null
  */
 export function getMCPConfig(
-  db: DatabaseType,
+  db: DatabaseLike,
   workspaceId: string,
   name: string
 ): MCPConfig | null {
@@ -106,7 +106,7 @@ export function getMCPConfig(
  * @returns MCP config or null
  */
 export function getMCPConfigById(
-  db: DatabaseType,
+  db: DatabaseLike,
   id: string
 ): MCPConfig | null {
   const row = db
@@ -126,7 +126,7 @@ export function getMCPConfigById(
  * @returns Array of enabled MCP configs
  */
 export function listEnabledMCPConfigs(
-  db: DatabaseType,
+  db: DatabaseLike,
   workspaceId: string
 ): MCPConfig[] {
   const rows = db
@@ -145,7 +145,7 @@ export function listEnabledMCPConfigs(
  * @returns Array of MCP configs
  */
 export function listAllMCPConfigs(
-  db: DatabaseType,
+  db: DatabaseLike,
   workspaceId: string
 ): MCPConfig[] {
   const rows = db
@@ -163,7 +163,7 @@ export function listAllMCPConfigs(
  * @returns Updated config or null if not found
  */
 export function setMCPConfigEnabled(
-  db: DatabaseType,
+  db: DatabaseLike,
   id: string,
   enabled: boolean
 ): MCPConfig | null {
@@ -185,7 +185,7 @@ export function setMCPConfigEnabled(
  * @returns true if deleted, false if not found
  */
 export function deleteMCPConfig(
-  db: DatabaseType,
+  db: DatabaseLike,
   workspaceId: string,
   name: string
 ): boolean {
@@ -201,7 +201,7 @@ export function deleteMCPConfig(
  * @param id - Config ID
  * @returns true if deleted, false if not found
  */
-export function deleteMCPConfigById(db: DatabaseType, id: string): boolean {
+export function deleteMCPConfigById(db: DatabaseLike, id: string): boolean {
   const result = db.prepare('DELETE FROM mcp_configs WHERE id = ?').run(id)
   return result.changes > 0
 }
@@ -213,7 +213,7 @@ export function deleteMCPConfigById(db: DatabaseType, id: string): boolean {
  * @returns Number of configs deleted
  */
 export function deleteWorkspaceMCPConfigs(
-  db: DatabaseType,
+  db: DatabaseLike,
   workspaceId: string
 ): number {
   const result = db

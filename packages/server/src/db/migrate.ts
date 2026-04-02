@@ -4,7 +4,7 @@
  * Executes SQL migrations in order and tracks applied migrations.
  */
 
-import type { Database as DatabaseType } from 'better-sqlite3'
+import type { DatabaseLike } from './connection'
 import { readdirSync, readFileSync } from 'fs'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
@@ -20,7 +20,7 @@ interface Migration {
 /**
  * Initialize migrations tracking table
  */
-function initMigrationsTable(db: DatabaseType): void {
+function initMigrationsTable(db: DatabaseLike): void {
   db.exec(`
     CREATE TABLE IF NOT EXISTS _migrations (
       id INTEGER PRIMARY KEY,
@@ -33,7 +33,7 @@ function initMigrationsTable(db: DatabaseType): void {
 /**
  * Get list of applied migration IDs
  */
-function getAppliedMigrations(db: DatabaseType): Set<number> {
+function getAppliedMigrations(db: DatabaseLike): Set<number> {
   const rows = db.prepare('SELECT id FROM _migrations').all() as Migration[]
   return new Set(rows.map((r) => r.id))
 }
@@ -65,7 +65,7 @@ function getMigrationFiles(): { id: number; name: string; path: string }[] {
  *
  * @returns Number of migrations applied
  */
-export function runMigrations(db: DatabaseType): number {
+export function runMigrations(db: DatabaseLike): number {
   initMigrationsTable(db)
 
   const applied = getAppliedMigrations(db)
@@ -81,12 +81,13 @@ export function runMigrations(db: DatabaseType): number {
     const sql = readFileSync(migration.path, 'utf-8')
 
     // Run migration in a transaction
-    db.transaction(() => {
+    const runMigration = db.transaction(() => {
       db.exec(sql)
       db.prepare(
         'INSERT INTO _migrations (id, name, applied_at) VALUES (?, ?, ?)'
       ).run(migration.id, migration.name, Date.now())
-    })()
+    })
+    runMigration()
 
     count++
   }
@@ -97,7 +98,7 @@ export function runMigrations(db: DatabaseType): number {
 /**
  * Check if a table exists in the database
  */
-export function tableExists(db: DatabaseType, tableName: string): boolean {
+export function tableExists(db: DatabaseLike, tableName: string): boolean {
   const result = db.prepare(
     "SELECT name FROM sqlite_master WHERE type='table' AND name=?"
   ).get(tableName) as { name: string } | undefined
@@ -107,7 +108,7 @@ export function tableExists(db: DatabaseType, tableName: string): boolean {
 /**
  * Get list of all tables in the database (excluding internal tables)
  */
-export function getTables(db: DatabaseType): string[] {
+export function getTables(db: DatabaseLike): string[] {
   const rows = db.prepare(
     "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
   ).all() as { name: string }[]

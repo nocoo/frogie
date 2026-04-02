@@ -10,7 +10,7 @@
 import { existsSync, statSync } from 'node:fs'
 import { Hono } from 'hono'
 import { z } from 'zod'
-import type { Database as DatabaseType } from 'better-sqlite3'
+import type { DatabaseLike } from '../db/connection'
 import {
   createWorkspace,
   getWorkspace,
@@ -50,7 +50,7 @@ function toApiWorkspace(workspace: {
 /**
  * Create workspace router
  */
-export function createWorkspacesRouter(db: DatabaseType): Hono {
+export function createWorkspacesRouter(db: DatabaseLike): Hono {
   const router = new Hono()
 
   /**

@@ -5,7 +5,7 @@
  * Supports multiple concurrent sessions per connection.
  */
 
-import type { Database as DatabaseType } from 'better-sqlite3'
+import type { DatabaseLike } from '../db/connection'
 import type {
   ClientMessage,
   AgentEvent,
@@ -34,7 +34,7 @@ interface ActiveSession {
  */
 interface ConnectionState {
   activeSessions: Map<string, ActiveSession>
-  db: DatabaseType
+  db: DatabaseLike
   sessionSync: SessionSync
   mcpManager: WorkspaceMCPManager
 }
@@ -281,7 +281,7 @@ function handleInterrupt(state: ConnectionState, sessionId: string): void {
  * Create WebSocket handler for chat
  */
 export function createWSHandler(
-  db: DatabaseType,
+  db: DatabaseLike,
   messageStore: MessageStore,
   mcpManager: WorkspaceMCPManager
 ): {

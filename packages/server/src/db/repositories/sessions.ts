@@ -4,7 +4,7 @@
  * Manages session index entries. Actual message history is stored by open-agent-sdk.
  */
 
-import type { Database as DatabaseType } from 'better-sqlite3'
+import type { DatabaseLike } from '../connection'
 import type { Session, CreateSession, SessionStats } from '../types'
 import { ulid } from 'ulid'
 
@@ -15,7 +15,7 @@ import { ulid } from 'ulid'
  * @returns Created session
  */
 export function createSession(
-  db: DatabaseType,
+  db: DatabaseLike,
   input: CreateSession
 ): Session {
   const id = input.id ?? ulid()
@@ -42,7 +42,7 @@ export function createSession(
  * @param id - Session ID
  * @returns Session or null
  */
-export function getSession(db: DatabaseType, id: string): Session | null {
+export function getSession(db: DatabaseLike, id: string): Session | null {
   return (db.prepare('SELECT * FROM sessions WHERE id = ?').get(id) as
     | Session
     | undefined) ?? null
@@ -55,7 +55,7 @@ export function getSession(db: DatabaseType, id: string): Session | null {
  * @returns Array of sessions
  */
 export function listSessions(
-  db: DatabaseType,
+  db: DatabaseLike,
   workspaceId: string
 ): Session[] {
   return db
@@ -73,7 +73,7 @@ export function listSessions(
  * @returns Updated session or null if not found
  */
 export function updateSessionName(
-  db: DatabaseType,
+  db: DatabaseLike,
   id: string,
   name: string | null
 ): Session | null {
@@ -94,7 +94,7 @@ export function updateSessionName(
  * @param stats - New statistics
  */
 export function updateSessionStats(
-  db: DatabaseType,
+  db: DatabaseLike,
   id: string,
   stats: SessionStats
 ): void {
@@ -125,7 +125,7 @@ export function updateSessionStats(
  * @param delta - Delta values to add
  */
 export function incrementSessionStats(
-  db: DatabaseType,
+  db: DatabaseLike,
   id: string,
   delta: Partial<SessionStats>
 ): void {
@@ -154,7 +154,7 @@ export function incrementSessionStats(
  *
  * @param id - Session ID
  */
-export function touchSession(db: DatabaseType, id: string): void {
+export function touchSession(db: DatabaseLike, id: string): void {
   db.prepare('UPDATE sessions SET updated_at = ? WHERE id = ?').run(
     Date.now(),
     id
@@ -169,7 +169,7 @@ export function touchSession(db: DatabaseType, id: string): void {
  * @param id - Session ID
  * @returns true if deleted, false if not found
  */
-export function deleteSession(db: DatabaseType, id: string): boolean {
+export function deleteSession(db: DatabaseLike, id: string): boolean {
   const result = db.prepare('DELETE FROM sessions WHERE id = ?').run(id)
   return result.changes > 0
 }
@@ -181,7 +181,7 @@ export function deleteSession(db: DatabaseType, id: string): boolean {
  * @returns Number of sessions deleted
  */
 export function deleteWorkspaceSessions(
-  db: DatabaseType,
+  db: DatabaseLike,
   workspaceId: string
 ): number {
   const result = db
@@ -197,7 +197,7 @@ export function deleteWorkspaceSessions(
  * @returns Number of sessions
  */
 export function countSessions(
-  db: DatabaseType,
+  db: DatabaseLike,
   workspaceId: string
 ): number {
   const result = db

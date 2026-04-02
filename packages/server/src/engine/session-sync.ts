@@ -5,7 +5,7 @@
  * This is the SINGLE SOURCE for session index writes - FrogieAgent does NOT touch the index.
  */
 
-import type { Database as DatabaseType } from 'better-sqlite3'
+import type { DatabaseLike } from '../db/connection'
 import type { Session, CreateSession, SessionStats } from '../db/types'
 import type { Message } from './types'
 import {
@@ -31,10 +31,10 @@ export interface SessionWithMessages {
  * Session sync service for managing dual persistence
  */
 export class SessionSync {
-  private db: DatabaseType
+  private db: DatabaseLike
   private messageStore: MessageStore
 
-  constructor(db: DatabaseType, messageStore: MessageStore) {
+  constructor(db: DatabaseLike, messageStore: MessageStore) {
     this.db = db
     this.messageStore = messageStore
   }
@@ -274,7 +274,7 @@ export class FileMessageStore implements MessageStore {
  * @param messageStoreBaseDir - Base directory for file storage (e.g., ~/.frogie)
  */
 export function createSessionSync(
-  db: DatabaseType,
+  db: DatabaseLike,
   messageStoreBaseDir: string
 ): SessionSync {
   const messageStore = new FileMessageStore(messageStoreBaseDir)

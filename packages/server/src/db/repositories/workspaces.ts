@@ -4,7 +4,7 @@
  * Manages workspace entities - project roots for organizing sessions
  */
 
-import type { Database as DatabaseType } from 'better-sqlite3'
+import type { DatabaseLike } from '../connection'
 import type { Workspace, CreateWorkspace, WorkspaceUpdate } from '../types'
 import { ulid } from 'ulid'
 
@@ -15,7 +15,7 @@ import { ulid } from 'ulid'
  * @returns Created workspace
  */
 export function createWorkspace(
-  db: DatabaseType,
+  db: DatabaseLike,
   input: CreateWorkspace
 ): Workspace {
   const id = ulid()
@@ -42,7 +42,7 @@ export function createWorkspace(
  * @returns Workspace or null
  */
 export function getWorkspace(
-  db: DatabaseType,
+  db: DatabaseLike,
   id: string
 ): Workspace | null {
   return (db.prepare('SELECT * FROM workspaces WHERE id = ?').get(id) as
@@ -57,7 +57,7 @@ export function getWorkspace(
  * @returns Workspace or null
  */
 export function getWorkspaceByPath(
-  db: DatabaseType,
+  db: DatabaseLike,
   path: string
 ): Workspace | null {
   return (db.prepare('SELECT * FROM workspaces WHERE path = ?').get(path) as
@@ -70,7 +70,7 @@ export function getWorkspaceByPath(
  *
  * @returns Array of workspaces
  */
-export function listWorkspaces(db: DatabaseType): Workspace[] {
+export function listWorkspaces(db: DatabaseLike): Workspace[] {
   return db
     .prepare('SELECT * FROM workspaces ORDER BY last_accessed DESC')
     .all() as Workspace[]
@@ -81,7 +81,7 @@ export function listWorkspaces(db: DatabaseType): Workspace[] {
  *
  * @param id - Workspace ID
  */
-export function touchWorkspace(db: DatabaseType, id: string): void {
+export function touchWorkspace(db: DatabaseLike, id: string): void {
   db.prepare('UPDATE workspaces SET last_accessed = ? WHERE id = ?').run(
     Date.now(),
     id
@@ -96,7 +96,7 @@ export function touchWorkspace(db: DatabaseType, id: string): void {
  * @returns Updated workspace or null if not found
  */
 export function updateWorkspace(
-  db: DatabaseType,
+  db: DatabaseLike,
   id: string,
   update: WorkspaceUpdate
 ): Workspace | null {
@@ -131,7 +131,7 @@ export function updateWorkspace(
  * @param id - Workspace ID
  * @returns true if deleted, false if not found
  */
-export function deleteWorkspace(db: DatabaseType, id: string): boolean {
+export function deleteWorkspace(db: DatabaseLike, id: string): boolean {
   const result = db.prepare('DELETE FROM workspaces WHERE id = ?').run(id)
   return result.changes > 0
 }
@@ -146,7 +146,7 @@ export function deleteWorkspace(db: DatabaseType, id: string): boolean {
  * @returns Workspace (existing or newly created)
  */
 export function getOrCreateWorkspace(
-  db: DatabaseType,
+  db: DatabaseLike,
   path: string
 ): Workspace {
   const existing = getWorkspaceByPath(db, path)

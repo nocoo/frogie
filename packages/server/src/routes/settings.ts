@@ -7,7 +7,7 @@
 
 import { Hono } from 'hono'
 import { z } from 'zod'
-import type { Database as DatabaseType } from 'better-sqlite3'
+import type { DatabaseLike } from '../db/connection'
 import { getSettings, updateSettings } from '../db'
 import type { SettingsUpdate as DbSettingsUpdate } from '../db'
 import { validationError } from '../middleware'
@@ -51,7 +51,7 @@ function filterUndefined(obj: Record<string, unknown>): DbSettingsUpdate {
 /**
  * Create settings router
  */
-export function createSettingsRouter(db: DatabaseType): Hono {
+export function createSettingsRouter(db: DatabaseLike): Hono {
   const router = new Hono()
 
   /**

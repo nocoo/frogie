@@ -4,14 +4,14 @@
  * CRUD operations for authenticated users
  */
 
-import type { Database as DatabaseType } from 'better-sqlite3'
+import type { DatabaseLike } from '../connection'
 import type { User, CreateUser } from '../types'
 import { ulid } from 'ulid'
 
 /**
  * Create or update a user (upsert by google_id)
  */
-export function upsertUser(db: DatabaseType, input: CreateUser): User {
+export function upsertUser(db: DatabaseLike, input: CreateUser): User {
   const now = Date.now()
 
   // Check if user exists by google_id
@@ -60,7 +60,7 @@ export function upsertUser(db: DatabaseType, input: CreateUser): User {
 /**
  * Get user by ID
  */
-export function getUserById(db: DatabaseType, id: string): User | null {
+export function getUserById(db: DatabaseLike, id: string): User | null {
   return (
     (db.prepare('SELECT * FROM users WHERE id = ?').get(id) as User | undefined) ??
     null
@@ -70,7 +70,7 @@ export function getUserById(db: DatabaseType, id: string): User | null {
 /**
  * Get user by email
  */
-export function getUserByEmail(db: DatabaseType, email: string): User | null {
+export function getUserByEmail(db: DatabaseLike, email: string): User | null {
   return (
     (db.prepare('SELECT * FROM users WHERE email = ?').get(email) as
       | User
@@ -82,7 +82,7 @@ export function getUserByEmail(db: DatabaseType, email: string): User | null {
  * Get user by Google ID
  */
 export function getUserByGoogleId(
-  db: DatabaseType,
+  db: DatabaseLike,
   googleId: string
 ): User | null {
   return (
@@ -95,7 +95,7 @@ export function getUserByGoogleId(
 /**
  * List all users
  */
-export function listUsers(db: DatabaseType): User[] {
+export function listUsers(db: DatabaseLike): User[] {
   return db
     .prepare('SELECT * FROM users ORDER BY created_at DESC')
     .all() as User[]
@@ -104,7 +104,7 @@ export function listUsers(db: DatabaseType): User[] {
 /**
  * Delete user by ID
  */
-export function deleteUser(db: DatabaseType, id: string): boolean {
+export function deleteUser(db: DatabaseLike, id: string): boolean {
   const result = db.prepare('DELETE FROM users WHERE id = ?').run(id)
   return result.changes > 0
 }
