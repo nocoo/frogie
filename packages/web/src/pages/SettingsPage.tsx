@@ -298,7 +298,7 @@ export function SettingsPage() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto space-y-4 md:space-y-6">
+    <div className="max-w-2xl space-y-4 md:space-y-6">
       {/* B-4 页面 Header */}
       <div>
         <h1 className="text-2xl md:text-3xl font-semibold font-display tracking-tight">Settings</h1>

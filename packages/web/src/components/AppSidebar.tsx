@@ -5,6 +5,7 @@ import {
   Settings,
   ChevronUp,
   PanelLeft,
+  LogOut,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useNavigate, useLocation } from 'react-router'
@@ -15,8 +16,10 @@ import {
   TooltipTrigger,
   TooltipProvider,
 } from '@/components/ui/tooltip'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { WorkspaceSelector } from '@/components/sidebar/workspace-selector'
 import { SessionList } from '@/components/sidebar/session-list'
+import { useAuth } from '@/viewmodels/auth.viewmodel'
 import { APP_VERSION } from '@/lib/version'
 
 // Navigation data model
@@ -48,6 +51,41 @@ const NAV_GROUPS: NavGroup[] = [
     items: [{ title: 'Settings', icon: Settings, path: '/settings' }],
   },
 ]
+
+// Avatar color palette for fallback
+const AVATAR_COLORS = [
+  'bg-red-500',
+  'bg-orange-500',
+  'bg-amber-500',
+  'bg-yellow-500',
+  'bg-lime-500',
+  'bg-green-500',
+  'bg-emerald-500',
+  'bg-teal-500',
+  'bg-cyan-500',
+  'bg-sky-500',
+  'bg-blue-500',
+  'bg-indigo-500',
+  'bg-violet-500',
+  'bg-purple-500',
+  'bg-fuchsia-500',
+  'bg-pink-500',
+]
+
+function getAvatarColor(name: string): string {
+  let hash = 0
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash)
+  }
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length] ?? 'bg-blue-500'
+}
+
+function getUserInitial(name: string | null, email: string): string {
+  if (name) {
+    return name.charAt(0).toUpperCase()
+  }
+  return email.charAt(0).toUpperCase()
+}
 
 // Sub-components
 
@@ -148,28 +186,34 @@ interface AppSidebarProps {
 
 export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
   const location = useLocation()
+  const { user, logout } = useAuth()
+
+  const userName = user?.name ?? user?.email ?? 'User'
+  const userEmail = user?.email ?? ''
+  const userImage = user?.image ?? null
+  const userInitial = getUserInitial(user?.name ?? null, userEmail)
 
   return (
     <TooltipProvider delayDuration={0}>
       <aside
         className={cn(
-          'flex flex-col h-screen bg-background border-r border-border transition-all duration-300 ease-in-out shrink-0 overflow-hidden',
+          'flex flex-col h-screen bg-background transition-all duration-300 ease-in-out shrink-0 overflow-hidden',
           collapsed ? 'w-[68px]' : 'w-[260px]'
         )}
       >
         {/* Header - B-2 Logo 区域 */}
         <div className="px-3 h-14 flex items-center">
           {collapsed ? (
-            // 收起态：logo 图标居中 + 展开按钮
+            // 收起态：logo 图标居中
             <div className="flex w-full items-center justify-center">
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
                     onClick={onToggle}
-                    className="flex h-10 w-10 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                    className="flex h-10 w-10 items-center justify-center rounded-lg text-2xl hover:bg-accent transition-colors"
                     aria-label="Expand sidebar"
                   >
-                    <PanelLeft className="h-4 w-4" strokeWidth={1.5} />
+                    🐸
                   </button>
                 </TooltipTrigger>
                 <TooltipContent side="right" sideOffset={8}>Expand</TooltipContent>
@@ -200,12 +244,10 @@ export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
         <WorkspaceSelector collapsed={collapsed} />
 
         {/* Session List */}
-        <div className="border-t border-border">
-          <SessionList collapsed={collapsed} />
-        </div>
+        <SessionList collapsed={collapsed} />
 
         {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto border-t border-border">
+        <nav className="flex-1 overflow-y-auto">
           {NAV_GROUPS.map((group) => (
             <NavGroupSection
               key={group.label}
@@ -216,25 +258,54 @@ export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
           ))}
         </nav>
 
-        {/* Footer - 用户区域 */}
+        {/* Footer - 用户区域 B-2 规范 */}
         <div className={cn('border-t border-border', collapsed ? 'px-2 py-3' : 'px-4 py-3')}>
           {collapsed ? (
+            // 收起态：仅头像，点击登出，tooltip 显示用户名
             <div className="flex flex-col items-center">
-              <div className="h-9 w-9 rounded-full bg-accent flex items-center justify-center text-xs font-medium text-white">
-                F
-              </div>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={() => { void logout() }}
+                    aria-label="Sign out"
+                    className="rounded-full"
+                  >
+                    <Avatar className="h-9 w-9">
+                      {userImage && <AvatarImage src={userImage} alt={userName} />}
+                      <AvatarFallback className={cn('text-xs text-white', getAvatarColor(userName))}>
+                        {userInitial}
+                      </AvatarFallback>
+                    </Avatar>
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="right" sideOffset={8}>{userName}</TooltipContent>
+              </Tooltip>
             </div>
           ) : (
+            // 展开态：头像 + 用户名 + 邮箱 + 登出按钮
             <div className="flex items-center gap-3">
-              <div className="h-9 w-9 rounded-full bg-accent flex items-center justify-center text-xs font-medium text-white shrink-0">
-                F
-              </div>
+              <Avatar className="h-9 w-9 shrink-0">
+                {userImage && <AvatarImage src={userImage} alt={userName} />}
+                <AvatarFallback className={cn('text-xs text-white', getAvatarColor(userName))}>
+                  {userInitial}
+                </AvatarFallback>
+              </Avatar>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-foreground truncate">
-                  Frogie Agent
-                </p>
-                <p className="text-xs text-muted-foreground truncate">Local Mode</p>
+                <p className="text-sm font-medium text-foreground truncate">{userName}</p>
+                <p className="text-xs text-muted-foreground truncate">{userEmail}</p>
               </div>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={() => { void logout() }}
+                    aria-label="Sign out"
+                    className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors shrink-0"
+                  >
+                    <LogOut className="h-4 w-4" strokeWidth={1.5} />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="top">Sign out</TooltipContent>
+              </Tooltip>
             </div>
           )}
         </div>
