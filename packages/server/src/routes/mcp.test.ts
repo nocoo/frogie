@@ -8,6 +8,7 @@ import { join } from 'node:path'
 import { Hono } from 'hono'
 import { initDb, closeDb, runMigrations, createWorkspace } from '../db'
 import { createMCPRouter } from './mcp'
+import { WorkspaceMCPManager } from '../mcp'
 import { getTestDbPath, cleanupTestDb } from '../test/db-utils'
 import { ApiError, ErrorCodes } from '../middleware'
 
@@ -103,7 +104,7 @@ describe('routes/mcp', () => {
     workspaceId = workspace.id
 
     // Mount MCP router under workspace path
-    app.route('/api/workspaces/:wid/mcp', createMCPRouter(db))
+    app.route('/api/workspaces/:wid/mcp', createMCPRouter(db, new WorkspaceMCPManager()))
   })
 
   afterEach(() => {

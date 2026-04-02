@@ -15,6 +15,8 @@ import type {
   InterruptedEvent,
   BudgetExceededEvent,
   ToolResultEvent,
+  CompactStartEvent,
+  CompactDoneEvent,
   ContentBlock,
   Message,
 } from './types'
@@ -23,6 +25,7 @@ import {
   extractContentBlocks,
   ContentBlockAccumulator,
 } from './transform'
+import { shouldCompact, compactConversation, microCompact } from './compact'
 
 /**
  * Cost calculation for Claude models (per MTok)
@@ -176,6 +179,38 @@ export class FrogieAgent {
       sessionId: this.config.sessionId ?? 'unknown',
       model: this.config.model,
     } satisfies SessionStartEvent
+
+    // === Context Compaction Check ===
+    // Check if we need to compact before starting the agentic loop
+    if (shouldCompact(this.messages, this.config.model)) {
+      yield { type: 'compact_start' } satisfies CompactStartEvent
+
+      try {
+        const { compacted, summary } = await compactConversation(
+          this.messages,
+          this.config.apiKey,
+          this.config.baseUrl,
+          this.config.model
+        )
+
+        // Replace messages with compacted version
+        this.messages.length = 0
+        this.messages.push(...(compacted as Message[]))
+
+        yield { type: 'compact_done', summary } satisfies CompactDoneEvent
+      } catch (err) {
+        // Log but don't fail - continue with original messages
+        console.error('Context compaction failed:', err instanceof Error ? err.message : 'Unknown error')
+      }
+    }
+
+    // Apply micro-compaction to reduce large tool results
+    const workingMessages = microCompact(this.messages)
+    if (workingMessages !== this.messages) {
+      // Update messages if micro-compaction changed anything
+      this.messages.length = 0
+      this.messages.push(...workingMessages)
+    }
 
     // Agentic loop
     while (turns < this.config.maxTurns) {
