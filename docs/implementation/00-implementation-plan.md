@@ -190,17 +190,17 @@ chore(test): setup D1 test database isolation
 
 ---
 
-### Phase 0 Checkpoint
+### Phase 0 Checkpoint ✅ COMPLETED
 
 After Phase 0, the following must work:
 
 ```bash
-bun install                    # ✓ Installs all deps
-bun run typecheck             # ✓ Zero errors
-bun run lint                  # ✓ Zero warnings
-bun run test                  # ✓ Passes (no tests yet)
-git commit                    # ✓ Triggers pre-commit hook
-git push                      # ✓ Triggers pre-push hook
+bun install                    # ✅ Installs all deps
+bun run typecheck             # ✅ Zero errors
+bun run lint                  # ✅ Zero warnings
+bun run test                  # ✅ Passes
+git commit                    # ✅ Triggers pre-commit hook
+git push                      # ✅ Triggers pre-push hook
 ```
 
 ---
@@ -410,7 +410,7 @@ feat(db): export unified database API
 
 ---
 
-### Phase 1 Checkpoint
+### Phase 1 Checkpoint ✅ COMPLETED
 
 After Phase 1:
 
@@ -564,7 +564,7 @@ This avoids price drift between Frogie and SDK.
 
 ---
 
-### Phase 2 Checkpoint
+### Phase 2 Checkpoint ✅ COMPLETED
 
 After Phase 2:
 
@@ -745,7 +745,7 @@ feat(api): implement server entry point
 
 ---
 
-### Phase 3 Checkpoint
+### Phase 3 Checkpoint ✅ COMPLETED
 
 After Phase 3:
 
