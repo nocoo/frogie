@@ -27,6 +27,8 @@ export type {
   MCPConfigRow,
   CreateMCPConfig,
   MCPServerConfig,
+  User,
+  CreateUser,
 } from './types'
 
 // Re-export repositories
@@ -34,6 +36,7 @@ export * as settings from './repositories/settings'
 export * as workspaces from './repositories/workspaces'
 export * as sessions from './repositories/sessions'
 export * as mcpConfigs from './repositories/mcp-configs'
+export * as users from './repositories/users'
 
 // Convenience re-exports of common functions
 export { getSettings, updateSettings, resetSettings } from './repositories/settings'
@@ -70,6 +73,14 @@ export {
   deleteMCPConfigById,
   deleteWorkspaceMCPConfigs,
 } from './repositories/mcp-configs'
+export {
+  upsertUser,
+  getUserById,
+  getUserByEmail,
+  getUserByGoogleId,
+  listUsers,
+  deleteUser,
+} from './repositories/users'
 
 /**
  * Initialize database with migrations

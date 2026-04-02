@@ -137,3 +137,26 @@ export interface MCPServerConfig {
   url?: string
   headers?: Record<string, string>
 }
+
+/**
+ * User entity (Google OAuth)
+ */
+export interface User {
+  id: string
+  email: string
+  name: string | null
+  image: string | null
+  google_id: string
+  created_at: number
+  updated_at: number
+}
+
+/**
+ * Create user input (from OAuth callback)
+ */
+export interface CreateUser {
+  email: string
+  name?: string | null
+  image?: string | null
+  google_id: string
+}

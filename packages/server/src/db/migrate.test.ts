@@ -27,6 +27,7 @@ describe('db/migrate', () => {
       expect(tables).toContain('workspaces')
       expect(tables).toContain('sessions')
       expect(tables).toContain('mcp_configs')
+      expect(tables).toContain('users')
     })
 
     it('should be idempotent - running twice applies same migrations', () => {
@@ -35,7 +36,7 @@ describe('db/migrate', () => {
       const firstRun = runMigrations(db)
       const secondRun = runMigrations(db)
 
-      expect(firstRun).toBe(1) // One migration file
+      expect(firstRun).toBe(2) // Two migration files (initial + users)
       expect(secondRun).toBe(0) // No new migrations
 
       const tables = getTables(db)
@@ -50,10 +51,12 @@ describe('db/migrate', () => {
         .prepare('SELECT * FROM _migrations ORDER BY id')
         .all() as { id: number; name: string; applied_at: number }[]
 
-      expect(migrations).toHaveLength(1)
+      expect(migrations).toHaveLength(2)
       expect(migrations[0]?.id).toBe(1)
       expect(migrations[0]?.name).toBe('initial')
       expect(migrations[0]?.applied_at).toBeGreaterThan(0)
+      expect(migrations[1]?.id).toBe(2)
+      expect(migrations[1]?.name).toBe('users')
     })
 
     it('should initialize settings with default values', () => {

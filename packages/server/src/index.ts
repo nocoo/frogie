@@ -17,6 +17,7 @@ import { createWorkspacesRouter } from './routes/workspaces'
 import { createSessionsRouter } from './routes/sessions'
 import { createMCPRouter } from './routes/mcp'
 import { createWSHandler, type ConnectionState } from './routes/ws-chat'
+import { createAuthRouter, authMiddleware, type AuthConfig } from './auth'
 
 /**
  * Server configuration
@@ -30,6 +31,9 @@ export interface ServerConfig {
 
   /** Data directory (default: ~/.frogie) */
   dataDir?: string
+
+  /** Auth configuration (optional - enables Google OAuth) */
+  auth?: AuthConfig
 }
 
 /**
@@ -79,6 +83,12 @@ export function startServer(config: ServerConfig = {}): FrogieServer {
 
   // Create Hono app and mount routes
   const app = createApp()
+
+  // Add auth middleware if configured
+  if (config.auth) {
+    app.use('*', authMiddleware(config.auth.jwtSecret))
+    app.route('/api/auth', createAuthRouter(db, config.auth))
+  }
 
   app.route('/api/settings', createSettingsRouter(db))
   app.route('/api/workspaces', createWorkspacesRouter(db))
@@ -152,7 +162,35 @@ export function startServer(config: ServerConfig = {}): FrogieServer {
  * Run directly with: bun run packages/server/src/index.ts
  */
 if (import.meta.main) {
-  const server = startServer()
+  // Load auth config from environment
+  const googleClientId = process.env['GOOGLE_CLIENT_ID']
+  const googleClientSecret = process.env['GOOGLE_CLIENT_SECRET']
+  const jwtSecret = process.env['JWT_SECRET']
+  const port = parseInt(process.env['PORT'] ?? '7034', 10)
+
+  let auth: AuthConfig | undefined
+  if (googleClientId && googleClientSecret && jwtSecret) {
+    const baseUrl = process.env['BASE_URL'] ?? `http://localhost:${String(port)}`
+    const allowedEmailsEnv = process.env['ALLOWED_EMAILS']
+    auth = {
+      jwtSecret,
+      google: {
+        clientId: googleClientId,
+        clientSecret: googleClientSecret,
+        redirectUri: `${baseUrl}/api/auth/callback`,
+      },
+      allowedEmails: allowedEmailsEnv
+        ? allowedEmailsEnv.split(',').map((e) => e.trim().toLowerCase())
+        : undefined,
+    }
+  }
+
+  const serverConfig: ServerConfig = { port }
+  if (auth) {
+    serverConfig.auth = auth
+  }
+
+  const server = startServer(serverConfig)
 
   // Handle graceful shutdown
   const shutdown = () => {
