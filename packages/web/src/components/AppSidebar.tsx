@@ -206,24 +206,25 @@ export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
           {collapsed ? (
             // 收起态：logo 图标居中
             <div className="flex w-full items-center justify-center">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    onClick={onToggle}
-                    className="flex h-10 w-10 items-center justify-center rounded-lg text-2xl hover:bg-accent transition-colors"
-                    aria-label="Expand sidebar"
-                  >
-                    🐸
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="right" sideOffset={8}>Expand</TooltipContent>
-              </Tooltip>
+              <img
+                src="/logo-24.png"
+                alt="Frogie"
+                width={24}
+                height={24}
+                className="shrink-0"
+              />
             </div>
           ) : (
             // 展开态：logo + 品牌名 + 版本 + 收起按钮
             <div className="flex w-full items-center justify-between px-3">
               <div className="flex items-center gap-3">
-                <span className="text-2xl">🐸</span>
+                <img
+                  src="/logo-24.png"
+                  alt="Frogie"
+                  width={24}
+                  height={24}
+                  className="shrink-0"
+                />
                 <span className="text-lg font-bold tracking-tighter">Frogie</span>
                 <span className="rounded-md bg-secondary px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground leading-none">
                   v{APP_VERSION}
@@ -239,6 +240,24 @@ export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
             </div>
           )}
         </div>
+
+        {/* 收起态展开按钮 */}
+        {collapsed && (
+          <div className="flex justify-center px-2 mb-2">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={onToggle}
+                  aria-label="Expand sidebar"
+                  className="flex h-10 w-10 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                >
+                  <PanelLeft className="h-4 w-4" strokeWidth={1.5} />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="right" sideOffset={8}>Expand</TooltipContent>
+            </Tooltip>
+          </div>
+        )}
 
         {/* Workspace Selector */}
         <WorkspaceSelector collapsed={collapsed} />
