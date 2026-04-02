@@ -152,13 +152,13 @@ export function SessionList({ collapsed = false }: SessionListProps) {
           </div>
         ) : (
           sessions.map((session) => (
-            <button
+            <div
               key={session.id}
               onClick={() => {
                 handleSelectSession(session.id)
               }}
               className={cn(
-                'group flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors',
+                'group flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors cursor-pointer',
                 currentSession?.id === session.id
                   ? 'bg-accent text-foreground'
                   : 'text-muted-foreground hover:bg-accent hover:text-foreground'
@@ -175,7 +175,7 @@ export function SessionList({ collapsed = false }: SessionListProps) {
               >
                 <Trash2 className="h-3.5 w-3.5" />
               </button>
-            </button>
+            </div>
           ))
         )}
       </div>
