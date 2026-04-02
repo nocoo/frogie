@@ -33,7 +33,8 @@ Frogie is a **web-based Claude Code** - bringing the full power of an AI coding 
 
 - Mobile-first design (desktop browser is primary target)
 - Collaborative editing (single-user focus)
-- Cloud-hosted agent execution (local proxy required)
+- Cloud deployment (local-only, equivalent to Claude Code CLI with a web UI)
+- Sandboxed execution (runs with full user permissions, like Claude Code CLI)
 
 ## Reference Projects
 
@@ -43,7 +44,7 @@ This project synthesizes the best ideas from:
 |---------|------|--------------|
 | **Claude Code CLI** | `/Users/nocoo/workspace/reference/claude-code` | Tool system prompts, permission model, Skill concept |
 | **open-agent-sdk** | `/Users/nocoo/workspace/reference/open-agent-sdk-typescript` | Agentic loop structure, context compression, MCP client |
-| **Raven Proxy** | — | Proven API forwarding, token management patterns |
+| **Raven Proxy** | `/Users/nocoo/workspace/personal/raven` | LLM API proxy, Anthropic↔OpenAI format translation |
 
 ### Code Inheritance Strategy
 
@@ -80,32 +81,109 @@ This project synthesizes the best ideas from:
 | **Integration** | Hono server, WebSocket protocol, SQLite persistence |
 | **UI/UX** | Basalt Gen 2 MVVM, chat experience, tool visualization |
 
+## Development Environment
+
+### Port Allocation
+
+Following the family project port convention (ascending from 7002):
+
+| Port | Component | Domain | Notes |
+|------|-----------|--------|-------|
+| 7033 | frogie-web | `frogie.dev.hexly.ai` | Web UI (Vite dev server) |
+| 7034 | frogie-server | — | Agent Server (Hono), no Caddy |
+| 17033 | — | — | Reserved for L2 API E2E tests |
+| 27033 | — | — | Reserved for L3 Playwright E2E |
+
+### Local Development
+
+```bash
+# Start both packages in parallel
+bun run dev
+
+# Or start individually
+bun run dev:web      # Web UI at https://frogie.dev.hexly.ai (via Caddy)
+bun run dev:server   # Agent Server at http://localhost:7034
+```
+
+### Domain Setup
+
+Uses the standard `*.dev.hexly.ai` Caddy + mkcert setup:
+
+```
+https://frogie.dev.hexly.ai → Caddy TLS → localhost:7033
+```
+
+Add to `/opt/homebrew/etc/Caddyfile`:
+
+```caddyfile
+frogie.dev.hexly.ai {
+    reverse_proxy localhost:7033
+    tls /Users/nocoo/workspace/personal/workflow/certs/cert.pem /Users/nocoo/workspace/personal/workflow/certs/key.pem
+}
+```
+
+## LLM API Configuration
+
+Frogie connects to LLM APIs through **Raven Proxy** (or any OpenAI-compatible endpoint).
+
+### Architecture
+
+```
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│  Frogie Server  │────▶│  Raven Proxy    │────▶│  Copilot API    │
+│  :7034          │     │  :7024          │     │  (Claude/GPT)   │
+└─────────────────┘     └─────────────────┘     └─────────────────┘
+```
+
+### User Configuration
+
+Settings are configured in the Frogie web UI Settings page:
+
+| Setting | Description | Example |
+|---------|-------------|---------|
+| **API URL** | OpenAI-compatible base URL | `http://localhost:7024/v1` |
+| **API Key** | Bearer token for authentication | (from Raven or provider) |
+| **Model** | Default model for new sessions | `claude-sonnet-4-6` |
+
+These settings are persisted in SQLite (`~/.frogie/frogie.db`).
+
 ## Target Architecture
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│                  Browser (Frogie UI)                 │
-│  React + Tailwind + shadcn/ui                       │
-│  - Chat interface                                    │
-│  - Tool visualization                                │
-│  - Session management                                │
-│  - Workspace selector                                │
+│           Browser (frogie.dev.hexly.ai)             │
+│  React 19 + Vite 7 + Tailwind CSS 4                │
+│  - Chat interface                                   │
+│  - Tool visualization                               │
+│  - Session management                               │
+│  - Workspace selector                               │
 └─────────────────────────┬───────────────────────────┘
-                          │ WebSocket
+                          │ WebSocket (:7034)
 ┌─────────────────────────▼───────────────────────────┐
-│                  Frogie Agent Server                 │
-│  Bun/Node.js + Hono                                 │
+│              Frogie Agent Server (:7034)            │
+│  Bun + Hono (runs locally, same machine)           │
 │  - Agentic loop engine                              │
-│  - Tool executor (with sandbox)                     │
-│  - MCP connection manager                           │
+│  - Tool executor (no sandbox, full permissions)    │
+│  - MCP manager (spawns stdio processes locally)    │
 │  - Session persistence (SQLite)                     │
-└─────────────────────────┬───────────────────────────┘
-                          │ HTTP (OpenAI-compatible)
-┌─────────────────────────▼───────────────────────────┐
-│              LLM API Provider                        │
-│  (Raven Proxy / Anthropic API / Other)              │
-└─────────────────────────────────────────────────────┘
+└───────────┬─────────────────────────┬───────────────┘
+            │ HTTP                    │ stdio/sse/http
+┌───────────▼───────────┐   ┌────────▼────────┐
+│   Raven Proxy (:7024) │   │   MCP Servers   │
+│   Anthropic↔OpenAI    │   │   (local spawn) │
+└───────────┬───────────┘   └─────────────────┘
+            │
+┌───────────▼───────────┐
+│    Copilot / Claude   │
+│    (upstream API)     │
+└───────────────────────┘
 ```
+
+**Key Points**:
+- Everything runs locally on user's machine (like Claude Code CLI)
+- No cloud deployment, no sandboxing
+- MCP servers are spawned as child processes by Frogie Server
+- Tool execution has full user permissions (cwd = workspace path)
 
 ## Workspace Concept
 
