@@ -15,11 +15,12 @@ export function createApp(): Hono {
   const app = new Hono()
 
   // CORS for web UI
-  // Add custom domains via CORS_ORIGINS env var (comma-separated)
+  // Default origins + custom via CORS_ORIGINS env var (comma-separated)
   const defaultOrigins = [
     'http://localhost:5173',
     'http://localhost:3000',
     'http://localhost:7033',
+    'https://frogie.dev.hexly.ai',
   ]
   const envOrigins = process.env['CORS_ORIGINS']?.split(',').filter(Boolean) ?? []
   const allowedOrigins = [...defaultOrigins, ...envOrigins]

@@ -14,8 +14,11 @@ export default defineConfig({
   server: {
     port: 7033,
     host: true,
-    // Add custom hosts via VITE_ALLOWED_HOSTS env var (comma-separated)
-    allowedHosts: process.env['VITE_ALLOWED_HOSTS']?.split(',').filter(Boolean) ?? [],
+    // Default allowed hosts + custom via VITE_ALLOWED_HOSTS env var (comma-separated)
+    allowedHosts: [
+      'frogie.dev.hexly.ai',
+      ...(process.env['VITE_ALLOWED_HOSTS']?.split(',').filter(Boolean) ?? []),
+    ],
     proxy: {
       '/api': {
         target: 'http://localhost:7034',
