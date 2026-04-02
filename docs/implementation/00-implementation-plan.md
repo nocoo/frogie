@@ -1045,20 +1045,25 @@ feat(web): implement app entry with routing
 
 ---
 
-### Phase 4 Checkpoint ✅ IN PROGRESS
+### Phase 4 Checkpoint ✅ COMPLETED
 
-**Completed (4.1-4.6):**
+**All tasks completed:**
 - ✅ 4.1 Vite React project initialized with basalt template
 - ✅ 4.2 Model types defined
 - ✅ 4.3 Settings ViewModel with Zustand
 - ✅ 4.4 Workspace ViewModel
 - ✅ 4.5 Session ViewModel  
 - ✅ 4.6 Chat ViewModel with WebSocket
-
-**Pending (4.7-4.16):**
-- 4.7 useChatWebSocket hook (merged into chat.viewmodel.ts)
-- 4.8-4.12 Chat components
-- 4.13-4.16 Layout and app shell
+- ✅ 4.7 useChatWebSocket hook (merged into chat.viewmodel.ts)
+- ✅ 4.8 MessageList component
+- ✅ 4.9 ThinkingBlock component
+- ✅ 4.10 ToolUseCard component
+- ✅ 4.11 ChatInput component
+- ✅ 4.12 ChatPanel component
+- ✅ 4.13 SessionList sidebar
+- ✅ 4.14 WorkspaceSelector
+- ✅ 4.15 App Shell Layout
+- ✅ 4.16 App Entry + Routing
 
 After Phase 4:
 
@@ -1218,7 +1223,20 @@ docs: update README with setup and usage instructions
 
 ---
 
-### Phase 5 Checkpoint
+### Phase 5 Checkpoint ✅ MOSTLY COMPLETED
+
+**Completed:**
+- ✅ 5.1 Playwright setup with config
+- ✅ 5.2 E2E: Workspace flow tests
+- ✅ 5.3 E2E: Session flow tests
+- ✅ 5.4 E2E: Chat flow tests
+- ✅ 5.5 WebSocket auto-reconnection
+- ✅ 5.7 Settings page implementation
+
+**Remaining:**
+- ⬜ 5.6 Error boundaries (deferred)
+- ⬜ 5.8 Production build verification (deferred)
+- ⬜ 5.9 Documentation update (deferred)
 
 After Phase 5:
 
