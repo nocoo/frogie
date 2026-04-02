@@ -5,7 +5,7 @@
  * Includes API test functionality to verify connection and load available models.
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useSettingsStore } from '@/viewmodels/settings.viewmodel'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -20,7 +20,10 @@ import {
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
@@ -33,6 +36,89 @@ interface ModelInfo {
   id: string
   name: string
   createdAt: string
+}
+
+interface ModelGroup {
+  label: string
+  icon: string
+  models: ModelInfo[]
+}
+
+/**
+ * Categorize models by provider based on ID patterns
+ */
+function categorizeModels(models: ModelInfo[]): ModelGroup[] {
+  const claude: ModelInfo[] = []
+  const gpt: ModelInfo[] = []
+  const gemini: ModelInfo[] = []
+  const embedding: ModelInfo[] = []
+  const other: ModelInfo[] = []
+
+  for (const model of models) {
+    const id = model.id.toLowerCase()
+    const name = model.name.toLowerCase()
+
+    // Skip embedding models for chat
+    if (id.includes('embedding') || name.includes('embedding')) {
+      embedding.push(model)
+    } else if (id.includes('claude') || name.includes('claude')) {
+      claude.push(model)
+    } else if (id.includes('gpt') || name.includes('gpt')) {
+      gpt.push(model)
+    } else if (id.includes('gemini') || name.includes('gemini')) {
+      gemini.push(model)
+    } else {
+      other.push(model)
+    }
+  }
+
+  const result: ModelGroup[] = []
+
+  if (claude.length > 0) {
+    result.push({ label: 'Claude (Anthropic)', icon: '🟠', models: claude })
+  }
+  if (gpt.length > 0) {
+    result.push({ label: 'GPT (OpenAI)', icon: '🟢', models: gpt })
+  }
+  if (gemini.length > 0) {
+    result.push({ label: 'Gemini (Google)', icon: '🔵', models: gemini })
+  }
+  if (other.length > 0) {
+    result.push({ label: 'Other Models', icon: '⚪', models: other })
+  }
+  // Embedding models at the end (usually not for chat)
+  if (embedding.length > 0) {
+    result.push({ label: 'Embedding Models', icon: '📊', models: embedding })
+  }
+
+  return result
+}
+
+/**
+ * Get display info for a model (for showing selected value)
+ */
+function getModelDisplayInfo(
+  modelId: string,
+  availableModels: ModelInfo[]
+): { name: string; icon: string } | null {
+  const model = availableModels.find((m) => m.id === modelId)
+  if (!model) return null
+
+  const id = modelId.toLowerCase()
+  const name = model.name.toLowerCase()
+
+  let icon = '⚪'
+  if (id.includes('claude') || name.includes('claude')) {
+    icon = '🟠'
+  } else if (id.includes('gpt') || name.includes('gpt')) {
+    icon = '🟢'
+  } else if (id.includes('gemini') || name.includes('gemini')) {
+    icon = '🔵'
+  } else if (id.includes('embedding') || name.includes('embedding')) {
+    icon = '📊'
+  }
+
+  return { name: model.name, icon }
 }
 
 export function SettingsPage() {
@@ -53,6 +139,18 @@ export function SettingsPage() {
   const [testError, setTestError] = useState<string | null>(null)
   const [availableModels, setAvailableModels] = useState<ModelInfo[]>([])
   const [apiVerified, setApiVerified] = useState(false)
+
+  // Categorized models for grouped display
+  const modelGroups = useMemo(
+    () => categorizeModels(availableModels),
+    [availableModels]
+  )
+
+  // Selected model display info
+  const selectedModelInfo = useMemo(
+    () => getModelDisplayInfo(model, availableModels),
+    [model, availableModels]
+  )
 
   // Fetch settings on mount
   useEffect(() => {
@@ -115,10 +213,13 @@ export function SettingsPage() {
 
       setAvailableModels(data.models ?? [])
       setApiVerified(true)
-      toast.success('API connection verified')
+      toast.success(`API connection verified (${String(data.models?.length ?? 0)} models available)`)
 
-      // Auto-select first model if none selected
-      const firstModel = data.models?.[0]
+      // Auto-select first Claude model if none selected
+      const claudeModel = data.models?.find((m) =>
+        m.id.toLowerCase().includes('claude')
+      )
+      const firstModel = claudeModel ?? data.models?.[0]
       if (!model && firstModel) {
         setModel(firstModel.id)
         markDirty()
@@ -273,7 +374,7 @@ export function SettingsPage() {
             {apiVerified && !testError && (
               <span className="flex items-center gap-1 text-sm text-green-600 dark:text-green-400">
                 <CheckCircle2 className="h-4 w-4" />
-                Connected
+                Connected ({availableModels.length} models)
               </span>
             )}
           </div>
@@ -310,19 +411,51 @@ export function SettingsPage() {
               }}
               disabled={availableModels.length === 0 && !model}
             >
-              <SelectTrigger id="model">
+              <SelectTrigger id="model" className="h-auto min-h-10">
                 <SelectValue placeholder={
                   availableModels.length === 0
                     ? 'Test API connection to load models'
                     : 'Select a model'
-                } />
+                }>
+                  {selectedModelInfo ? (
+                    <span className="flex items-center gap-2">
+                      <span>{selectedModelInfo.icon}</span>
+                      <span>{selectedModelInfo.name}</span>
+                    </span>
+                  ) : model ? (
+                    <span className="text-muted-foreground">{model}</span>
+                  ) : null}
+                </SelectValue>
               </SelectTrigger>
-              <SelectContent>
-                {availableModels.length > 0 ? (
-                  availableModels.map((m) => (
-                    <SelectItem key={m.id} value={m.id}>
-                      {m.name}
-                    </SelectItem>
+              <SelectContent className="max-h-80">
+                {modelGroups.length > 0 ? (
+                  modelGroups.map((group, groupIndex) => (
+                    <div key={group.label}>
+                      {groupIndex > 0 && <SelectSeparator />}
+                      <SelectGroup>
+                        <SelectLabel className="flex items-center gap-2 font-semibold">
+                          <span>{group.icon}</span>
+                          <span>{group.label}</span>
+                          <span className="text-xs font-normal text-muted-foreground">
+                            ({group.models.length})
+                          </span>
+                        </SelectLabel>
+                        {group.models.map((m) => (
+                          <SelectItem
+                            key={m.id}
+                            value={m.id}
+                            className="pl-6"
+                          >
+                            <div className="flex flex-col">
+                              <span>{m.name}</span>
+                              <span className="text-xs text-muted-foreground font-mono">
+                                {m.id}
+                              </span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </div>
                   ))
                 ) : model ? (
                   // Show current model if no models loaded yet
@@ -333,6 +466,11 @@ export function SettingsPage() {
             {!model && (
               <p className="text-xs text-destructive">
                 Model is required. Test API connection to load available models.
+              </p>
+            )}
+            {model && (
+              <p className="text-xs text-muted-foreground font-mono">
+                ID: {model}
               </p>
             )}
           </div>
