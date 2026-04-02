@@ -10,6 +10,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.82.0",
     "better-sqlite3": "^12.8.0",
     "ulid": "^3.0.2"
   },
