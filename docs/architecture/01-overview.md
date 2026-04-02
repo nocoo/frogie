@@ -2,14 +2,14 @@
 
 ## Vision
 
-Frogie is a **web-based Claude Code** - bringing the full power of an AI coding agent to the browser. Users can interact with an intelligent assistant that can read, write, and execute code in their local workspace, all through a web interface.
+Frogie is a **local-first web shell for an agent engine** — a browser-based interface that wraps open-agent-sdk, providing multi-workspace management, session persistence, and rich UI for AI-assisted coding workflows.
 
 ## Core Goals
 
 1. **Browser-native Experience**
-   - No complex CLI setup required
    - Rich web UI for chat, tool visualization, and session management
    - Works on any device with a browser
+   - No CLI required for end users
 
 2. **Full Agent Capabilities**
    - Multi-turn conversations with persistent context
@@ -18,8 +18,8 @@ Frogie is a **web-based Claude Code** - bringing the full power of an AI coding 
    - Automatic context compression for long sessions
 
 3. **LLM API Connection**
-   - Uses **OpenAI-compatible** `/v1/chat/completions` endpoint
-   - Primary: Raven Proxy (handles Anthropic↔OpenAI format translation)
+   - Uses **Anthropic Messages API** (`/v1/messages`) natively
+   - Connects via Raven Proxy for upstream routing
    - User configures URL, API Key, Model in Settings page
 
 4. **Multi-workspace Support**
@@ -38,47 +38,63 @@ Frogie is a **web-based Claude Code** - bringing the full power of an AI coding 
 
 ## Reference Projects
 
-This project synthesizes the best ideas from:
+| Project | Path | Role |
+|---------|------|------|
+| **open-agent-sdk** | `/Users/nocoo/workspace/reference/open-agent-sdk-typescript` | **Engine base** — Agent, QueryEngine, MCP, session |
+| **Claude Code CLI** | `/Users/nocoo/workspace/reference/claude-code` | **Design reference** — product patterns, prompts, permission design |
+| **Raven Proxy** | `/Users/nocoo/workspace/personal/raven` | LLM API proxy, upstream routing |
 
-| Project | Path | What We Take |
-|---------|------|--------------|
-| **Claude Code CLI** | `/Users/nocoo/workspace/reference/claude-code` | Tool system prompts, permission model, Skill concept |
-| **open-agent-sdk** | `/Users/nocoo/workspace/reference/open-agent-sdk-typescript` | Agentic loop structure, context compression, MCP client |
-| **Raven Proxy** | `/Users/nocoo/workspace/personal/raven` | LLM API proxy, Anthropic↔OpenAI format translation |
+### Architecture Strategy
 
-### Code Inheritance Strategy
+**Principle**: open-agent-sdk is the engine; Claude Code is the design reference. We don't clone Claude Code — we build a web shell around a working agent engine.
 
-**Principle**: Core modules (prompts, agentic loop, tools) should be **directly inherited** from reference projects — no reinventing wheels. Our focus is on:
+#### open-agent-sdk as Engine Base
 
-1. **6DQ Compliance**: Add comprehensive tests to inherited code
-2. **Integration**: Wire everything together with proper architecture
-3. **UI/UX**: Build excellent browser-based experience
+open-agent-sdk is a modular, Anthropic-native engine that provides:
 
-#### From Claude Code CLI (Direct Inheritance)
+- `Agent` class with agentic loop (`src/agent.ts`)
+- `QueryEngine` for single-turn queries (`src/engine.ts`)
+- Tool concurrent execution with read-only batching
+- MCP client integration (stdio/sse/http transports)
+- Session persistence with fork/resume (`src/session.ts`)
 
-| Module | Source | Notes |
-|--------|--------|-------|
-| **Tool Prompts** | `src/tools/*.ts` | Core value, inherit as-is |
-| **Tool Definitions** | `src/tools/*.ts` | Schemas + execution logic |
-| **Context Compression** | `src/context/` | Proven compaction algorithm |
-| Permission Model | `src/permissions/` | Adapt for web |
-| Skill System | `src/skills/` | Future phase |
+Frogie builds a **thin adapter layer** on top:
 
-#### From open-agent-sdk-typescript (Direct Inheritance)
+| open-agent-sdk provides | Frogie adds |
+|-------------------------|-------------|
+| Agent loop, tool execution | WebSocket transport for browser |
+| Session file storage | SQLite indexing for multi-session management |
+| Single workspace context | Multi-workspace support |
+| CLI/programmatic API | Web UI with MVVM architecture |
 
-| Module | Source | Notes |
-|--------|--------|-------|
-| **Agentic Loop** | `src/agent.ts` | Core loop logic |
-| **MCP Client** | `src/mcp/` | All transports |
-| **Message Types** | `src/types/` | Type definitions |
-| Streaming Handler | `src/streaming/` | SSE parsing |
+This follows open-agent-sdk's own web example pattern (`examples/web/server.ts`).
 
-#### Our Value-Add (Frogie's Focus)
+#### Claude Code as Design Reference (Not Code Base)
+
+Claude Code CLI is a heavy product system — permissions, bridges, UI, remote, feature flags, skills, workers are all intertwined. We **study its product design**, not copy its code:
+
+| What We Study | Source | What We Build |
+|---------------|--------|---------------|
+| Tool prompt patterns | `README.md:81` | Our own prompts with 6DQ discipline |
+| Tool pool assembly strategy | `src/tools.ts:330` | "built-in + MCP + deny rules + dedup + stable sort" |
+| Permission architecture | `permissions.ts`, `bridgePermissionCallbacks.ts` | Web-friendly permission flow |
+| File tool defenses | `FileReadTool.ts`, `FileEditTool.ts` | Path expansion, size limits, similar path hints |
+
+### API Format: Anthropic-Native
+
+Frogie uses **Anthropic Messages API** as the primary protocol:
+
+- Native `messages` array with `role: user | assistant`
+- Native `tool_use` and `tool_result` content blocks
+- Extended thinking support via `thinking` blocks
+- Raven Proxy handles upstream routing
+
+### Frogie's Value-Add
 
 | Area | What We Build |
 |------|---------------|
+| **Adapter Layer** | WebSocket transport, SQLite session indexing, multi-workspace |
 | **6DQ** | L1/L2/L3 tests, G1/G2 gates, D1 isolation for all modules |
-| **Integration** | Hono server, WebSocket protocol, SQLite persistence |
 | **UI/UX** | Basalt Gen 2 MVVM, chat experience, tool visualization |
 
 ## Development Environment
@@ -124,14 +140,14 @@ frogie.dev.hexly.ai {
 
 ## LLM API Configuration
 
-Frogie connects to LLM APIs through **Raven Proxy** (or any OpenAI-compatible endpoint).
+Frogie connects to LLM APIs through **Raven Proxy**.
 
 ### Architecture
 
 ```
 ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│  Frogie Server  │────▶│  Raven Proxy    │────▶│  Copilot API    │
-│  :7034          │     │  :7024          │     │  (Claude/GPT)   │
+│  Frogie Server  │────▶│  Raven Proxy    │────▶│  Anthropic API  │
+│  :7034          │     │  :7024          │     │  (Claude)       │
 └─────────────────┘     └─────────────────┘     └─────────────────┘
 ```
 
@@ -141,7 +157,7 @@ Settings are configured in the Frogie web UI Settings page:
 
 | Setting | Description | Example |
 |---------|-------------|---------|
-| **API URL** | OpenAI-compatible base URL | `http://localhost:7024/v1` |
+| **API URL** | Anthropic API base URL | `http://localhost:7024/v1` |
 | **API Key** | Bearer token for authentication | (from Raven or provider) |
 | **Model** | Default model for new sessions | `claude-sonnet-4-6` |
 
@@ -170,12 +186,12 @@ These settings are persisted in SQLite (`~/.frogie/frogie.db`).
             │ HTTP                    │ stdio/sse/http
 ┌───────────▼───────────┐   ┌────────▼────────┐
 │   Raven Proxy (:7024) │   │   MCP Servers   │
-│   Anthropic↔OpenAI    │   │   (local spawn) │
+│   (upstream routing)  │   │   (local spawn) │
 └───────────┬───────────┘   └─────────────────┘
             │
 ┌───────────▼───────────┐
-│    Copilot / Claude   │
-│    (upstream API)     │
+│    Anthropic API      │
+│    (Claude)           │
 └───────────────────────┘
 ```
 
@@ -272,7 +288,7 @@ User opens Frogie
 | Frontend | React 19 + Vite 7 | Modern, fast HMR, Basalt template ecosystem |
 | UI Architecture | MVVM (Basalt Gen 2) | Clear separation: Model → ViewModel → View |
 | Database | SQLite (better-sqlite3) | Simple, no external deps, sufficient for single-user |
-| API Format | OpenAI-compatible | Works with many providers, well-documented |
+| API Format | Anthropic Messages API | Native tool_use/tool_result, thinking blocks |
 | Communication | WebSocket | Bidirectional, supports streaming, interrupts |
 
 ## Quality System (六维质量体系)

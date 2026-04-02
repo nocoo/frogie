@@ -1,21 +1,27 @@
 # Frogie
 
-> Web-based Claude Code - A browser-native AI coding agent
+> Local-first web shell for an agent engine
 
-Frogie is a web-based implementation of Claude Code, enabling AI-powered coding assistance directly in the browser. It connects to a local proxy layer to execute tools (file operations, shell commands, MCP servers) while providing a rich chat interface for multi-turn agent conversations.
+Frogie is a browser-based interface that wraps [open-agent-sdk](https://github.com/codeany-ai/open-agent-sdk-typescript), providing multi-workspace management, session persistence, and rich UI for AI-assisted coding workflows. It runs locally on your machine with full filesystem access.
 
 ## Key Features
 
-- **Browser-native**: No complex local setup required, operate entirely through web interface
-- **Agentic Loop**: Full agent loop with tool execution, context compression, and multi-turn conversations
-- **Tool Execution**: 30+ built-in tools (Bash, Read, Write, Edit, Glob, Grep, etc.)
-- **MCP Support**: Connect to Model Context Protocol servers (stdio, SSE, HTTP)
-- **Multi-workspace**: Work on multiple projects with isolated sessions and configurations
-- **Permission Control**: Configurable permission levels for dangerous operations
+- **Web UI**: Rich chat interface with tool visualization, session management
+- **Local-first**: Runs on your machine, full filesystem access (no sandbox)
+- **Multi-workspace**: Work on multiple projects with isolated sessions and MCP configs
+- **open-agent-sdk Engine**: Agentic loop, tool execution, MCP client, session persistence
+- **Anthropic API**: Native support for Claude models via Anthropic Messages API
 
 ## Architecture
 
-See [docs/](./docs/) for detailed architecture documentation.
+```
+Browser (React) ──WebSocket──▶ Frogie Server (Hono) ──▶ open-agent-sdk ──▶ Anthropic API
+                                     │
+                                     ├── SQLite (session index, workspace config)
+                                     └── MCP Servers (local spawn)
+```
+
+See [docs/architecture/](./docs/architecture/) for detailed design.
 
 ## Status
 

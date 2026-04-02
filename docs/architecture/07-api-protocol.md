@@ -186,7 +186,7 @@ Response:
 GET    /api/workspaces/:workspaceId/sessions          List sessions
 POST   /api/workspaces/:workspaceId/sessions          Create session
 GET    /api/workspaces/:workspaceId/sessions/:id      Get session + messages
-DELETE /api/workspaces/:workspaceId/sessions/:id      Delete session
+DELETE /api/workspaces/:workspaceId/sessions/:id      Delete session (index + files)
 POST   /api/workspaces/:workspaceId/sessions/:id/fork Fork session
 ```
 
@@ -204,6 +204,8 @@ Content-Type: application/json
 
 #### Get Session with Messages
 
+Messages are retrieved from open-agent-sdk's file storage via `getSessionMessages(id)`:
+
 ```http
 GET /api/workspaces/01HXYZ.../sessions/01HABC...
 ```
@@ -220,25 +222,21 @@ Response:
     "message_count": 12,
     "total_cost_usd": 0.05
   },
-  "messages": [
-    {
-      "id": "01HDEF...",
-      "role": "user",
-      "content": [{ "type": "text", "text": "Help me debug the auth issue" }],
-      "created_at": 1712000000000
-    },
-    {
-      "id": "01HGHI...",
-      "role": "assistant",
-      "content": [
-        { "type": "text", "text": "I'll help you debug that." },
-        { "type": "tool_use", "id": "toolu_123", "name": "Glob", "input": { "pattern": "src/auth/**/*.ts" } }
-      ],
-      "created_at": 1712000001000
-    }
-  ]
+  "messages": [...]  // From open-agent-sdk getSessionMessages()
 }
 ```
+
+#### Delete Session
+
+Deletes both the SQLite index and open-agent-sdk's transcript file:
+
+```http
+DELETE /api/workspaces/01HXYZ.../sessions/01HABC...
+```
+
+Implementation must call both:
+1. `db.deleteSessionIndex(id)` — remove SQLite index
+2. `deleteSession(id)` from open-agent-sdk — remove `~/.open-agent-sdk/sessions/<id>/`
 
 ### MCP
 

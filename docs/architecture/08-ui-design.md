@@ -729,8 +729,11 @@ export function useChatWebSocket() {
     }))
   }, [store])
   
-  const interrupt = useCallback((sessionId: string) => {
-    wsRef.current?.send(JSON.stringify({ type: 'interrupt', sessionId }))
+  const interrupt = useCallback(() => {
+    const sessionId = useSessionStore.getState().currentSessionId
+    if (sessionId) {
+      wsRef.current?.send(JSON.stringify({ type: 'interrupt', sessionId }))
+    }
   }, [])
   
   return { sendMessage, interrupt }

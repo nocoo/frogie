@@ -2,15 +2,39 @@
 
 ## Overview
 
-Frogie uses SQLite for persistence, keeping all data local and simple. The schema supports multi-workspace, multi-session operation with full message history.
+Frogie uses a **dual persistence model**:
+
+1. **open-agent-sdk** handles message history (file-based, managed by SDK)
+2. **SQLite** handles session index, workspace config, MCP config, and global settings
+
+This separation respects open-agent-sdk's built-in persistence while adding the multi-workspace indexing Frogie needs.
+
+## Data Ownership
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    open-agent-sdk (file-based)                   │
+│  Location: ~/.open-agent-sdk/sessions/<id>/transcript.json      │
+│  Contents: { metadata, messages }                                │
+│  Managed by SDK, not directly accessed by Frogie                │
+└─────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────┐
+│                    SQLite (~/.frogie/frogie.db)                  │
+│  - Session INDEX (id, workspace_id, name, model, timestamps)    │
+│  - Workspace registry                                            │
+│  - MCP configurations                                            │
+│  - Global settings                                               │
+└─────────────────────────────────────────────────────────────────┘
+```
 
 ## Entity Relationship
 
 ```
-┌─────────────┐       ┌─────────────┐       ┌─────────────┐
-│  Workspace  │──1:N──│   Session   │──1:N──│   Message   │
-└─────────────┘       └─────────────┘       └─────────────┘
-       │
+┌─────────────┐       ┌─────────────┐
+│  Workspace  │──1:N──│   Session   │ ← Index only, messages in SDK files
+└─────────────┘       │   (index)   │
+       │              └─────────────┘
        │ 1:N
        ▼
 ┌─────────────┐
@@ -60,16 +84,20 @@ CREATE INDEX idx_workspaces_path ON workspaces(path);
 CREATE INDEX idx_workspaces_last_accessed ON workspaces(last_accessed DESC);
 ```
 
-### Sessions
+### Sessions (Index Only)
 
 ```sql
+-- Session index for fast discovery and workspace association
+-- Actual message history is stored by open-agent-sdk in files
 CREATE TABLE sessions (
-  id TEXT PRIMARY KEY,                    -- ULID
+  id TEXT PRIMARY KEY,                    -- Session ID (matches open-agent-sdk)
   workspace_id TEXT NOT NULL,             -- FK to workspaces
   name TEXT,                              -- User-assigned name (nullable)
   model TEXT NOT NULL DEFAULT 'claude-sonnet-4-6',
   created_at INTEGER NOT NULL,            -- Unix timestamp ms
   updated_at INTEGER NOT NULL,            -- Unix timestamp ms
+  
+  -- Aggregated stats (updated after each query)
   message_count INTEGER DEFAULT 0,
   total_input_tokens INTEGER DEFAULT 0,
   total_output_tokens INTEGER DEFAULT 0,
@@ -82,27 +110,7 @@ CREATE INDEX idx_sessions_workspace ON sessions(workspace_id);
 CREATE INDEX idx_sessions_updated ON sessions(updated_at DESC);
 ```
 
-### Messages
-
-```sql
-CREATE TABLE messages (
-  id TEXT PRIMARY KEY,                    -- ULID
-  session_id TEXT NOT NULL,               -- FK to sessions
-  sequence INTEGER NOT NULL,              -- Order within session
-  role TEXT NOT NULL,                     -- 'user' | 'assistant' | 'system'
-  content TEXT NOT NULL,                  -- JSON: content blocks
-  created_at INTEGER NOT NULL,            -- Unix timestamp ms
-  
-  -- Metadata
-  input_tokens INTEGER,                   -- For assistant messages
-  output_tokens INTEGER,
-  
-  FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE,
-  UNIQUE(session_id, sequence)
-);
-
-CREATE INDEX idx_messages_session ON messages(session_id, sequence);
-```
+**Note**: To retrieve actual message history, use `open-agent-sdk`'s `getSessionMessages(id)` function.
 
 ### MCP Configurations
 
@@ -126,67 +134,13 @@ CREATE INDEX idx_mcp_workspace ON mcp_configs(workspace_id);
 
 ## Message Content Format
 
-Messages store content as JSON arrays of content blocks:
+**Note**: Message history is managed by open-agent-sdk, not Frogie's SQLite database. The format below is for reference only (matches Anthropic API format):
 
-### User Message
+- `user` messages: `{ role: 'user', content: [{ type: 'text', text: '...' }] }`
+- `assistant` messages: `{ role: 'assistant', content: [TextBlock | ThinkingBlock | ToolUseBlock] }`
+- `tool_result`: `{ type: 'tool_result', tool_use_id: '...', content: '...' }`
 
-```json
-{
-  "role": "user",
-  "content": [
-    { "type": "text", "text": "Read the package.json file" }
-  ]
-}
-```
-
-### User Message with Tool Results
-
-```json
-{
-  "role": "user",
-  "content": [
-    {
-      "type": "tool_result",
-      "tool_use_id": "toolu_123",
-      "content": "{ \"name\": \"frogie\", \"version\": \"0.1.0\" }"
-    }
-  ]
-}
-```
-
-### Assistant Message
-
-```json
-{
-  "role": "assistant",
-  "content": [
-    { "type": "thinking", "thinking": "I need to read the package.json..." },
-    { "type": "text", "text": "I'll read the package.json file for you." },
-    {
-      "type": "tool_use",
-      "id": "toolu_123",
-      "name": "Read",
-      "input": { "file_path": "/workspace/package.json" }
-    }
-  ]
-}
-```
-
-### System Message (Compact Boundary)
-
-```json
-{
-  "role": "system",
-  "content": [
-    {
-      "type": "compact_boundary",
-      "summary": "Previous conversation summary...",
-      "compacted_at": 1712000000000,
-      "original_message_count": 42
-    }
-  ]
-}
-```
+For detailed format, see [open-agent-sdk types](https://github.com/codeany-ai/open-agent-sdk-typescript/blob/main/src/types.ts).
 
 ## Database Access Layer
 
@@ -279,50 +233,13 @@ export class DB {
     )
   }
   
-  deleteSession(id: string): void {
+  /**
+   * Delete session from SQLite index only.
+   * IMPORTANT: Caller must also call open-agent-sdk's deleteSession(id) 
+   * to remove the transcript.json file from disk.
+   */
+  deleteSessionIndex(id: string): void {
     this.db.prepare('DELETE FROM sessions WHERE id = ?').run(id)
-  }
-  
-  // Messages
-  
-  appendMessages(sessionId: string, messages: CreateMessage[]): void {
-    const stmt = this.db.prepare(`
-      INSERT INTO messages (id, session_id, sequence, role, content, created_at, input_tokens, output_tokens)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `)
-    
-    const maxSeq = this.db.prepare(
-      'SELECT COALESCE(MAX(sequence), -1) as max FROM messages WHERE session_id = ?'
-    ).get(sessionId) as { max: number }
-    
-    let seq = maxSeq.max + 1
-    
-    const insertMany = this.db.transaction((msgs: CreateMessage[]) => {
-      for (const msg of msgs) {
-        stmt.run(
-          ulid(), sessionId, seq++, msg.role,
-          JSON.stringify(msg.content), Date.now(),
-          msg.inputTokens ?? null, msg.outputTokens ?? null
-        )
-      }
-    })
-    
-    insertMany(messages)
-  }
-  
-  getMessages(sessionId: string): Message[] {
-    const rows = this.db.prepare(
-      'SELECT * FROM messages WHERE session_id = ? ORDER BY sequence'
-    ).all(sessionId) as MessageRow[]
-    
-    return rows.map(row => ({
-      ...row,
-      content: JSON.parse(row.content),
-    }))
-  }
-  
-  clearMessages(sessionId: string): void {
-    this.db.prepare('DELETE FROM messages WHERE session_id = ?').run(sessionId)
   }
   
   // MCP Configs
@@ -401,16 +318,8 @@ export interface Session {
   total_cost_usd: number
 }
 
-export interface Message {
-  id: string
-  session_id: string
-  sequence: number
-  role: 'user' | 'assistant' | 'system'
-  content: ContentBlock[]
-  created_at: number
-  input_tokens: number | null
-  output_tokens: number | null
-}
+// Note: Message type is defined by open-agent-sdk, not Frogie
+// Use getSessionMessages(id) from open-agent-sdk to retrieve messages
 
 export interface MCPConfig {
   id: string

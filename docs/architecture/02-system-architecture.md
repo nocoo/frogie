@@ -45,7 +45,7 @@ frogie/
 │  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘ │
 │         └──────────────────┴─────────────────┴─────────────────┘         │
 │                                    │                                      │
-│                            useChatStream hook                             │
+│                           useChatWebSocket hook                            │
 └────────────────────────────────────┼──────────────────────────────────────┘
                                      │ WebSocket / REST
 ┌────────────────────────────────────▼──────────────────────────────────────┐
@@ -82,7 +82,8 @@ frogie/
                      │  (workspaces,        │
                      │   sessions,          │
                      │   messages,          │
-                     │   mcp_configs)       │
+                     │   mcp_configs,       │
+                     │   settings)          │
                      └──────────────────────┘
 ```
 
@@ -111,24 +112,27 @@ frogie/
                 │
 5. Save session to SQLite
                 │
-6. WebSocket sends { type: 'turn_complete', stats }
+6. WebSocket sends { type: 'turn_complete', turns, inputTokens, outputTokens, costUsd, durationMs }
 ```
 
 ### Event Flow (WebSocket)
+
+See `07-api-protocol.md` for the complete WebSocket protocol specification.
 
 ```
 Browser                          Server
    │                               │
    │──── { type: 'chat', ... } ───▶│
    │                               │
-   │◀─── { type: 'text', ... } ────│  (streaming)
-   │◀─── { type: 'text', ... } ────│
+   │◀── { type: 'session_start' }──│
    │◀─── { type: 'thinking', ...}──│
+   │◀─── { type: 'text', ... } ────│  (streaming)
    │◀─── { type: 'tool_use', ... }─│
    │                               │  (tool execution)
    │◀─ { type: 'tool_result', ... }│
    │◀─── { type: 'text', ... } ────│
-   │◀─ { type: 'turn_complete', ..}│
+   │◀─ { type: 'turn_complete' } ──│  (flat fields, not nested stats)
+   │◀─ { type: 'session_saved' } ──│
    │                               │
 ```
 
@@ -170,7 +174,7 @@ LLM configuration is stored in the `settings` table and managed via the web UI:
 
 | Setting | Description | Default |
 |---------|-------------|---------|
-| `llm_base_url` | OpenAI-compatible API URL | `http://localhost:7024/v1` |
+| `llm_base_url` | Anthropic API URL | `http://localhost:7024/v1` |
 | `llm_api_key` | API key for LLM provider | (empty) |
 | `llm_model` | Default model for new sessions | `claude-sonnet-4-6` |
 | `max_turns` | Maximum turns per session | 50 |

@@ -156,8 +156,19 @@ export const BashTool = defineTool({
 
 #### Read Tool
 
+Following Claude Code's defensive patterns (`FileReadTool.ts:96`), the Read tool handles:
+- Path expansion (~ → home, symlink resolution)
+- Device file rejection (/dev/*, /proc/*)
+- Size limits to prevent memory exhaustion
+- Similar path hints when file not found
+
 ```typescript
 // packages/server/src/tools/read.ts
+
+import { resolvePath, isDevicePath, findSimilarPaths, formatWithLineNumbers } from './utils'
+
+const MAX_FILE_SIZE = 10 * 1024 * 1024  // 10MB
+const MAX_LINES = 2000
 
 export const ReadTool = defineTool({
   name: 'Read',
@@ -176,23 +187,43 @@ export const ReadTool = defineTool({
   isConcurrencySafe: () => true,
   
   async call(input, context) {
-    const { file_path, offset = 0, limit = 2000 } = input
-    // Note: No path restriction - Frogie runs with full user permissions like Claude Code CLI
-    // Absolute paths are used directly, relative paths resolve from workspace cwd
-    const fullPath = isAbsolute(file_path) ? file_path : resolve(context.cwd, file_path)
+    const { file_path, offset = 0, limit = MAX_LINES } = input
+    
+    // Resolve path (expand ~, resolve symlinks, handle relative)
+    const fullPath = resolvePath(file_path, context.cwd)
+    
+    // Reject device files
+    if (isDevicePath(fullPath)) {
+      return { data: `Error: Cannot read device file: ${file_path}`, isError: true }
+    }
     
     try {
-      const content = await readFile(fullPath, 'utf-8')
-      const lines = content.split('\n')
-      const selected = lines.slice(offset, offset + limit)
+      // Check file size before reading
+      const stat = await Bun.file(fullPath).stat()
+      if (stat.size > MAX_FILE_SIZE) {
+        return {
+          data: `Error: File too large (${(stat.size / 1024 / 1024).toFixed(1)}MB). Max: ${MAX_FILE_SIZE / 1024 / 1024}MB`,
+          isError: true,
+        }
+      }
       
-      // Format with line numbers (cat -n style)
-      return selected
-        .map((line, i) => `${(offset + i + 1).toString().padStart(6)}\t${line}`)
-        .join('\n')
+      const content = await Bun.file(fullPath).text()
+      const lines = content.split('\n')
+      const selected = lines.slice(offset, offset + Math.min(limit, MAX_LINES))
+      
+      return formatWithLineNumbers(selected, offset)
     } catch (err) {
       if (err.code === 'ENOENT') {
-        return { data: `Error: File not found: ${file_path}`, isError: true }
+        // Find similar paths to help LLM recover
+        const similar = await findSimilarPaths(file_path, context.cwd)
+        let msg = `Error: File not found: ${file_path}`
+        if (similar.length > 0) {
+          msg += `\n\nDid you mean:\n${similar.map(p => `  - ${p}`).join('\n')}`
+        }
+        return { data: msg, isError: true }
+      }
+      if (err.code === 'EACCES') {
+        return { data: `Error: Permission denied: ${file_path}`, isError: true }
       }
       throw err
     }
@@ -204,8 +235,15 @@ export const ReadTool = defineTool({
 
 #### Edit Tool
 
+Following Claude Code's defensive patterns (`FileEditTool.ts:137`), the Edit tool handles:
+- File existence validation before edit
+- Uniqueness check for old_string
+- Diff feedback showing what changed
+
 ```typescript
 // packages/server/src/tools/edit.ts
+
+import { resolvePath, createDiff } from './utils'
 
 export const EditTool = defineTool({
   name: 'Edit',
@@ -226,33 +264,47 @@ export const EditTool = defineTool({
   
   async call(input, context) {
     const { file_path, old_string, new_string, replace_all } = input
-    const fullPath = resolve(context.cwd, file_path)
+    const fullPath = resolvePath(file_path, context.cwd)
     
     if (old_string === new_string) {
       return { data: 'Error: old_string and new_string are identical', isError: true }
     }
     
-    let content = await readFile(fullPath, 'utf-8')
+    // Read original content
+    let content: string
+    try {
+      content = await Bun.file(fullPath).text()
+    } catch (err) {
+      if (err.code === 'ENOENT') {
+        return { data: `Error: File not found: ${file_path}`, isError: true }
+      }
+      throw err
+    }
     
     if (!content.includes(old_string)) {
       return { data: `Error: old_string not found in ${file_path}`, isError: true }
     }
     
-    if (!replace_all) {
-      const count = content.split(old_string).length - 1
-      if (count > 1) {
-        return {
-          data: `Error: old_string appears ${count} times. Provide more context or set replace_all: true.`,
-          isError: true,
-        }
+    // Check uniqueness
+    const occurrences = content.split(old_string).length - 1
+    if (!replace_all && occurrences > 1) {
+      return {
+        data: `Error: old_string appears ${occurrences} times. Provide more context or set replace_all: true.`,
+        isError: true,
       }
-      content = content.replace(old_string, new_string)
-    } else {
-      content = content.split(old_string).join(new_string)
     }
     
-    await writeFile(fullPath, content, 'utf-8')
-    return `File edited: ${file_path}`
+    // Perform replacement
+    const originalContent = content
+    content = replace_all
+      ? content.split(old_string).join(new_string)
+      : content.replace(old_string, new_string)
+    
+    // Write and return diff feedback
+    await Bun.write(fullPath, content)
+    
+    const diff = createDiff(originalContent, content, file_path)
+    return `File edited: ${file_path}\n\n${diff}`
   },
   
   prompt: () => EDIT_PROMPT,
@@ -304,7 +356,8 @@ IMPORTANT: Avoid using this tool to run \`find\`, \`grep\`, \`cat\`, \`head\`, \
 export const READ_PROMPT = `Reads a file from the local filesystem.
 
 Usage:
-- The file_path parameter must be an absolute path, not relative
+- The file_path parameter should be an absolute path
+- Relative paths are resolved from the workspace root
 - By default, reads up to 2000 lines starting from the beginning
 - When you already know which part of the file you need, only read that part
 - Results are returned using cat -n format, with line numbers starting at 1
@@ -321,6 +374,8 @@ Usage:
 export const EDIT_PROMPT = `Performs exact string replacements in files.
 
 Usage:
+- The file_path parameter should be an absolute path (same as Read tool)
+- Relative paths are resolved from the workspace root
 - You MUST use the Read tool first before editing. This tool will fail if you haven't read the file.
 - When editing text from Read output, preserve exact indentation as it appears AFTER the line number prefix
 - ALWAYS prefer editing existing files. NEVER write new files unless explicitly required.
@@ -330,37 +385,75 @@ Usage:
 
 ## Tool Pool Assembly
 
+Following Claude Code CLI's pattern (`src/tools.ts:354`), tool pool assembly uses **built-in-first precedence** with `uniqBy` to resolve name conflicts:
+
 ```typescript
 // packages/server/src/tools/pool.ts
 
-export function assembleToolPool(
-  builtinTools: ToolDefinition[],
-  mcpTools: ToolDefinition[],
-  options?: { allowedTools?: string[], disallowedTools?: string[] }
-): ToolDefinition[] {
+import { uniqBy } from 'lodash-es'
+
+export interface ToolPoolConfig {
+  builtinTools: ToolDefinition[]
+  mcpTools: ToolDefinition[]
+  denyRules?: DenyRule[]           // Workspace-level deny patterns
+  allowedTools?: string[]          // Explicit allowlist (if set, only these)
+}
+
+export interface DenyRule {
+  pattern: string | RegExp         // Tool name pattern to deny
+  reason?: string                  // Why denied (for error messages)
+}
+
+/**
+ * Assemble final tool pool with Claude Code-style precedence:
+ * 1. Apply deny rules to MCP tools first
+ * 2. Sort built-in tools by name (stable for prompt cache)
+ * 3. Sort allowed MCP tools by name
+ * 4. Concat: built-in first, then MCP
+ * 5. uniqBy('name') — preserves first occurrence, so BUILT-IN WINS on conflict
+ * 6. Apply allowlist filter (if set)
+ * 
+ * Key insight from Claude Code: built-ins are kept as a contiguous prefix
+ * for prompt-cache stability. uniqBy preserves insertion order, so built-ins
+ * win on name conflict (not MCP).
+ */
+export function assembleToolPool(config: ToolPoolConfig): ToolDefinition[] {
+  const { builtinTools, mcpTools, denyRules = [], allowedTools } = config
   
-  // Combine built-in and MCP tools
-  let tools = [...builtinTools, ...mcpTools]
+  // Step 1: Filter MCP tools by deny rules
+  const allowedMcpTools = mcpTools.filter(tool => {
+    const denied = denyRules.find(rule => matchDenyRule(tool.name, rule))
+    if (denied) {
+      console.debug(`Tool ${tool.name} denied: ${denied.reason || 'workspace rule'}`)
+      return false
+    }
+    return true
+  })
   
-  // Deduplicate by name (MCP tools can override built-in)
-  const byName = new Map<string, ToolDefinition>()
-  for (const tool of tools) {
-    byName.set(tool.name, tool)
-  }
-  tools = Array.from(byName.values())
+  // Step 2-4: Sort each partition, concat built-in first
+  const byName = (a: ToolDefinition, b: ToolDefinition) => a.name.localeCompare(b.name)
+  const sorted = [
+    ...builtinTools.slice().sort(byName),      // Built-in tools first
+    ...allowedMcpTools.sort(byName),           // MCP tools after
+  ]
   
-  // Apply allow/deny filters
-  if (options?.allowedTools?.length) {
-    const allowed = new Set(options.allowedTools)
+  // Step 5: Deduplicate — uniqBy keeps FIRST occurrence, so built-in wins
+  let tools = uniqBy(sorted, 'name')
+  
+  // Step 6: Apply allowlist (if set)
+  if (allowedTools?.length) {
+    const allowed = new Set(allowedTools)
     tools = tools.filter(t => allowed.has(t.name))
   }
   
-  if (options?.disallowedTools?.length) {
-    const disallowed = new Set(options.disallowedTools)
-    tools = tools.filter(t => !disallowed.has(t.name))
-  }
-  
   return tools
+}
+
+function matchDenyRule(name: string, rule: DenyRule): boolean {
+  if (typeof rule.pattern === 'string') {
+    return name === rule.pattern || name.startsWith(rule.pattern + '_')
+  }
+  return rule.pattern.test(name)
 }
 ```
 
@@ -369,15 +462,12 @@ export function assembleToolPool(
 ```typescript
 // packages/server/src/tools/format.ts
 
-// Convert to OpenAI tools format
-export function formatToolsForAPI(tools: ToolDefinition[]): OpenAITool[] {
+// Convert to Anthropic tools format
+export function formatToolsForAPI(tools: ToolDefinition[]): AnthropicTool[] {
   return tools.map(tool => ({
-    type: 'function',
-    function: {
-      name: tool.name,
-      description: tool.description,
-      parameters: tool.inputSchema,
-    },
+    name: tool.name,
+    description: tool.description,
+    input_schema: tool.inputSchema,
   }))
 }
 ```
