@@ -124,8 +124,9 @@ export function createSessionsRouter(
       throw notFound(ErrorCodes.SESSION_NOT_FOUND, `Session not found: ${id}`)
     }
 
+    // Return format per 07-api-protocol.md: { session, messages }
     return c.json({
-      ...toApiSession(sessionResult.index),
+      session: toApiSession(sessionResult.index),
       messages: sessionResult.messages,
     })
   })
@@ -153,6 +154,51 @@ export function createSessionsRouter(
     await sessionSync.deleteSession(id)
 
     return c.json({ success: true })
+  })
+
+  /**
+   * POST /api/workspaces/:wid/sessions/:id/fork - Fork session
+   *
+   * Creates a new session with copied conversation history up to current point.
+   */
+  router.post('/:id/fork', async (c) => {
+    const wid = c.req.param('wid') ?? ''
+    const id = c.req.param('id')
+
+    // Verify workspace exists
+    const workspace = getWorkspace(db, wid)
+    if (!workspace) {
+      throw notFound(ErrorCodes.WORKSPACE_NOT_FOUND, `Workspace not found: ${wid}`)
+    }
+
+    // Get original session with messages
+    const originalSession = await sessionSync.getSessionWithMessages(id)
+    if (!originalSession) {
+      throw notFound(ErrorCodes.SESSION_NOT_FOUND, `Session not found: ${id}`)
+    }
+
+    // Verify session belongs to workspace
+    if (originalSession.index.workspace_id !== wid) {
+      throw notFound(ErrorCodes.SESSION_NOT_FOUND, `Session not found: ${id}`)
+    }
+
+    // Create new session with "(fork)" suffix
+    const originalName = originalSession.index.name ?? 'Session'
+    const forkName = `${originalName} (fork)`
+    const forkedSessionId = sessionSync.createSession(wid, forkName, originalSession.index.model)
+
+    // Copy messages to forked session
+    if (originalSession.messages.length > 0) {
+      await sessionSync.saveMessages(forkedSessionId, originalSession.messages)
+    }
+
+    // Get the forked session
+    const forkedSession = sessionSync.getSession(forkedSessionId)
+    if (!forkedSession) {
+      throw new Error('Failed to create forked session')
+    }
+
+    return c.json(toApiSession(forkedSession), 201)
   })
 
   return router

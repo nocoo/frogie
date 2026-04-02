@@ -218,5 +218,37 @@ export function createMCPRouter(db: DatabaseType): Hono {
     return c.json(toApiMCPConfig(updated))
   })
 
+  /**
+   * POST /api/workspaces/:wid/mcp/:name/reconnect - Reconnect MCP server
+   *
+   * Attempts to reconnect to an MCP server. In a full implementation,
+   * this would kill any existing connection and establish a new one.
+   * Currently returns success as MCP connections are established on-demand.
+   */
+  router.post('/:name/reconnect', (c) => {
+    const wid = c.req.param('wid') ?? ''
+    const name = c.req.param('name')
+
+    // Verify workspace exists
+    const workspace = getWorkspace(db, wid)
+    if (!workspace) {
+      throw notFound(ErrorCodes.WORKSPACE_NOT_FOUND, `Workspace not found: ${wid}`)
+    }
+
+    // Get existing config
+    const existing = getMCPConfig(db, wid, name)
+    if (!existing) {
+      throw notFound(ErrorCodes.MCP_NOT_FOUND, `MCP config not found: ${name}`)
+    }
+
+    // MCP connections are currently established on-demand when a session starts.
+    // A full implementation would maintain persistent connections and reconnect here.
+    // For now, return success indicating the server will reconnect on next use.
+    return c.json({
+      success: true,
+      message: `MCP server '${name}' will reconnect on next session`,
+    })
+  })
+
   return router
 }

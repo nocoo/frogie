@@ -34,9 +34,10 @@ interface SessionResponse {
 }
 
 /**
- * Session with messages response type
+ * Session with messages response type (per 07-api-protocol.md)
  */
-interface SessionWithMessagesResponse extends SessionResponse {
+interface SessionWithMessagesResponse {
+  session: SessionResponse
   messages: unknown[]
 }
 
@@ -229,7 +230,7 @@ describe('routes/sessions', () => {
 
       expect(res.status).toBe(200)
       const body = (await res.json()) as SessionWithMessagesResponse
-      expect(body.id).toBe(created.id)
+      expect(body.session.id).toBe(created.id)
       expect(body.messages).toHaveLength(2)
     })
 
