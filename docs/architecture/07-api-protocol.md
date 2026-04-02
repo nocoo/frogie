@@ -4,12 +4,14 @@
 
 Frogie uses a combination of WebSocket (for real-time chat) and REST (for CRUD operations) APIs.
 
+**This document is the single source of truth for the WebSocket protocol.**
+
 ## WebSocket Protocol
 
 ### Connection
 
 ```
-ws://localhost:7025/ws/chat
+ws://localhost:7034/ws/chat
 ```
 
 ### Client → Server Messages
@@ -29,15 +31,6 @@ interface InterruptMessage {
   sessionId: string
 }
 
-// Respond to permission request
-interface PermissionResponseMessage {
-  type: 'permission_response'
-  sessionId: string
-  toolCallId: string
-  approved: boolean
-  remember?: boolean  // Remember for this session
-}
-
 // Ping for keepalive
 interface PingMessage {
   type: 'ping'
@@ -47,6 +40,13 @@ interface PingMessage {
 ### Server → Client Events
 
 ```typescript
+// Session started (first event after chat message)
+interface SessionStartEvent {
+  type: 'session_start'
+  sessionId: string
+  model: string
+}
+
 // Text content (streaming)
 interface TextEvent {
   type: 'text'
@@ -75,15 +75,6 @@ interface ToolResultEvent {
   isError: boolean
 }
 
-// Permission required for dangerous operation
-interface PermissionRequestEvent {
-  type: 'permission_request'
-  id: string
-  toolName: string
-  input: unknown
-  reason: string
-}
-
 // Context compression started
 interface CompactStartEvent {
   type: 'compact_start'
@@ -95,16 +86,25 @@ interface CompactDoneEvent {
   summary: string
 }
 
-// Turn completed
+// Turn completed successfully
 interface TurnCompleteEvent {
   type: 'turn_complete'
-  stats: {
-    turns: number
-    inputTokens: number
-    outputTokens: number
-    costUsd: number
-    durationMs: number
-  }
+  turns: number
+  inputTokens: number
+  outputTokens: number
+  costUsd: number
+  durationMs: number
+}
+
+// Budget limit reached
+interface BudgetExceededEvent {
+  type: 'budget_exceeded'
+  costUsd: number
+}
+
+// Session saved to database
+interface SessionSavedEvent {
+  type: 'session_saved'
 }
 
 // Error occurred
@@ -114,7 +114,7 @@ interface ErrorEvent {
   code?: string
 }
 
-// Execution interrupted
+// Execution interrupted by user
 interface InterruptedEvent {
   type: 'interrupted'
 }
@@ -132,29 +132,16 @@ Client                                Server
    │                                    │
    │─── { type: 'chat', ... } ─────────▶│
    │                                    │
+   │◀── { type: 'session_start', ... } ─│
    │◀─── { type: 'thinking', ... } ─────│
    │◀─── { type: 'text', ... } ─────────│
-   │◀─── { type: 'text', ... } ─────────│
    │◀─── { type: 'tool_use', ... } ─────│
-   │                                    │
+   │                                    │  (tool execution)
    │◀─── { type: 'tool_result', ... } ──│
    │                                    │
    │◀─── { type: 'text', ... } ─────────│
    │◀─── { type: 'turn_complete', ... }─│
-   │                                    │
-```
-
-### Permission Flow
-
-```
-Client                                Server
-   │                                    │
-   │◀── { type: 'permission_request' } ─│  (Bash: rm -rf ...)
-   │                                    │
-   │── { type: 'permission_response',  ─▶│
-   │     approved: true }               │
-   │                                    │
-   │◀─── { type: 'tool_result', ... } ──│  (Execution proceeds)
+   │◀─── { type: 'session_saved' } ─────│
    │                                    │
 ```
 
@@ -303,22 +290,32 @@ GET    /api/settings                Get global settings
 PATCH  /api/settings                Update settings
 ```
 
-#### Settings Schema
+#### Get Settings Response
 
 ```json
 {
-  "llm": {
-    "baseUrl": "http://localhost:7024/v1",
-    "apiKey": "***",
-    "model": "claude-sonnet-4-6"
-  },
-  "agent": {
-    "maxTurns": 50,
-    "maxBudgetUsd": 10.0,
-    "permissionMode": "confirm"
-  }
+  "llmBaseUrl": "http://localhost:7024/v1",
+  "llmApiKey": "sk-***",           // Masked in response
+  "llmModel": "claude-sonnet-4-6",
+  "maxTurns": 50,
+  "maxBudgetUsd": 10.0
 }
 ```
+
+#### Update Settings Request
+
+```http
+PATCH /api/settings
+Content-Type: application/json
+
+{
+  "llmBaseUrl": "http://localhost:7024/v1",
+  "llmApiKey": "sk-new-key",
+  "llmModel": "claude-opus-4"
+}
+```
+
+Note: All fields are optional in PATCH. Only provided fields are updated.
 
 ## Error Responses
 

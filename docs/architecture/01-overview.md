@@ -17,10 +17,10 @@ Frogie is a **web-based Claude Code** - bringing the full power of an AI coding 
    - MCP server integration for extended capabilities
    - Automatic context compression for long sessions
 
-3. **Flexible Backend Connection**
-   - Connect to any OpenAI-compatible API endpoint
-   - Works with Raven Proxy, direct Anthropic API, or other providers
-   - Independent URL and Token configuration
+3. **LLM API Connection**
+   - Uses **OpenAI-compatible** `/v1/chat/completions` endpoint
+   - Primary: Raven Proxy (handles Anthropic↔OpenAI format translation)
+   - User configures URL, API Key, Model in Settings page
 
 4. **Multi-workspace Support**
    - Work on multiple projects simultaneously

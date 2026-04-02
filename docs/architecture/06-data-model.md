@@ -16,9 +16,33 @@ Frogie uses SQLite for persistence, keeping all data local and simple. The schem
 ┌─────────────┐
 │  MCPConfig  │
 └─────────────┘
+
+┌─────────────┐
+│  Settings   │  (Global, single row)
+└─────────────┘
 ```
 
 ## Schema
+
+### Settings (Global)
+
+```sql
+-- Global application settings (single row, id always 'global')
+CREATE TABLE settings (
+  id TEXT PRIMARY KEY DEFAULT 'global',     -- Always 'global'
+  llm_base_url TEXT NOT NULL,               -- e.g., 'http://localhost:7024/v1'
+  llm_api_key TEXT NOT NULL,                -- API key (stored locally)
+  llm_model TEXT NOT NULL DEFAULT 'claude-sonnet-4-6',
+  max_turns INTEGER NOT NULL DEFAULT 50,
+  max_budget_usd REAL NOT NULL DEFAULT 10.0,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+
+-- Initialize with defaults
+INSERT INTO settings (id, llm_base_url, llm_api_key, llm_model, created_at, updated_at)
+VALUES ('global', 'http://localhost:7024/v1', '', 'claude-sonnet-4-6', 0, 0);
+```
 
 ### Workspaces
 

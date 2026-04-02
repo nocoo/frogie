@@ -77,14 +77,12 @@ packages/web/src/
 │   ├── chat.viewmodel.ts     # Chat state + actions
 │   ├── session.viewmodel.ts  # Session management
 │   ├── workspace.viewmodel.ts
-│   ├── permission.viewmodel.ts
 │   └── settings.viewmodel.ts
 │
 ├── hooks/                     # Custom hooks (≥95% coverage)
 │   ├── use-chat-websocket.ts
 │   ├── use-session.ts
-│   ├── use-workspace.ts
-│   └── use-permission.ts
+│   └── use-workspace.ts
 │
 ├── transformers/              # Data transformers (≥95% coverage)
 │   ├── message.transformer.ts
@@ -112,7 +110,6 @@ packages/web/src/
 │   │   ├── sidebar-provider.tsx
 │   │   └── session-list.tsx
 │   └── shared/               # Shared components
-│       ├── permission-dialog.tsx
 │       ├── settings-dialog.tsx
 │       └── workspace-selector.tsx
 │
@@ -263,7 +260,6 @@ export function AppShell({ children }: { children: ReactNode }) {
     </SidebarProvider>
   </AppShell>
   
-  <PermissionDialog />
   <SettingsDialog />
   <WorkspaceDialog />
 </App>
@@ -622,65 +618,9 @@ export function ToolUseCard({ id, name, input, result }: ToolUseCardProps) {
 }
 ```
 
-### PermissionDialog
-
-```tsx
-// packages/web/src/components/shared/permission-dialog.tsx
-
-import { AlertTriangle } from 'lucide-react'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
-import { usePermissionStore } from '@/viewmodels/permission.viewmodel'
-
-export function PermissionDialog() {
-  const { pendingRequest, respond } = usePermissionStore()
-  
-  if (!pendingRequest) return null
-  
-  return (
-    <Dialog open>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <AlertTriangle className="h-5 w-5 text-amber-500" />
-            Permission Required
-          </DialogTitle>
-        </DialogHeader>
-        
-        <div className="space-y-4">
-          <p className="text-sm text-muted-foreground">
-            The agent wants to execute:
-          </p>
-          
-          <div className="bg-muted p-3 rounded-lg">
-            <div className="font-medium">{pendingRequest.toolName}</div>
-            <pre className="text-xs mt-2 overflow-x-auto">
-              {JSON.stringify(pendingRequest.input, null, 2)}
-            </pre>
-          </div>
-        </div>
-        
-        <DialogFooter className="gap-2">
-          <Button variant="outline" onClick={() => respond(false)}>
-            Deny
-          </Button>
-          <Button onClick={() => respond(true)}>
-            Allow
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  )
-}
-```
-
 ## WebSocket Hook
+
+**Note**: Event types must match the protocol defined in `07-api-protocol.md`.
 
 ```tsx
 // packages/web/src/hooks/use-chat-websocket.ts
@@ -688,7 +628,7 @@ export function PermissionDialog() {
 import { useRef, useCallback, useEffect } from 'react'
 import { useChatStore } from '@/viewmodels/chat.viewmodel'
 
-const WS_URL = 'ws://localhost:7025/ws/chat'
+const WS_URL = 'ws://localhost:7034/ws/chat'
 
 export function useChatWebSocket() {
   const wsRef = useRef<WebSocket | null>(null)
@@ -701,6 +641,9 @@ export function useChatWebSocket() {
       const msg = JSON.parse(event.data)
       
       switch (msg.type) {
+        case 'session_start':
+          // Session started, could store model info
+          break
         case 'text':
           store.appendText(msg.text)
           break
@@ -716,13 +659,36 @@ export function useChatWebSocket() {
             isError: msg.isError,
           })
           break
+        case 'compact_start':
+          // Could show compacting indicator
+          break
+        case 'compact_done':
+          // Could show summary
+          break
         case 'turn_complete':
           store.setLoading(false)
-          store.setStats(msg.stats)
+          // Fields are flat, not nested in stats
+          store.setStats({
+            turns: msg.turns,
+            inputTokens: msg.inputTokens,
+            outputTokens: msg.outputTokens,
+            costUsd: msg.costUsd,
+            durationMs: msg.durationMs,
+          })
+          break
+        case 'budget_exceeded':
+          store.setLoading(false)
+          store.setError(`Budget exceeded: $${msg.costUsd}`)
+          break
+        case 'session_saved':
+          // Session persisted
           break
         case 'error':
           store.setLoading(false)
           store.setError(msg.message)
+          break
+        case 'interrupted':
+          store.setLoading(false)
           break
       }
     }
@@ -763,8 +729,8 @@ export function useChatWebSocket() {
     }))
   }, [store])
   
-  const interrupt = useCallback(() => {
-    wsRef.current?.send(JSON.stringify({ type: 'interrupt' }))
+  const interrupt = useCallback((sessionId: string) => {
+    wsRef.current?.send(JSON.stringify({ type: 'interrupt', sessionId }))
   }, [])
   
   return { sendMessage, interrupt }

@@ -4,6 +4,8 @@
 
 The Agent Engine is the core of Frogie, implementing the agentic loop that powers multi-turn conversations with tool execution.
 
+**Note**: Event types emitted here must match the WebSocket protocol defined in `07-api-protocol.md`.
+
 ## Agentic Loop
 
 ### Core Algorithm
@@ -93,7 +95,15 @@ export async function* agentLoop(params: AgentLoopParams): AsyncGenerator<AgentE
     
     // === Step 5: Execute Tools ===
     if (toolCalls.length === 0) {
-      yield { type: 'turn_complete', turns: config.maxTurns - turnsRemaining + 1, cost: totalCost }
+      const turns = config.maxTurns - turnsRemaining + 1
+      yield { 
+        type: 'turn_complete', 
+        turns,
+        inputTokens: totalInputTokens,
+        outputTokens: totalOutputTokens,
+        costUsd: totalCost,
+        durationMs: Date.now() - startTime,
+      }
       break
     }
     
@@ -199,15 +209,17 @@ export async function compactConversation(
   
   const summary = extractText(response)
   
-  // 4. Create compacted message history
+  // 4. Create compacted message history using system role compact_boundary
+  // This is the canonical format - must match 06-data-model.md and 08-ui-design.md
   const compacted: Message[] = [
     {
-      role: 'user',
-      content: `[Previous conversation summary]\n\n${summary}\n\n[End of summary]`,
-    },
-    {
-      role: 'assistant',
-      content: "I understand the context from the previous conversation. I'll continue from where we left off.",
+      role: 'system',
+      content: [{
+        type: 'compact_boundary',
+        summary,
+        compacted_at: Date.now(),
+        original_message_count: messages.length,
+      }],
     },
   ]
   

@@ -177,7 +177,9 @@ export const ReadTool = defineTool({
   
   async call(input, context) {
     const { file_path, offset = 0, limit = 2000 } = input
-    const fullPath = resolve(context.cwd, file_path)
+    // Note: No path restriction - Frogie runs with full user permissions like Claude Code CLI
+    // Absolute paths are used directly, relative paths resolve from workspace cwd
+    const fullPath = isAbsolute(file_path) ? file_path : resolve(context.cwd, file_path)
     
     try {
       const content = await readFile(fullPath, 'utf-8')

@@ -139,56 +139,57 @@ Browser                          Server
 ```typescript
 // config.ts
 interface ServerConfig {
-  // Server
-  port: number                    // Default: 7025
+  // Server (from env or defaults)
+  port: number                    // Default: 7034
   host: string                    // Default: '0.0.0.0'
   
-  // LLM API
-  llmBaseUrl: string              // e.g., 'http://localhost:7024/v1'
-  llmApiKey: string               // API key for LLM provider
-  llmModel: string                // Default: 'claude-sonnet-4-6'
-  
-  // Limits
-  maxTurns: number                // Default: 50
-  maxBudgetUsd: number            // Default: 10.0
-  
-  // Database
-  dbPath: string                  // Default: './data/frogie.db'
+  // Database (from env or defaults)
+  dbPath: string                  // Default: '~/.frogie/frogie.db'
 }
+
+// LLM settings are stored in SQLite settings table, not env vars
+// See 06-data-model.md for schema
 ```
 
 ### Environment Variables
 
+Only server-level config uses environment variables:
+
 ```bash
 # Server
-FROGIE_PORT=7025
+FROGIE_PORT=7034
 FROGIE_HOST=0.0.0.0
 
-# LLM API (required)
-FROGIE_LLM_BASE_URL=http://localhost:7024/v1
-FROGIE_LLM_API_KEY=your-api-key
-FROGIE_LLM_MODEL=claude-sonnet-4-6
-
-# Limits
-FROGIE_MAX_TURNS=50
-FROGIE_MAX_BUDGET_USD=10.0
-
 # Database
-FROGIE_DB_PATH=./data/frogie.db
+FROGIE_DB_PATH=~/.frogie/frogie.db
 ```
 
-## Security Considerations
+### User Settings (SQLite)
 
-1. **Tool Execution Sandbox**
-   - Bash commands run with configurable restrictions
-   - File operations limited to workspace directory
-   - Network access can be restricted
+LLM configuration is stored in the `settings` table and managed via the web UI:
 
-2. **Permission Levels**
-   - `auto`: All operations allowed (trust mode)
-   - `confirm`: Dangerous operations require user confirmation
-   - `readonly`: Only read operations allowed
+| Setting | Description | Default |
+|---------|-------------|---------|
+| `llm_base_url` | OpenAI-compatible API URL | `http://localhost:7024/v1` |
+| `llm_api_key` | API key for LLM provider | (empty) |
+| `llm_model` | Default model for new sessions | `claude-sonnet-4-6` |
+| `max_turns` | Maximum turns per session | 50 |
+| `max_budget_usd` | Cost limit per session | 10.0 |
+
+## Security Model
+
+Frogie runs locally with **full user permissions**, identical to Claude Code CLI. There is no sandbox.
+
+1. **No Sandbox**
+   - Tools execute with the same permissions as the user running Frogie
+   - File operations can access any path the user can access
+   - Bash commands run unrestricted in the workspace directory
+
+2. **Trust Model**
+   - User trusts the AI agent (same as trusting Claude Code CLI)
+   - No permission confirmation dialogs - operations execute immediately
+   - This is intentional: Frogie is a power-user tool, not a restricted environment
 
 3. **API Key Protection**
-   - Keys stored in environment, never in database
-   - Never logged or exposed to frontend
+   - Keys stored in SQLite settings table (local file)
+   - Never logged or exposed in responses
