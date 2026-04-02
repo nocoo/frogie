@@ -2,6 +2,12 @@ import * as React from 'react'
 
 import { cn } from '@/lib/utils'
 
+/**
+ * Card - B-4 L2 Style
+ *
+ * Uses bg-secondary with rounded-[var(--radius-card)] (14px).
+ * NO border, NO shadow - pure background color for layer differentiation.
+ */
 const Card = React.forwardRef<
   HTMLDivElement,
   React.HTMLAttributes<HTMLDivElement>
@@ -9,7 +15,7 @@ const Card = React.forwardRef<
   <div
     ref={ref}
     className={cn(
-      'flex flex-col rounded-lg border bg-card text-card-foreground shadow-xs',
+      'flex flex-col rounded-[14px] bg-secondary text-card-foreground',
       className
     )}
     {...props}
@@ -23,7 +29,7 @@ const CardHeader = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <div
     ref={ref}
-    className={cn('flex flex-col space-y-2.5 p-4', className)}
+    className={cn('flex flex-col space-y-1.5 p-4 md:p-5', className)}
     {...props}
   />
 ))
@@ -36,7 +42,7 @@ const CardTitle = React.forwardRef<
   <h3
     ref={ref}
     className={cn(
-      'text-2xl font-semibold leading-none tracking-tight',
+      'text-base font-semibold leading-none tracking-tight',
       className
     )}
     {...props}
@@ -62,7 +68,7 @@ const CardContent = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <div
     ref={ref}
-    className={cn('flex-1 min-h-0 px-4 pb-4 pt-0', className)}
+    className={cn('flex-1 min-h-0 px-4 pb-4 pt-0 md:px-5 md:pb-5', className)}
     {...props}
   />
 ))
@@ -74,7 +80,7 @@ const CardFooter = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <div
     ref={ref}
-    className={cn('flex items-center p-4 pt-0', className)}
+    className={cn('flex items-center p-4 pt-0 md:p-5 md:pt-0', className)}
     {...props}
   />
 ))

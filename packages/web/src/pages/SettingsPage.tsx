@@ -298,10 +298,11 @@ export function SettingsPage() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
+    <div className="max-w-2xl mx-auto space-y-4 md:space-y-6">
+      {/* B-4 页面 Header */}
       <div>
-        <h2 className="text-2xl font-semibold">Settings</h2>
-        <p className="text-muted-foreground">
+        <h1 className="text-2xl md:text-3xl font-semibold font-display tracking-tight">Settings</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
           Configure your Frogie instance
         </p>
       </div>
