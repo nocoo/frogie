@@ -1045,7 +1045,20 @@ feat(web): implement app entry with routing
 
 ---
 
-### Phase 4 Checkpoint
+### Phase 4 Checkpoint ✅ IN PROGRESS
+
+**Completed (4.1-4.6):**
+- ✅ 4.1 Vite React project initialized with basalt template
+- ✅ 4.2 Model types defined
+- ✅ 4.3 Settings ViewModel with Zustand
+- ✅ 4.4 Workspace ViewModel
+- ✅ 4.5 Session ViewModel  
+- ✅ 4.6 Chat ViewModel with WebSocket
+
+**Pending (4.7-4.16):**
+- 4.7 useChatWebSocket hook (merged into chat.viewmodel.ts)
+- 4.8-4.12 Chat components
+- 4.13-4.16 Layout and app shell
 
 After Phase 4:
 
