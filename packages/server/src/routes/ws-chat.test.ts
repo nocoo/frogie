@@ -14,6 +14,7 @@ import {
 } from '../db'
 import { createWSHandler } from './ws-chat'
 import { InMemoryMessageStore } from '../engine/session-sync'
+import { WorkspaceMCPManager } from '../mcp'
 import { getTestDbPath, cleanupTestDb } from '../test/db-utils'
 
 // Mock FrogieAgent
@@ -38,6 +39,29 @@ vi.mock('../engine/frogie-agent', () => ({
     })),
   },
 }))
+
+// Mock MCP module
+vi.mock('../mcp', () => {
+  class MockWorkspaceMCPManager {
+    getManager() {
+      return {
+        connect: vi.fn(),
+        disconnect: vi.fn(),
+        disconnectAll: vi.fn(),
+        reconnect: vi.fn(),
+        getAllTools: vi.fn(() => []),
+        getConnectionInfo: vi.fn(() => ({ name: 'test', status: 'disconnected', toolCount: 0 })),
+      }
+    }
+    connectForWorkspace = vi.fn()
+    disconnectWorkspace = vi.fn()
+    getToolsForWorkspace = vi.fn(() => [])
+  }
+  return {
+    WorkspaceMCPManager: MockWorkspaceMCPManager,
+    createMCPToolExecutor: vi.fn(() => vi.fn()),
+  }
+})
 
 // Mock builtin-tools
 vi.mock('../engine/builtin-tools', () => ({
@@ -147,7 +171,7 @@ describe('ws-chat', () => {
 
   describe('createWSHandler', () => {
     it('should create handler with required methods', () => {
-      const handler = createWSHandler(db, messageStore)
+      const handler = createWSHandler(db, messageStore, new WorkspaceMCPManager())
 
       expect(handler.handleOpen).toBeDefined()
       expect(handler.handleMessage).toBeDefined()
@@ -157,7 +181,7 @@ describe('ws-chat', () => {
 
   describe('handleOpen', () => {
     it('should create connection state', () => {
-      const handler = createWSHandler(db, messageStore)
+      const handler = createWSHandler(db, messageStore, new WorkspaceMCPManager())
       const ws = createMockWebSocket()
 
       const state = handler.handleOpen(ws)
@@ -169,7 +193,7 @@ describe('ws-chat', () => {
 
   describe('handleMessage', () => {
     it('should respond to ping with pong', () => {
-      const handler = createWSHandler(db, messageStore)
+      const handler = createWSHandler(db, messageStore, new WorkspaceMCPManager())
       const ws = createMockWebSocket()
       const state = handler.handleOpen(ws)
 
@@ -181,7 +205,7 @@ describe('ws-chat', () => {
     })
 
     it('should send error for invalid message format', () => {
-      const handler = createWSHandler(db, messageStore)
+      const handler = createWSHandler(db, messageStore, new WorkspaceMCPManager())
       const ws = createMockWebSocket()
       const state = handler.handleOpen(ws)
 
@@ -194,7 +218,7 @@ describe('ws-chat', () => {
     })
 
     it('should send error for unknown message type', () => {
-      const handler = createWSHandler(db, messageStore)
+      const handler = createWSHandler(db, messageStore, new WorkspaceMCPManager())
       const ws = createMockWebSocket()
       const state = handler.handleOpen(ws)
 
@@ -206,7 +230,7 @@ describe('ws-chat', () => {
     })
 
     it('should handle chat message and stream events', async () => {
-      const handler = createWSHandler(db, messageStore)
+      const handler = createWSHandler(db, messageStore, new WorkspaceMCPManager())
       const ws = createMockWebSocket()
       const state = handler.handleOpen(ws)
 
@@ -234,7 +258,7 @@ describe('ws-chat', () => {
     })
 
     it('should send error for non-existent workspace', async () => {
-      const handler = createWSHandler(db, messageStore)
+      const handler = createWSHandler(db, messageStore, new WorkspaceMCPManager())
       const ws = createMockWebSocket()
       const state = handler.handleOpen(ws)
 
@@ -259,7 +283,7 @@ describe('ws-chat', () => {
     })
 
     it('should send error for non-existent session', async () => {
-      const handler = createWSHandler(db, messageStore)
+      const handler = createWSHandler(db, messageStore, new WorkspaceMCPManager())
       const ws = createMockWebSocket()
       const state = handler.handleOpen(ws)
 
@@ -288,7 +312,7 @@ describe('ws-chat', () => {
       tempDirs.push(otherDir)
       const otherWorkspace = createWorkspace(db, { name: 'Other', path: otherDir })
 
-      const handler = createWSHandler(db, messageStore)
+      const handler = createWSHandler(db, messageStore, new WorkspaceMCPManager())
       const ws = createMockWebSocket()
       const state = handler.handleOpen(ws)
 
@@ -316,7 +340,7 @@ describe('ws-chat', () => {
 
   describe('handleClose', () => {
     it('should interrupt all active sessions', async () => {
-      const handler = createWSHandler(db, messageStore)
+      const handler = createWSHandler(db, messageStore, new WorkspaceMCPManager())
       const ws = createMockWebSocket()
       const state = handler.handleOpen(ws)
 
@@ -345,7 +369,7 @@ describe('ws-chat', () => {
 
   describe('interrupt handling', () => {
     it('should interrupt active session', async () => {
-      const handler = createWSHandler(db, messageStore)
+      const handler = createWSHandler(db, messageStore, new WorkspaceMCPManager())
       const ws = createMockWebSocket()
       const state = handler.handleOpen(ws)
 

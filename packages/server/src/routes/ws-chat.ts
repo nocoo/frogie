@@ -16,7 +16,10 @@ import type {
 import { FrogieAgent } from '../engine/frogie-agent'
 import { SessionSync, type MessageStore } from '../engine/session-sync'
 import { BUILTIN_TOOLS, createBuiltinToolExecutor } from '../engine/builtin-tools'
-import { getWorkspace, getSettings } from '../db'
+import { getWorkspace, getSettings, listEnabledMCPConfigs } from '../db'
+import type { MCPConfig } from '../db'
+import { WorkspaceMCPManager, createMCPToolExecutor } from '../mcp'
+import type { MCPServerConfig as MCPTransportConfig } from '../mcp'
 
 /**
  * Active agent tracking per session
@@ -33,6 +36,7 @@ interface ConnectionState {
   activeSessions: Map<string, ActiveSession>
   db: DatabaseType
   sessionSync: SessionSync
+  mcpManager: WorkspaceMCPManager
 }
 
 /**
@@ -85,6 +89,34 @@ function parseMessage(data: string | ArrayBuffer): ClientMessage | null {
 function sendEvent(ws: WebSocket, event: AgentEvent | PongEvent | ErrorEvent): void {
   if (ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify(event))
+  }
+}
+
+/**
+ * Convert DB MCPConfig to MCP transport config
+ */
+function toMCPTransportConfig(config: MCPConfig): MCPTransportConfig {
+  const dbConfig = config.config
+  switch (config.type) {
+    case 'stdio':
+      return {
+        type: 'stdio',
+        command: dbConfig.command ?? '',
+        args: dbConfig.args,
+        env: dbConfig.env,
+      }
+    case 'sse':
+      return {
+        type: 'sse',
+        url: dbConfig.url ?? '',
+        headers: dbConfig.headers,
+      }
+    case 'http':
+      return {
+        type: 'http',
+        url: dbConfig.url ?? '',
+        headers: dbConfig.headers,
+      }
   }
 }
 
@@ -166,10 +198,37 @@ async function handleChat(
   const agent = FrogieAgent.create(config, existingMessages)
 
   // Inject built-in tools
-  const toolExecutor = createBuiltinToolExecutor(workspace.path)
-  agent.setTools(BUILTIN_TOOLS, toolExecutor)
+  const builtinToolExecutor = createBuiltinToolExecutor(workspace.path)
+  agent.setTools(BUILTIN_TOOLS, builtinToolExecutor)
 
-  // TODO: Load MCP tools from workspace config and inject them
+  // Load MCP tools from workspace config and inject them
+  const mcpConfigs = listEnabledMCPConfigs(state.db, workspaceId)
+  if (mcpConfigs.length > 0) {
+    try {
+      // Convert DB configs to transport configs for MCP manager
+      const transportConfigs = mcpConfigs.map((c) => ({
+        name: c.name,
+        config: toMCPTransportConfig(c),
+        enabled: c.enabled,
+      }))
+
+      // Connect all enabled MCP servers for this workspace
+      await state.mcpManager.connectForWorkspace(workspaceId, transportConfigs)
+
+      // Get MCP tools and inject them
+      const mcpTools = state.mcpManager.getToolsForWorkspace(workspaceId)
+      if (mcpTools.length > 0) {
+        const mcpToolExecutor = createMCPToolExecutor()
+        agent.setTools(mcpTools, mcpToolExecutor)
+      }
+    } catch (err) {
+      // Log MCP errors but don't fail the chat - continue with built-in tools
+      console.error(
+        `Failed to load MCP tools for workspace ${workspaceId}:`,
+        err instanceof Error ? err.message : 'Unknown error'
+      )
+    }
+  }
 
   // Track active session
   state.activeSessions.set(sessionId, { agent, abortController })
@@ -220,7 +279,8 @@ function handleInterrupt(state: ConnectionState, sessionId: string): void {
  */
 export function createWSHandler(
   db: DatabaseType,
-  messageStore: MessageStore
+  messageStore: MessageStore,
+  mcpManager: WorkspaceMCPManager
 ): {
   handleOpen: (ws: WebSocket) => ConnectionState
   handleMessage: (ws: WebSocket, state: ConnectionState, data: string | ArrayBuffer) => void
@@ -234,6 +294,7 @@ export function createWSHandler(
         activeSessions: new Map(),
         db,
         sessionSync,
+        mcpManager,
       }
     },
 

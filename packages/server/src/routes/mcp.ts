@@ -5,6 +5,7 @@
  * POST /api/workspaces/:wid/mcp - Add MCP server config
  * DELETE /api/workspaces/:wid/mcp/:name - Remove MCP config
  * PATCH /api/workspaces/:wid/mcp/:name - Enable/disable MCP config
+ * POST /api/workspaces/:wid/mcp/:name/reconnect - Reconnect MCP server
  */
 
 import { Hono } from 'hono'
@@ -20,6 +21,7 @@ import {
   setMCPConfigEnabled,
 } from '../db'
 import { validationError, notFound, ErrorCodes } from '../middleware'
+import type { WorkspaceMCPManager, MCPServerConfig as MCPTransportConfig } from '../mcp'
 
 /**
  * Create MCP config schema
@@ -97,9 +99,37 @@ function buildCreateMCPConfig(input: MCPConfigInput): CreateMCPConfig {
 }
 
 /**
+ * Convert DB MCPConfig to MCP transport config
+ */
+function toMCPTransportConfig(config: MCPConfig): MCPTransportConfig {
+  const dbConfig = config.config
+  switch (config.type) {
+    case 'stdio':
+      return {
+        type: 'stdio',
+        command: dbConfig.command ?? '',
+        args: dbConfig.args,
+        env: dbConfig.env,
+      }
+    case 'sse':
+      return {
+        type: 'sse',
+        url: dbConfig.url ?? '',
+        headers: dbConfig.headers,
+      }
+    case 'http':
+      return {
+        type: 'http',
+        url: dbConfig.url ?? '',
+        headers: dbConfig.headers,
+      }
+  }
+}
+
+/**
  * Create MCP router
  */
-export function createMCPRouter(db: DatabaseType): Hono {
+export function createMCPRouter(db: DatabaseType, mcpManager: WorkspaceMCPManager): Hono {
   const router = new Hono()
 
   /**
@@ -221,11 +251,9 @@ export function createMCPRouter(db: DatabaseType): Hono {
   /**
    * POST /api/workspaces/:wid/mcp/:name/reconnect - Reconnect MCP server
    *
-   * Attempts to reconnect to an MCP server. In a full implementation,
-   * this would kill any existing connection and establish a new one.
-   * Currently returns success as MCP connections are established on-demand.
+   * Disconnects any existing connection and establishes a new one.
    */
-  router.post('/:name/reconnect', (c) => {
+  router.post('/:name/reconnect', async (c) => {
     const wid = c.req.param('wid') ?? ''
     const name = c.req.param('name')
 
@@ -241,13 +269,40 @@ export function createMCPRouter(db: DatabaseType): Hono {
       throw notFound(ErrorCodes.MCP_NOT_FOUND, `MCP config not found: ${name}`)
     }
 
-    // MCP connections are currently established on-demand when a session starts.
-    // A full implementation would maintain persistent connections and reconnect here.
-    // For now, return success indicating the server will reconnect on next use.
-    return c.json({
-      success: true,
-      message: `MCP server '${name}' will reconnect on next session`,
-    })
+    // Check if MCP server is enabled
+    if (!existing.enabled) {
+      return c.json({
+        success: false,
+        message: `MCP server '${name}' is disabled`,
+      })
+    }
+
+    try {
+      // Get the manager for this workspace
+      const manager = mcpManager.getManager(wid)
+
+      // Convert to transport config and reconnect
+      const transportConfig = toMCPTransportConfig(existing)
+      await manager.reconnect(name, transportConfig)
+
+      // Get connection info for response
+      const info = manager.getConnectionInfo(name)
+
+      return c.json({
+        success: true,
+        message: `MCP server '${name}' reconnected successfully`,
+        status: info.status,
+        toolCount: info.toolCount,
+      })
+    } catch (err) {
+      return c.json(
+        {
+          success: false,
+          message: `Failed to reconnect MCP server '${name}': ${err instanceof Error ? err.message : 'Unknown error'}`,
+        },
+        500
+      )
+    }
   })
 
   return router

@@ -12,6 +12,7 @@ import type { Server } from 'bun'
 import { createApp } from './app'
 import { initDb, runMigrations, closeDb } from './db'
 import { FileMessageStore } from './engine/session-sync'
+import { WorkspaceMCPManager } from './mcp'
 import { createSettingsRouter } from './routes/settings'
 import { createWorkspacesRouter } from './routes/workspaces'
 import { createSessionsRouter } from './routes/sessions'
@@ -81,6 +82,9 @@ export function startServer(config: ServerConfig = {}): FrogieServer {
   // Create message store
   const messageStore = new FileMessageStore(dataDir)
 
+  // Create shared MCP manager for workspace-scoped connections
+  const mcpManager = new WorkspaceMCPManager()
+
   // Create Hono app and mount routes
   const app = createApp()
 
@@ -93,10 +97,10 @@ export function startServer(config: ServerConfig = {}): FrogieServer {
   app.route('/api/settings', createSettingsRouter(db))
   app.route('/api/workspaces', createWorkspacesRouter(db))
   app.route('/api/workspaces/:wid/sessions', createSessionsRouter(db, messageStore))
-  app.route('/api/workspaces/:wid/mcp', createMCPRouter(db))
+  app.route('/api/workspaces/:wid/mcp', createMCPRouter(db, mcpManager))
 
   // Create WebSocket handler
-  const wsHandler = createWSHandler(db, messageStore)
+  const wsHandler = createWSHandler(db, messageStore, mcpManager)
 
   // Start server with WebSocket support
   const server = Bun.serve<WSData>({
