@@ -58,7 +58,7 @@ export function SettingsPage() {
 
   // Selected model display info
   const selectedModelInfo = useMemo(
-    () => getModelDisplayInfo(model, availableModels),
+    () => model ? getModelDisplayInfo(model, availableModels) : null,
     [model, availableModels]
   )
 
@@ -273,8 +273,6 @@ export function SettingsPage() {
                       <span>{selectedModelInfo.icon}</span>
                       <span>{selectedModelInfo.name}</span>
                     </span>
-                  ) : model ? (
-                    <span className="text-muted-foreground">{model}</span>
                   ) : null}
                 </SelectValue>
               </SelectTrigger>

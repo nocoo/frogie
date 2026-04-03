@@ -220,15 +220,10 @@ export function ChatPanel() {
                 <Button variant="ghost" size="sm" className="h-8 gap-2">
                   {isLoadingModels ? (
                     <span className="text-muted-foreground">Loading models...</span>
-                  ) : selectedModelInfo ? (
+                  ) : selectedModel ? (
                     <>
                       <span>{selectedModelInfo.icon}</span>
                       <span className="max-w-[150px] truncate">{selectedModelInfo.name}</span>
-                    </>
-                  ) : selectedModel ? (
-                    <>
-                      <span>🟠</span>
-                      <span className="max-w-[150px] truncate">{selectedModel}</span>
                     </>
                   ) : (
                     <span className="text-muted-foreground">Select model</span>

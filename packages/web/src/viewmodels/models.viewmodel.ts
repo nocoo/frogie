@@ -125,34 +125,68 @@ function categorizeModels(models: ModelInfo[]): ModelGroup[] {
 const OLLAMA_PATTERNS = ['llama', 'qwen', 'mistral', 'codellama', 'deepseek', 'phi', 'vicuna', 'wizardlm', 'orca', 'neural', 'solar', 'yi', 'mixtral', 'dolphin', 'openchat', 'starling', 'nous', 'tinyllama', 'stablelm', 'falcon', 'mpt', 'replit', 'starcoder', 'codestral', 'granite', 'command-r', 'aya', 'gemma', 'codegemma', 'llava', 'bakllava', 'moondream']
 
 /**
+ * Get icon for a model based on ID pattern
+ */
+function getModelIcon(modelId: string): string {
+  const id = modelId.toLowerCase()
+
+  if (id.includes('claude')) {
+    return '🟠'
+  } else if (id.includes('gpt') || id.includes('o1') || id.includes('o3')) {
+    return '🟢'
+  } else if (id.includes('gemini')) {
+    return '🔵'
+  } else if (id.includes('glm') || id.includes('chatglm') || id.includes('zhipu')) {
+    return '🟣'
+  } else if (OLLAMA_PATTERNS.some(p => id.includes(p))) {
+    return '🖥️'
+  } else if (id.includes('embedding')) {
+    return '📊'
+  }
+  return '⚪'
+}
+
+/**
  * Get display info for a model
+ * Returns display name and icon. If model is not in the list,
+ * falls back to formatting the model ID as a readable name.
  */
 export function getModelDisplayInfo(
   modelId: string,
   models: ModelInfo[]
-): { name: string; icon: string } | null {
+): { name: string; icon: string } {
   const model = models.find((m) => m.id === modelId)
-  if (!model) return null
 
-  const id = modelId.toLowerCase()
-  const name = model.name.toLowerCase()
+  if (model) {
+    const id = modelId.toLowerCase()
+    const name = model.name.toLowerCase()
 
-  let icon = '⚪'
-  if (id.includes('claude') || name.includes('claude')) {
-    icon = '🟠'
-  } else if (id.includes('gpt') || name.includes('gpt') || id.includes('o1') || id.includes('o3')) {
-    icon = '🟢'
-  } else if (id.includes('gemini') || name.includes('gemini')) {
-    icon = '🔵'
-  } else if (id.includes('glm') || name.includes('glm') || id.includes('chatglm') || id.includes('zhipu')) {
-    icon = '🟣'
-  } else if (OLLAMA_PATTERNS.some(p => id.includes(p) || name.includes(p))) {
-    icon = '🖥️'
-  } else if (id.includes('embedding') || name.includes('embedding')) {
-    icon = '📊'
+    let icon = '⚪'
+    if (id.includes('claude') || name.includes('claude')) {
+      icon = '🟠'
+    } else if (id.includes('gpt') || name.includes('gpt') || id.includes('o1') || id.includes('o3')) {
+      icon = '🟢'
+    } else if (id.includes('gemini') || name.includes('gemini')) {
+      icon = '🔵'
+    } else if (id.includes('glm') || name.includes('glm') || id.includes('chatglm') || id.includes('zhipu')) {
+      icon = '🟣'
+    } else if (OLLAMA_PATTERNS.some(p => id.includes(p) || name.includes(p))) {
+      icon = '🖥️'
+    } else if (id.includes('embedding') || name.includes('embedding')) {
+      icon = '📊'
+    }
+
+    return { name: model.name, icon }
   }
 
-  return { name: model.name, icon }
+  // Fallback: format model ID as readable name
+  // e.g., "claude-3-5-sonnet-20241022" -> "Claude 3 5 Sonnet 20241022"
+  const formattedName = modelId
+    .split(/[-_]/)
+    .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ')
+
+  return { name: formattedName, icon: getModelIcon(modelId) }
 }
 
 /**
