@@ -25,6 +25,7 @@ type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error'
 interface SessionChatState {
   messages: Message[]
   isProcessing: boolean
+  error: string | null
   turnStats: {
     turns: number
     inputTokens: number
@@ -57,8 +58,8 @@ interface ChatState {
   /** Connection status */
   status: ConnectionStatus
 
-  /** Global error message */
-  error: string | null
+  /** Connection-level error (affects all sessions) */
+  connectionError: string | null
 
   /** Reconnection state (internal) */
   _reconnectAttempts: number
@@ -80,8 +81,11 @@ interface ChatState {
   /** Clear messages for a session */
   clearMessages: (sessionId: string) => void
 
-  /** Clear error */
-  clearError: () => void
+  /** Clear error for a session */
+  clearError: (sessionId: string) => void
+
+  /** Clear connection error */
+  clearConnectionError: () => void
 
   /** Get session state (creates if not exists) */
   getSessionState: (sessionId: string) => SessionChatState
@@ -107,6 +111,7 @@ function createDefaultSessionState(): SessionChatState {
   return {
     messages: [],
     isProcessing: false,
+    error: null,
     turnStats: null,
   }
 }
@@ -118,7 +123,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   sessions: new Map(),
   ws: null,
   status: 'disconnected',
-  error: null,
+  connectionError: null,
   _reconnectAttempts: 0,
   _reconnectTimeout: null,
   _intentionalDisconnect: false,
@@ -133,7 +138,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       set({ _reconnectTimeout: null })
     }
 
-    set({ status: 'connecting', error: null, _intentionalDisconnect: false })
+    set({ status: 'connecting', connectionError: null, _intentionalDisconnect: false })
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     const wsUrl = `${protocol}//${window.location.host}/ws`
@@ -158,7 +163,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
 
     socket.onerror = () => {
-      set({ ws: null, status: 'error', error: 'WebSocket connection failed' })
+      set({ ws: null, status: 'error', connectionError: 'WebSocket connection failed' })
     }
 
     socket.onmessage = (event: MessageEvent) => {
@@ -196,7 +201,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const { ws, status, sessions } = get()
 
     if (!ws || status !== 'connected') {
-      set({ error: 'Not connected to server' })
+      // Set error on the specific session
+      const sessionState = sessions.get(sessionId) ?? createDefaultSessionState()
+      const newSessions = new Map(sessions)
+      newSessions.set(sessionId, {
+        ...sessionState,
+        error: 'Not connected to server',
+      })
+      set({ sessions: newSessions })
       return
     }
 
@@ -216,6 +228,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       ...sessionState,
       messages: [...sessionState.messages, userMessage],
       isProcessing: true,
+      error: null, // Clear any previous error
     })
 
     set({ sessions: newSessions })
@@ -253,8 +266,21 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set({ sessions: newSessions })
   },
 
-  clearError: () => {
-    set({ error: null })
+  clearError: (sessionId: string) => {
+    const { sessions } = get()
+    const sessionState = sessions.get(sessionId)
+    if (!sessionState) return
+
+    const newSessions = new Map(sessions)
+    newSessions.set(sessionId, {
+      ...sessionState,
+      error: null,
+    })
+    set({ sessions: newSessions })
+  },
+
+  clearConnectionError: () => {
+    set({ connectionError: null })
   },
 
   getSessionState: (sessionId: string) => {
@@ -410,8 +436,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
       }
 
       case 'error': {
+        // Error without sessionId is a global error (rare, shouldn't happen in normal flow)
         if (!sessionId) {
-          set({ error: event.message })
+          // Can't associate with a session, log it
+          console.error('Global error (no sessionId):', event.message)
           return
         }
         const sessionState = sessions.get(sessionId) ?? createDefaultSessionState()
@@ -420,8 +448,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
         newSessions.set(sessionId, {
           ...sessionState,
           isProcessing: false,
+          error: event.message,
         })
-        set({ sessions: newSessions, error: event.message })
+        set({ sessions: newSessions })
         break
       }
 
@@ -446,11 +475,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
         newSessions.set(sessionId, {
           ...sessionState,
           isProcessing: false,
-        })
-        set({
-          sessions: newSessions,
           error: `Budget exceeded: $${event.costUsd.toFixed(2)}`,
         })
+        set({ sessions: newSessions })
         break
       }
 
@@ -469,7 +496,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     // Don't reconnect if intentionally disconnected or max retries reached
     if (_intentionalDisconnect || _reconnectAttempts >= RECONNECT_CONFIG.maxRetries) {
       if (_reconnectAttempts >= RECONNECT_CONFIG.maxRetries) {
-        set({ error: 'Connection lost. Please refresh the page.' })
+        set({ connectionError: 'Connection lost. Please refresh the page.' })
       }
       return
     }

@@ -60,7 +60,7 @@ describe('chat.viewmodel', () => {
       sessions: new Map(),
       ws: null,
       status: 'disconnected',
-      error: null,
+      connectionError: null,
       _reconnectAttempts: 0,
       _reconnectTimeout: null,
       _intentionalDisconnect: false,
@@ -79,7 +79,7 @@ describe('chat.viewmodel', () => {
       expect(state.sessions.size).toBe(0)
       expect(state.ws).toBeNull()
       expect(state.status).toBe('disconnected')
-      expect(state.error).toBeNull()
+      expect(state.connectionError).toBeNull()
     })
   })
 
@@ -103,7 +103,7 @@ describe('chat.viewmodel', () => {
       MockWebSocket.instances[0]?.simulateError()
 
       expect(useChatStore.getState().status).toBe('error')
-      expect(useChatStore.getState().error).toBe('WebSocket connection failed')
+      expect(useChatStore.getState().connectionError).toBe('WebSocket connection failed')
     })
 
     it('should not reconnect if already connecting', () => {
@@ -164,7 +164,8 @@ describe('chat.viewmodel', () => {
     it('should set error when not connected', () => {
       useChatStore.getState().sendMessage('ws-1', 'sess-1', 'Hello')
 
-      expect(useChatStore.getState().error).toBe('Not connected to server')
+      const sessionState = useChatStore.getState().getSessionState('sess-1')
+      expect(sessionState.error).toBe('Not connected to server')
     })
   })
 
@@ -292,10 +293,9 @@ describe('chat.viewmodel', () => {
         message: 'Something went wrong',
       })
 
-      const state = useChatStore.getState()
-      const sessionState = state.getSessionState(sessionId)
+      const sessionState = useChatStore.getState().getSessionState(sessionId)
       expect(sessionState.isProcessing).toBe(false)
-      expect(state.error).toBe('Something went wrong')
+      expect(sessionState.error).toBe('Something went wrong')
     })
 
     it('should handle interrupted event', () => {
@@ -325,10 +325,9 @@ describe('chat.viewmodel', () => {
         costUsd: 10.5,
       })
 
-      const state = useChatStore.getState()
-      const sessionState = state.getSessionState(sessionId)
+      const sessionState = useChatStore.getState().getSessionState(sessionId)
       expect(sessionState.isProcessing).toBe(false)
-      expect(state.error).toBe('Budget exceeded: $10.50')
+      expect(sessionState.error).toBe('Budget exceeded: $10.50')
     })
   })
 
@@ -387,12 +386,34 @@ describe('chat.viewmodel', () => {
   })
 
   describe('clearError', () => {
-    it('should clear error', () => {
-      useChatStore.setState({ error: 'Some error' })
+    it('should clear session error', () => {
+      // Create a session with an error
+      useChatStore.getState().connect()
+      MockWebSocket.instances[0]?.simulateOpen()
+      useChatStore.getState().sendMessage('ws-1', 'sess-1', 'Hello')
+      useChatStore.getState().handleEvent({
+        type: 'error',
+        sessionId: 'sess-1',
+        message: 'Some error',
+      })
 
-      useChatStore.getState().clearError()
+      // Verify error is set
+      expect(useChatStore.getState().getSessionState('sess-1').error).toBe('Some error')
 
-      expect(useChatStore.getState().error).toBeNull()
+      // Clear error
+      useChatStore.getState().clearError('sess-1')
+
+      expect(useChatStore.getState().getSessionState('sess-1').error).toBeNull()
+    })
+  })
+
+  describe('clearConnectionError', () => {
+    it('should clear connection error', () => {
+      useChatStore.setState({ connectionError: 'Connection failed' })
+
+      useChatStore.getState().clearConnectionError()
+
+      expect(useChatStore.getState().connectionError).toBeNull()
     })
   })
 

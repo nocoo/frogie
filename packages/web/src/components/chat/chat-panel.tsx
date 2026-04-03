@@ -115,12 +115,13 @@ export function ChatPanel() {
   // Chat store
   const {
     status,
-    error,
+    connectionError,
     connect,
     disconnect,
     sendMessage,
     interrupt,
     clearError,
+    clearConnectionError,
     getSessionState,
   } = useChatStore()
 
@@ -143,6 +144,7 @@ export function ChatPanel() {
   const sessionState = currentSession ? getSessionState(currentSession.id) : null
   const messages = sessionState?.messages ?? []
   const isProcessing = sessionState?.isProcessing ?? false
+  const error = sessionState?.error ?? null
   const turnStats = sessionState?.turnStats ?? null
 
   // Connect to WebSocket on mount
@@ -289,8 +291,27 @@ export function ChatPanel() {
           )}
         </div>
 
-        {/* Error message */}
-        {error && (
+        {/* Connection error (affects all sessions) */}
+        {connectionError && (
+          <div
+            className={cn(
+              'flex items-center gap-2 px-4 py-2 text-sm shrink-0',
+              'bg-destructive/10 text-destructive border-b border-destructive/20'
+            )}
+          >
+            <WifiOff className="h-4 w-4 shrink-0" />
+            <span className="flex-1">{connectionError}</span>
+            <button
+              onClick={clearConnectionError}
+              className="text-xs underline hover:no-underline"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
+
+        {/* Session-specific error */}
+        {error && currentSession && (
           <div
             className={cn(
               'flex items-center gap-2 px-4 py-2 text-sm shrink-0',
@@ -300,7 +321,7 @@ export function ChatPanel() {
             <AlertCircle className="h-4 w-4 shrink-0" />
             <span className="flex-1">{error}</span>
             <button
-              onClick={clearError}
+              onClick={() => { clearError(currentSession.id) }}
               className="text-xs underline hover:no-underline"
             >
               Dismiss
