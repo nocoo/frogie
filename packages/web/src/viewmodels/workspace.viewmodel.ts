@@ -46,6 +46,9 @@ interface WorkspaceState {
   /** Open workspace in Finder */
   openWorkspace: (id: string) => Promise<boolean>
 
+  /** Browse for directory using Finder */
+  browseDirectory: () => Promise<string | null>
+
   /** Select a workspace */
   selectWorkspace: (id: string) => void
 
@@ -226,6 +229,32 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
         error: err instanceof Error ? err.message : 'Unknown error',
       })
       return false
+    }
+  },
+
+  browseDirectory: async () => {
+    try {
+      const res = await fetch(`${API_BASE}/workspaces/browse`, {
+        method: 'POST',
+      })
+
+      if (!res.ok) {
+        const data = (await res.json()) as { error?: { message?: string } }
+        throw new Error(data.error?.message ?? 'Failed to browse directory')
+      }
+
+      const data = (await res.json()) as { path?: string; cancelled?: boolean }
+
+      if (data.cancelled) {
+        return null
+      }
+
+      return data.path ?? null
+    } catch (err) {
+      set({
+        error: err instanceof Error ? err.message : 'Unknown error',
+      })
+      return null
     }
   },
 

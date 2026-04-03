@@ -48,7 +48,7 @@ import { cn } from '@/lib/utils'
  * Individual workspace edit card
  */
 function WorkspaceCard({ workspace }: { workspace: Workspace }) {
-  const { updateWorkspace, deleteWorkspace, openWorkspace, selectWorkspace, currentWorkspace } =
+  const { updateWorkspace, deleteWorkspace, openWorkspace, selectWorkspace, currentWorkspace, browseDirectory } =
     useWorkspaceStore()
   const { clearSessions } = useSessionStore()
 
@@ -165,16 +165,35 @@ function WorkspaceCard({ workspace }: { workspace: Workspace }) {
           {/* Path */}
           <div className="space-y-2">
             <Label htmlFor={`path-${workspace.id}`}>Path</Label>
-            <Input
-              id={`path-${workspace.id}`}
-              value={path}
-              onChange={(e) => {
-                setPath(e.target.value)
-                markDirty()
-              }}
-              placeholder="/path/to/workspace"
-              className="font-mono text-sm"
-            />
+            <div className="flex gap-2">
+              <Input
+                id={`path-${workspace.id}`}
+                value={path}
+                onChange={(e) => {
+                  setPath(e.target.value)
+                  markDirty()
+                }}
+                placeholder="/path/to/workspace"
+                className="font-mono text-sm flex-1"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={() => {
+                  void (async () => {
+                    const selected = await browseDirectory()
+                    if (selected) {
+                      setPath(selected)
+                      markDirty()
+                    }
+                  })()
+                }}
+                title="Browse..."
+              >
+                <FolderOpen className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
 
           {/* Color Selector */}
@@ -301,7 +320,7 @@ function WorkspaceCard({ workspace }: { workspace: Workspace }) {
  * Add workspace card
  */
 function AddWorkspaceCard() {
-  const { createWorkspace, isLoading } = useWorkspaceStore()
+  const { createWorkspace, isLoading, browseDirectory } = useWorkspaceStore()
   const { clearSessions } = useSessionStore()
 
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -331,12 +350,12 @@ function AddWorkspaceCard() {
   return (
     <>
       <Card
-        className="border-dashed cursor-pointer hover:border-primary/50 hover:bg-accent/50 transition-colors"
+        className="border-dashed cursor-pointer hover:border-primary/50 hover:bg-accent/50 transition-colors h-full min-h-[200px]"
         onClick={() => {
           setDialogOpen(true)
         }}
       >
-        <CardContent className="flex flex-col items-center justify-center py-12">
+        <CardContent className="flex flex-col items-center justify-center h-full py-12">
           <div className="h-12 w-12 rounded-xl bg-muted flex items-center justify-center mb-3">
             <Plus className="h-6 w-6 text-muted-foreground" />
           </div>
@@ -371,15 +390,40 @@ function AddWorkspaceCard() {
 
             <div className="space-y-2">
               <Label htmlFor="new-workspace-path">Path</Label>
-              <Input
-                id="new-workspace-path"
-                value={path}
-                onChange={(e) => {
-                  setPath(e.target.value)
-                }}
-                placeholder="/path/to/project"
-                className="font-mono text-sm"
-              />
+              <div className="flex gap-2">
+                <Input
+                  id="new-workspace-path"
+                  value={path}
+                  onChange={(e) => {
+                    setPath(e.target.value)
+                  }}
+                  placeholder="/path/to/project"
+                  className="font-mono text-sm flex-1"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={() => {
+                    void (async () => {
+                      const selected = await browseDirectory()
+                      if (selected) {
+                        setPath(selected)
+                        // Auto-fill name if empty
+                        if (!name) {
+                          const dirName = selected.split('/').pop()
+                          if (dirName) {
+                            setName(dirName)
+                          }
+                        }
+                      }
+                    })()
+                  }}
+                  title="Browse..."
+                >
+                  <FolderOpen className="h-4 w-4" />
+                </Button>
+              </div>
               <p className="text-xs text-muted-foreground">
                 The local directory path for this workspace
               </p>

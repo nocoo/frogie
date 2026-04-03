@@ -8,6 +8,7 @@
  * DELETE /api/workspaces/:id - Delete workspace with cascade
  * GET /api/workspaces/:id/icon - Get workspace icon (auto-detected logo)
  * POST /api/workspaces/:id/open - Open workspace in Finder
+ * POST /api/workspaces/browse - Open Finder directory picker
  */
 
 import { existsSync, statSync, readdirSync, readFileSync } from 'node:fs'
@@ -304,6 +305,40 @@ export function createWorkspacesRouter(db: DatabaseLike): Hono {
       return c.json({ success: true })
     } catch {
       return c.json({ error: 'Failed to open workspace' }, 500)
+    }
+  })
+
+  /**
+   * POST /api/workspaces/browse - Open Finder directory picker
+   */
+  router.post('/browse', async (c) => {
+    try {
+      // Use AppleScript to open a directory picker on macOS
+      const script = `
+        tell application "System Events"
+          activate
+        end tell
+        set selectedFolder to choose folder with prompt "Select a workspace directory"
+        return POSIX path of selectedFolder
+      `
+
+      const proc = Bun.spawn(['osascript', '-e', script], {
+        stdout: 'pipe',
+        stderr: 'pipe',
+      })
+
+      const output = await new Response(proc.stdout).text()
+      const exitCode = await proc.exited
+
+      if (exitCode !== 0) {
+        // User cancelled or error
+        return c.json({ cancelled: true })
+      }
+
+      const path = output.trim().replace(/\/$/, '') // Remove trailing slash
+      return c.json({ path })
+    } catch {
+      return c.json({ error: 'Failed to open directory picker' }, 500)
     }
   })
 

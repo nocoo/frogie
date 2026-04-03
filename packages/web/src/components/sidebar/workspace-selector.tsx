@@ -10,6 +10,7 @@ import {
   Check,
   ChevronsUpDown,
   Loader2,
+  FolderOpen,
 } from 'lucide-react'
 import { useWorkspaceStore } from '@/viewmodels/workspace.viewmodel'
 import { useSessionStore } from '@/viewmodels/session.viewmodel'
@@ -38,6 +39,7 @@ export function WorkspaceSelector({ collapsed = false }: WorkspaceSelectorProps)
     fetchWorkspaces,
     createWorkspace,
     selectWorkspace,
+    browseDirectory,
   } = useWorkspaceStore()
   const { clearSessions } = useSessionStore()
 
@@ -200,14 +202,40 @@ export function WorkspaceSelector({ collapsed = false }: WorkspaceSelectorProps)
 
             <div className="space-y-2">
               <Label htmlFor="workspace-path">Path</Label>
-              <Input
-                id="workspace-path"
-                value={newPath}
-                onChange={(e) => {
-                  setNewPath(e.target.value)
-                }}
-                placeholder="/path/to/project"
-              />
+              <div className="flex gap-2">
+                <Input
+                  id="workspace-path"
+                  value={newPath}
+                  onChange={(e) => {
+                    setNewPath(e.target.value)
+                  }}
+                  placeholder="/path/to/project"
+                  className="flex-1"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={() => {
+                    void (async () => {
+                      const selected = await browseDirectory()
+                      if (selected) {
+                        setNewPath(selected)
+                        // Auto-fill name if empty
+                        if (!newName) {
+                          const dirName = selected.split('/').pop()
+                          if (dirName) {
+                            setNewName(dirName)
+                          }
+                        }
+                      }
+                    })()
+                  }}
+                  title="Browse..."
+                >
+                  <FolderOpen className="h-4 w-4" />
+                </Button>
+              </div>
               <p className="text-xs text-muted-foreground">
                 The local directory path for this workspace
               </p>
