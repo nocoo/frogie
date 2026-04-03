@@ -149,6 +149,8 @@ export interface ChatMessage {
   sessionId: string
   workspaceId: string
   prompt: string
+  /** Optional model override for this message */
+  model?: string
 }
 
 /**

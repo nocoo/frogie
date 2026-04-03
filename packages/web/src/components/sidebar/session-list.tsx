@@ -5,6 +5,7 @@
  */
 
 import { useEffect } from 'react'
+import { useNavigate } from 'react-router'
 import { MessageSquare, Plus, Trash2, Loader2 } from 'lucide-react'
 import { useSessionStore } from '@/viewmodels/session.viewmodel'
 import { useWorkspaceStore } from '@/viewmodels/workspace.viewmodel'
@@ -22,6 +23,7 @@ interface SessionListProps {
 }
 
 export function SessionList({ collapsed = false }: SessionListProps) {
+  const navigate = useNavigate()
   const { currentWorkspace } = useWorkspaceStore()
   const {
     sessions,
@@ -57,6 +59,7 @@ export function SessionList({ collapsed = false }: SessionListProps) {
   const handleSelectSession = (sessionId: string) => {
     selectSession(sessionId)
     clearMessages()
+    void navigate('/')
   }
 
   const handleDeleteSession = async (e: React.MouseEvent, sessionId: string) => {

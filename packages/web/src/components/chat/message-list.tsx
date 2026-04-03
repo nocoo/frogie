@@ -9,6 +9,7 @@ import { User, Bot } from 'lucide-react'
 import type { Message, MessageContent } from '@/models/events'
 import { ThinkingBlock } from './thinking-block'
 import { ToolUseCard } from './tool-use-card'
+import { MarkdownContent } from './markdown-content'
 import { cn } from '@/lib/utils'
 
 interface MessageListProps {
@@ -19,14 +20,18 @@ interface MessageListProps {
 /**
  * Render a single content block
  */
-function ContentBlock({ content }: { content: MessageContent }) {
+function ContentBlock({ content, isUser }: { content: MessageContent; isUser: boolean }) {
   switch (content.type) {
     case 'text':
-      return (
-        <div className="whitespace-pre-wrap text-sm leading-relaxed">
-          {content.text}
-        </div>
-      )
+      // User messages: simple text. Assistant messages: markdown
+      if (isUser) {
+        return (
+          <div className="whitespace-pre-wrap text-sm leading-relaxed">
+            {content.text}
+          </div>
+        )
+      }
+      return <MarkdownContent content={content.text} className="text-sm leading-relaxed" />
 
     case 'thinking':
       return <ThinkingBlock content={content.content} />
@@ -90,7 +95,7 @@ function MessageItem({ message }: { message: Message }) {
           )}
         >
           {message.content.map((content, idx) => (
-            <ContentBlock key={idx} content={content} />
+            <ContentBlock key={idx} content={content} isUser={isUser} />
           ))}
         </div>
       </div>
@@ -140,9 +145,9 @@ export function MessageList({ messages, isLoading = false }: MessageListProps) {
   return (
     <div
       ref={containerRef}
-      className="flex-1 overflow-y-auto px-4"
+      className="flex-1 min-h-0 overflow-y-auto px-4"
     >
-      <div className="max-w-3xl mx-auto">
+      <div className="max-w-4xl">
         {messages.map((message) => (
           <MessageItem key={message.id} message={message} />
         ))}

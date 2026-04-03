@@ -64,6 +64,7 @@ function parseMessage(data: string | ArrayBuffer): ClientMessage | null {
           sessionId: msg['sessionId'],
           workspaceId: msg['workspaceId'],
           prompt: msg['prompt'],
+          ...(typeof msg['model'] === 'string' && { model: msg['model'] }),
         }
       }
     } else if (msg['type'] === 'interrupt') {
@@ -128,7 +129,8 @@ async function handleChat(
   state: ConnectionState,
   sessionId: string,
   workspaceId: string,
-  prompt: string
+  prompt: string,
+  model?: string
 ): Promise<void> {
   // Check for existing active session
   if (state.activeSessions.has(sessionId)) {
@@ -186,7 +188,7 @@ async function handleChat(
   const config: AgentConfig = {
     baseUrl: settings.llm_base_url,
     apiKey: settings.llm_api_key,
-    model: session.model,
+    model: model ?? session.model,
     cwd: workspace.path,
     maxTurns: settings.max_turns,
     maxBudgetUsd: settings.max_budget_usd,
@@ -320,7 +322,7 @@ export function createWSHandler(
 
         case 'chat':
           // Fire and forget - async handling
-          void handleChat(ws, state, message.sessionId, message.workspaceId, message.prompt)
+          void handleChat(ws, state, message.sessionId, message.workspaceId, message.prompt, message.model)
           break
 
         case 'interrupt':

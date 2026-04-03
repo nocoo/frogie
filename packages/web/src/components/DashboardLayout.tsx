@@ -128,7 +128,7 @@ export function DashboardLayout() {
 
         <main
           id="main-content"
-          className="flex-1 flex flex-col min-h-screen min-w-0"
+          className="flex-1 flex flex-col min-h-0 min-w-0 h-screen"
         >
           {/* B-2 顶栏规范 */}
           <header className="flex h-14 shrink-0 items-center justify-between px-4 md:px-6">
@@ -171,8 +171,8 @@ export function DashboardLayout() {
             </div>
           </header>
           {/* B-2 内容区域（浮岛式） */}
-          <div className={cn('flex-1 px-2 pb-2 md:px-3 md:pb-3')}>
-            <div className="h-full rounded-[16px] md:rounded-[20px] bg-card p-3 md:p-5 overflow-y-auto">
+          <div className={cn('flex-1 min-h-0 px-2 pb-2 md:px-3 md:pb-3')}>
+            <div className="h-full rounded-[16px] md:rounded-[20px] bg-card p-3 md:p-5">
               <Outlet />
             </div>
           </div>
