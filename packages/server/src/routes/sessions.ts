@@ -4,6 +4,7 @@
  * GET /api/workspaces/:wid/sessions - List sessions for workspace
  * POST /api/workspaces/:wid/sessions - Create new session
  * GET /api/workspaces/:wid/sessions/:id - Get session with messages
+ * PATCH /api/workspaces/:wid/sessions/:id - Update session (name, model)
  * DELETE /api/workspaces/:wid/sessions/:id - Delete session (dual persistence)
  */
 
@@ -11,7 +12,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import type { DatabaseLike } from '../db/connection'
 import type { Session } from '../db'
-import { getWorkspace } from '../db'
+import { getWorkspace, updateSessionName, updateSessionModel, getSession } from '../db'
 import { SessionSync, type MessageStore } from '../engine/session-sync'
 import { validationError, notFound, ErrorCodes } from '../middleware'
 
@@ -21,6 +22,14 @@ import { validationError, notFound, ErrorCodes } from '../middleware'
 const createSessionSchema = z.object({
   name: z.string().nullable().optional(),
   model: z.string().min(1),
+})
+
+/**
+ * Update session schema
+ */
+const updateSessionSchema = z.object({
+  name: z.string().nullable().optional(),
+  model: z.string().min(1).optional(),
 })
 
 /**
@@ -129,6 +138,52 @@ export function createSessionsRouter(
       session: toApiSession(sessionResult.index),
       messages: sessionResult.messages,
     })
+  })
+
+  /**
+   * PATCH /api/workspaces/:wid/sessions/:id - Update session
+   */
+  router.patch('/:id', async (c) => {
+    const wid = c.req.param('wid') ?? ''
+    const id = c.req.param('id')
+
+    // Verify workspace exists
+    const workspace = getWorkspace(db, wid)
+    if (!workspace) {
+      throw notFound(ErrorCodes.WORKSPACE_NOT_FOUND, `Workspace not found: ${wid}`)
+    }
+
+    // Verify session exists and belongs to workspace
+    let session = getSession(db, id)
+    if (session?.workspace_id !== wid) {
+      throw notFound(ErrorCodes.SESSION_NOT_FOUND, `Session not found: ${id}`)
+    }
+
+    const body: unknown = await c.req.json()
+
+    // Validate request body
+    const result = updateSessionSchema.safeParse(body)
+    if (!result.success) {
+      throw validationError(result.error.issues[0]?.message ?? 'Invalid input')
+    }
+
+    const { name, model } = result.data
+
+    // Update name if provided
+    if (name !== undefined) {
+      session = updateSessionName(db, id, name)
+    }
+
+    // Update model if provided
+    if (model !== undefined) {
+      session = updateSessionModel(db, id, model)
+    }
+
+    if (!session) {
+      throw notFound(ErrorCodes.SESSION_NOT_FOUND, `Session not found: ${id}`)
+    }
+
+    return c.json(toApiSession(session))
   })
 
   /**

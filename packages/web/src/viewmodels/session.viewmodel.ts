@@ -40,6 +40,13 @@ interface SessionState {
     input: CreateSession
   ) => Promise<Session | null>
 
+  /** Update session (name, model) */
+  updateSession: (
+    workspaceId: string,
+    sessionId: string,
+    update: { name?: string | null; model?: string }
+  ) => Promise<Session | null>
+
   /** Select a session */
   selectSession: (id: string) => void
 
@@ -110,6 +117,45 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       set({
         error: err instanceof Error ? err.message : 'Unknown error',
         isLoading: false,
+      })
+      return null
+    }
+  },
+
+  updateSession: async (
+    workspaceId: string,
+    sessionId: string,
+    update: { name?: string | null; model?: string }
+  ) => {
+    try {
+      const res = await fetch(
+        `${API_BASE}/workspaces/${workspaceId}/sessions/${sessionId}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(update),
+        }
+      )
+
+      if (!res.ok) {
+        const data = (await res.json()) as { error?: { message?: string } }
+        throw new Error(data.error?.message ?? 'Failed to update session')
+      }
+
+      const session = (await res.json()) as Session
+      set((state) => ({
+        sessions: state.sessions.map((s) =>
+          s.id === sessionId ? session : s
+        ),
+        currentSession:
+          state.currentSession?.id === sessionId
+            ? session
+            : state.currentSession,
+      }))
+      return session
+    } catch (err) {
+      set({
+        error: err instanceof Error ? err.message : 'Unknown error',
       })
       return null
     }

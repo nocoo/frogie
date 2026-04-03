@@ -111,7 +111,6 @@ function StatsSidebar({
 
 export function ChatPanel() {
   const [inputValue, setInputValue] = useState('')
-  const [selectedModel, setSelectedModel] = useState('')
 
   // Chat store
   const {
@@ -128,7 +127,7 @@ export function ChatPanel() {
   } = useChatStore()
 
   // Session store
-  const { currentSession } = useSessionStore()
+  const { currentSession, updateSession } = useSessionStore()
 
   // Workspace store
   const { currentWorkspace } = useWorkspaceStore()
@@ -155,18 +154,20 @@ export function ChatPanel() {
     void fetchModels()
   }, [fetchModels])
 
-  // Initialize selected model when session changes
-  // Priority: session.model > defaultModel
-  useEffect(() => {
-    const model = currentSession?.model ?? defaultModel
-    if (model) {
-      setSelectedModel(model)
-    }
-  }, [currentSession?.id, currentSession?.model, defaultModel])
+  // Selected model from session or default
+  const selectedModel = currentSession?.model ?? defaultModel
 
   // Get model groups and display info
   const modelGroups = getGroupedModels()
   const selectedModelInfo = getModelDisplayInfo(selectedModel, availableModels)
+
+  // Handle model selection - update session
+  const handleModelSelect = (modelId: string) => {
+    if (!currentWorkspace || !currentSession) return
+    if (modelId === selectedModel) return
+
+    void updateSession(currentWorkspace.id, currentSession.id, { model: modelId })
+  }
 
   const handleSend = () => {
     if (!currentWorkspace || !currentSession) {
@@ -250,7 +251,7 @@ export function ChatPanel() {
                       {group.models.map((m) => (
                         <DropdownMenuItem
                           key={m.id}
-                          onClick={() => { setSelectedModel(m.id) }}
+                          onClick={() => { handleModelSelect(m.id) }}
                           className={cn(
                             'flex flex-col items-start gap-0.5 pl-6',
                             selectedModel === m.id && 'bg-accent'

@@ -88,6 +88,28 @@ export function updateSessionName(
 }
 
 /**
+ * Update session model
+ *
+ * @param id - Session ID
+ * @param model - New model ID
+ * @returns Updated session or null if not found
+ */
+export function updateSessionModel(
+  db: DatabaseLike,
+  id: string,
+  model: string
+): Session | null {
+  const result = db
+    .prepare('UPDATE sessions SET model = ?, updated_at = ? WHERE id = ?')
+    .run(model, Date.now(), id)
+
+  if (result.changes === 0) {
+    return null
+  }
+  return getSession(db, id)
+}
+
+/**
  * Update session statistics
  *
  * @param id - Session ID

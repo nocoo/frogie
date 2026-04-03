@@ -55,6 +55,7 @@ export {
   getSession,
   listSessions,
   updateSessionName,
+  updateSessionModel,
   updateSessionStats,
   incrementSessionStats,
   touchSession,
