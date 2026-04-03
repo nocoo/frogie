@@ -154,12 +154,14 @@ export function ChatPanel() {
     void fetchModels()
   }, [fetchModels])
 
-  // Reset selected model to default when session changes
+  // Initialize selected model when session changes
+  // Priority: session.model > defaultModel
   useEffect(() => {
-    if (defaultModel) {
-      setSelectedModel(defaultModel)
+    const model = currentSession?.model ?? defaultModel
+    if (model) {
+      setSelectedModel(model)
     }
-  }, [currentSession?.id, defaultModel])
+  }, [currentSession?.id, currentSession?.model, defaultModel])
 
   // Get model groups and display info
   const modelGroups = getGroupedModels()
