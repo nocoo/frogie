@@ -33,6 +33,7 @@ export interface Workspace {
   id: string
   name: string
   path: string
+  color: string | null
   createdAt: number
   lastAccessed: number | null
 }
@@ -43,6 +44,16 @@ export interface Workspace {
 export interface CreateWorkspace {
   name: string
   path: string
+  color?: string | null
+}
+
+/**
+ * Update workspace input
+ */
+export interface UpdateWorkspace {
+  name?: string
+  path?: string
+  color?: string | null
 }
 
 /**

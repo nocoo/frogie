@@ -6,7 +6,6 @@
 
 import { useEffect, useState } from 'react'
 import {
-  FolderOpen,
   Plus,
   Check,
   ChevronsUpDown,
@@ -14,6 +13,7 @@ import {
 } from 'lucide-react'
 import { useWorkspaceStore } from '@/viewmodels/workspace.viewmodel'
 import { useSessionStore } from '@/viewmodels/session.viewmodel'
+import { WorkspaceIcon } from '@/components/workspace-icon'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -86,7 +86,11 @@ export function WorkspaceSelector({ collapsed = false }: WorkspaceSelectorProps)
             : 'text-muted-foreground hover:bg-accent hover:text-foreground'
         )}
       >
-        <FolderOpen className="h-5 w-5" strokeWidth={1.5} />
+        {currentWorkspace ? (
+          <WorkspaceIcon workspace={currentWorkspace} size="sm" />
+        ) : (
+          <div className="h-5 w-5 rounded bg-muted" />
+        )}
       </button>
     )
   }
@@ -110,8 +114,10 @@ export function WorkspaceSelector({ collapsed = false }: WorkspaceSelectorProps)
           <div className="flex items-center gap-2 min-w-0">
             {isLoading ? (
               <Loader2 className="h-4 w-4 animate-spin shrink-0" />
+            ) : currentWorkspace ? (
+              <WorkspaceIcon workspace={currentWorkspace} size="sm" />
             ) : (
-              <FolderOpen className="h-4 w-4 shrink-0" />
+              <div className="h-5 w-5 rounded bg-muted shrink-0" />
             )}
             <span className="truncate">
               {currentWorkspace?.name ?? 'Select workspace...'}
@@ -149,6 +155,7 @@ export function WorkspaceSelector({ collapsed = false }: WorkspaceSelectorProps)
                           : 'opacity-0'
                       )}
                     />
+                    <WorkspaceIcon workspace={workspace} size="sm" />
                     <span className="truncate">{workspace.name}</span>
                   </button>
                 ))

@@ -43,6 +43,7 @@ describe('workspace.viewmodel', () => {
           id: 'ws-1',
           name: 'Project 1',
           path: '/path/to/project1',
+          color: '#3b82f6',
           createdAt: 1000,
           lastAccessed: 2000,
         },
@@ -50,6 +51,7 @@ describe('workspace.viewmodel', () => {
           id: 'ws-2',
           name: 'Project 2',
           path: '/path/to/project2',
+          color: null,
           createdAt: 1500,
           lastAccessed: null,
         },
@@ -92,6 +94,7 @@ describe('workspace.viewmodel', () => {
         id: 'ws-new',
         name: 'New Project',
         path: '/path/to/new',
+        color: null,
         createdAt: 3000,
         lastAccessed: null,
       }
@@ -145,6 +148,7 @@ describe('workspace.viewmodel', () => {
         id: 'ws-1',
         name: 'Project 1',
         path: '/path',
+        color: null,
         createdAt: 1000,
         lastAccessed: null,
       }
@@ -169,6 +173,7 @@ describe('workspace.viewmodel', () => {
         id: 'ws-1',
         name: 'Project 1',
         path: '/path',
+        color: '#ef4444',
         createdAt: 1000,
         lastAccessed: null,
       }
@@ -199,6 +204,7 @@ describe('workspace.viewmodel', () => {
             id: 'ws-1',
             name: 'Project',
             path: '/path',
+            color: null,
             createdAt: 1000,
             lastAccessed: null,
           },

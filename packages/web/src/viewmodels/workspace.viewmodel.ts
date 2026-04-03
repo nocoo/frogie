@@ -6,7 +6,7 @@
  */
 
 import { create } from 'zustand'
-import type { Workspace, CreateWorkspace } from '@/models'
+import type { Workspace, CreateWorkspace, UpdateWorkspace } from '@/models'
 
 /**
  * API base URL
@@ -39,6 +39,12 @@ interface WorkspaceState {
 
   /** Create a new workspace */
   createWorkspace: (input: CreateWorkspace) => Promise<Workspace | null>
+
+  /** Update a workspace */
+  updateWorkspace: (id: string, input: UpdateWorkspace) => Promise<Workspace | null>
+
+  /** Open workspace in Finder */
+  openWorkspace: (id: string) => Promise<boolean>
 
   /** Select a workspace */
   selectWorkspace: (id: string) => void
@@ -164,6 +170,62 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
         isLoading: false,
       })
       return null
+    }
+  },
+
+  updateWorkspace: async (id: string, input: UpdateWorkspace) => {
+    set({ isLoading: true, error: null })
+
+    try {
+      const res = await fetch(`${API_BASE}/workspaces/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      })
+
+      if (!res.ok) {
+        const data = (await res.json()) as { error?: { message?: string } }
+        throw new Error(data.error?.message ?? 'Failed to update workspace')
+      }
+
+      const workspace = (await res.json()) as Workspace
+      set((state) => ({
+        workspaces: state.workspaces.map((w) =>
+          w.id === id ? workspace : w
+        ),
+        currentWorkspace:
+          state.currentWorkspace?.id === id
+            ? workspace
+            : state.currentWorkspace,
+        isLoading: false,
+      }))
+      return workspace
+    } catch (err) {
+      set({
+        error: err instanceof Error ? err.message : 'Unknown error',
+        isLoading: false,
+      })
+      return null
+    }
+  },
+
+  openWorkspace: async (id: string) => {
+    try {
+      const res = await fetch(`${API_BASE}/workspaces/${id}/open`, {
+        method: 'POST',
+      })
+
+      if (!res.ok) {
+        const data = (await res.json()) as { error?: { message?: string } }
+        throw new Error(data.error?.message ?? 'Failed to open workspace')
+      }
+
+      return true
+    } catch (err) {
+      set({
+        error: err instanceof Error ? err.message : 'Unknown error',
+      })
+      return false
     }
   },
 

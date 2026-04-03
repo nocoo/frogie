@@ -32,6 +32,7 @@ export interface Workspace {
   id: string
   name: string
   path: string
+  color: string | null
   created_at: number
   last_accessed: number | null
   settings: string // JSON string
@@ -43,6 +44,7 @@ export interface Workspace {
 export interface CreateWorkspace {
   name: string
   path: string
+  color?: string | null
 }
 
 /**

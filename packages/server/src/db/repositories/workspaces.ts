@@ -23,10 +23,10 @@ export function createWorkspace(
 
   db.prepare(
     `
-    INSERT INTO workspaces (id, name, path, created_at, last_accessed, settings)
-    VALUES (?, ?, ?, ?, ?, '{}')
+    INSERT INTO workspaces (id, name, path, color, created_at, last_accessed, settings)
+    VALUES (?, ?, ?, ?, ?, ?, '{}')
   `
-  ).run(id, input.name, input.path, now, now)
+  ).run(id, input.name, input.path, input.color ?? null, now, now)
 
   const workspace = getWorkspace(db, id)
   if (!workspace) {
@@ -108,6 +108,7 @@ export function updateWorkspace(
   const newValues = {
     name: update.name ?? current.name,
     path: update.path ?? current.path,
+    color: update.color !== undefined ? update.color : current.color,
     last_accessed: update.last_accessed ?? current.last_accessed,
     settings: update.settings ?? current.settings,
   }
@@ -115,10 +116,10 @@ export function updateWorkspace(
   db.prepare(
     `
     UPDATE workspaces
-    SET name = ?, path = ?, last_accessed = ?, settings = ?
+    SET name = ?, path = ?, color = ?, last_accessed = ?, settings = ?
     WHERE id = ?
   `
-  ).run(newValues.name, newValues.path, newValues.last_accessed, newValues.settings, id)
+  ).run(newValues.name, newValues.path, newValues.color, newValues.last_accessed, newValues.settings, id)
 
   return getWorkspace(db, id)
 }
