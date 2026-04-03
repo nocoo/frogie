@@ -154,10 +154,22 @@ export const useModelsStore = create<ModelsState>((set, get) => ({
         body: JSON.stringify({}),
       })
 
-      const data = (await res.json()) as {
+      // Check if response has content
+      const text = await res.text()
+      if (!text) {
+        throw new Error('Empty response from server')
+      }
+
+      let data: {
         success: boolean
         error?: string
         models?: ModelInfo[]
+      }
+
+      try {
+        data = JSON.parse(text) as typeof data
+      } catch {
+        throw new Error(`Invalid JSON response: ${text.substring(0, 100)}`)
       }
 
       if (!data.success) {
