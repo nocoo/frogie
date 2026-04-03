@@ -172,7 +172,11 @@ export function DashboardLayout() {
           </header>
           {/* B-2 内容区域（浮岛式） */}
           <div className={cn('flex-1 min-h-0 px-2 pb-2 md:px-3 md:pb-3')}>
-            <div className="h-full rounded-[16px] md:rounded-[20px] bg-card p-3 md:p-5">
+            <div className={cn(
+              'h-full rounded-[16px] md:rounded-[20px] bg-card',
+              // Chat page (/) needs no padding for input to reach edges
+              location.pathname === '/' ? '' : 'p-3 md:p-5'
+            )}>
               <Outlet />
             </div>
           </div>

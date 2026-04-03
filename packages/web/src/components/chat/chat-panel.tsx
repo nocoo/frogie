@@ -196,7 +196,7 @@ export function ChatPanel() {
   const canSend = isConnected && currentWorkspace && currentSession
 
   return (
-    <div className="flex h-full min-h-0 flex-col lg:flex-row lg:gap-4">
+    <div className="flex h-full min-h-0 flex-col lg:flex-row">
       {/* Main chat area */}
       <div className="flex flex-1 min-h-0 min-w-0 flex-col">
         {/* Header: Connection status & Model selector */}
@@ -364,7 +364,7 @@ export function ChatPanel() {
       </div>
 
       {/* Stats sidebar - only show on wide screens */}
-      <aside className="hidden lg:block w-64 shrink-0 border-l pl-4">
+      <aside className="hidden lg:block w-64 shrink-0 border-l p-4">
         <StatsSidebar turnStats={turnStats} />
       </aside>
     </div>
