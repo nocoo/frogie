@@ -57,13 +57,13 @@ describe('chat.viewmodel', () => {
   beforeEach(() => {
     // Reset store state
     useChatStore.setState({
-      messages: [],
-      sessionId: null,
+      sessions: new Map(),
       ws: null,
       status: 'disconnected',
-      isProcessing: false,
       error: null,
-      turnStats: null,
+      _reconnectAttempts: 0,
+      _reconnectTimeout: null,
+      _intentionalDisconnect: false,
     })
     MockWebSocket.instances = []
   })
@@ -76,13 +76,10 @@ describe('chat.viewmodel', () => {
     it('should have correct initial state', () => {
       const state = useChatStore.getState()
 
-      expect(state.messages).toEqual([])
-      expect(state.sessionId).toBeNull()
+      expect(state.sessions.size).toBe(0)
       expect(state.ws).toBeNull()
       expect(state.status).toBe('disconnected')
-      expect(state.isProcessing).toBe(false)
       expect(state.error).toBeNull()
-      expect(state.turnStats).toBeNull()
     })
   })
 
@@ -138,18 +135,18 @@ describe('chat.viewmodel', () => {
         .getState()
         .sendMessage('ws-1', 'sess-1', 'Hello, how are you?')
 
-      const state = useChatStore.getState()
+      const sessionState = useChatStore.getState().getSessionState('sess-1')
 
       // Should add user message
-      expect(state.messages).toHaveLength(1)
-      expect(state.messages[0]?.role).toBe('user')
-      expect(state.messages[0]?.content[0]).toMatchObject({
+      expect(sessionState.messages).toHaveLength(1)
+      expect(sessionState.messages[0]?.role).toBe('user')
+      expect(sessionState.messages[0]?.content[0]).toMatchObject({
         type: 'text',
         text: 'Hello, how are you?',
       })
 
       // Should be processing
-      expect(state.isProcessing).toBe(true)
+      expect(sessionState.isProcessing).toBe(true)
 
       // Should send WebSocket message
       expect(MockWebSocket.instances[0]?.sentMessages).toHaveLength(1)
@@ -172,31 +169,36 @@ describe('chat.viewmodel', () => {
   })
 
   describe('handleEvent', () => {
+    const sessionId = 'sess-123'
+
     it('should handle session_start event', () => {
       useChatStore.getState().handleEvent({
         type: 'session_start',
-        sessionId: 'sess-123',
+        sessionId,
         model: 'claude-sonnet',
       })
 
-      expect(useChatStore.getState().sessionId).toBe('sess-123')
+      const sessionState = useChatStore.getState().getSessionState(sessionId)
+      expect(sessionState.messages).toEqual([])
     })
 
     it('should handle text event', () => {
       useChatStore.getState().handleEvent({
         type: 'text',
+        sessionId,
         text: 'Hello ',
       })
 
       useChatStore.getState().handleEvent({
         type: 'text',
+        sessionId,
         text: 'world!',
       })
 
-      const messages = useChatStore.getState().messages
-      expect(messages).toHaveLength(1)
-      expect(messages[0]?.role).toBe('assistant')
-      expect(messages[0]?.content[0]).toMatchObject({
+      const sessionState = useChatStore.getState().getSessionState(sessionId)
+      expect(sessionState.messages).toHaveLength(1)
+      expect(sessionState.messages[0]?.role).toBe('assistant')
+      expect(sessionState.messages[0]?.content[0]).toMatchObject({
         type: 'text',
         text: 'Hello world!',
       })
@@ -205,14 +207,15 @@ describe('chat.viewmodel', () => {
     it('should handle tool_use event', () => {
       useChatStore.getState().handleEvent({
         type: 'tool_use',
+        sessionId,
         id: 'tool-1',
         name: 'read_file',
         input: { path: '/test.txt' },
       })
 
-      const messages = useChatStore.getState().messages
-      expect(messages).toHaveLength(1)
-      expect(messages[0]?.content[0]).toMatchObject({
+      const sessionState = useChatStore.getState().getSessionState(sessionId)
+      expect(sessionState.messages).toHaveLength(1)
+      expect(sessionState.messages[0]?.content[0]).toMatchObject({
         type: 'tool_use',
         id: 'tool-1',
         name: 'read_file',
@@ -224,6 +227,7 @@ describe('chat.viewmodel', () => {
       // First add tool use
       useChatStore.getState().handleEvent({
         type: 'tool_use',
+        sessionId,
         id: 'tool-1',
         name: 'read_file',
         input: { path: '/test.txt' },
@@ -232,12 +236,14 @@ describe('chat.viewmodel', () => {
       // Then add result
       useChatStore.getState().handleEvent({
         type: 'tool_result',
+        sessionId,
         id: 'tool-1',
         output: 'file contents here',
         isError: false,
       })
 
-      const content = useChatStore.getState().messages[0]?.content[0]
+      const sessionState = useChatStore.getState().getSessionState(sessionId)
+      const content = sessionState.messages[0]?.content[0]
       expect(content?.type).toBe('tool_use')
       if (content?.type === 'tool_use') {
         expect(content.result).toMatchObject({
@@ -248,10 +254,14 @@ describe('chat.viewmodel', () => {
     })
 
     it('should handle turn_complete event', () => {
-      useChatStore.setState({ isProcessing: true })
+      // First send a message to create session state
+      useChatStore.getState().connect()
+      MockWebSocket.instances[0]?.simulateOpen()
+      useChatStore.getState().sendMessage('ws-1', sessionId, 'Hello')
 
       useChatStore.getState().handleEvent({
         type: 'turn_complete',
+        sessionId,
         turns: 3,
         inputTokens: 500,
         outputTokens: 300,
@@ -259,9 +269,9 @@ describe('chat.viewmodel', () => {
         durationMs: 2000,
       })
 
-      const state = useChatStore.getState()
-      expect(state.isProcessing).toBe(false)
-      expect(state.turnStats).toMatchObject({
+      const sessionState = useChatStore.getState().getSessionState(sessionId)
+      expect(sessionState.isProcessing).toBe(false)
+      expect(sessionState.turnStats).toMatchObject({
         turns: 3,
         inputTokens: 500,
         outputTokens: 300,
@@ -271,38 +281,53 @@ describe('chat.viewmodel', () => {
     })
 
     it('should handle error event', () => {
-      useChatStore.setState({ isProcessing: true })
+      // First send a message to create session state
+      useChatStore.getState().connect()
+      MockWebSocket.instances[0]?.simulateOpen()
+      useChatStore.getState().sendMessage('ws-1', sessionId, 'Hello')
 
       useChatStore.getState().handleEvent({
         type: 'error',
+        sessionId,
         message: 'Something went wrong',
       })
 
       const state = useChatStore.getState()
-      expect(state.isProcessing).toBe(false)
+      const sessionState = state.getSessionState(sessionId)
+      expect(sessionState.isProcessing).toBe(false)
       expect(state.error).toBe('Something went wrong')
     })
 
     it('should handle interrupted event', () => {
-      useChatStore.setState({ isProcessing: true })
+      // First send a message to create session state
+      useChatStore.getState().connect()
+      MockWebSocket.instances[0]?.simulateOpen()
+      useChatStore.getState().sendMessage('ws-1', sessionId, 'Hello')
 
       useChatStore.getState().handleEvent({
         type: 'interrupted',
+        sessionId,
       })
 
-      expect(useChatStore.getState().isProcessing).toBe(false)
+      const sessionState = useChatStore.getState().getSessionState(sessionId)
+      expect(sessionState.isProcessing).toBe(false)
     })
 
     it('should handle budget_exceeded event', () => {
-      useChatStore.setState({ isProcessing: true })
+      // First send a message to create session state
+      useChatStore.getState().connect()
+      MockWebSocket.instances[0]?.simulateOpen()
+      useChatStore.getState().sendMessage('ws-1', sessionId, 'Hello')
 
       useChatStore.getState().handleEvent({
         type: 'budget_exceeded',
+        sessionId,
         costUsd: 10.5,
       })
 
       const state = useChatStore.getState()
-      expect(state.isProcessing).toBe(false)
+      const sessionState = state.getSessionState(sessionId)
+      expect(sessionState.isProcessing).toBe(false)
       expect(state.error).toBe('Budget exceeded: $10.50')
     })
   })
@@ -312,12 +337,16 @@ describe('chat.viewmodel', () => {
       useChatStore.getState().connect()
       MockWebSocket.instances[0]?.simulateOpen()
 
-      useChatStore.setState({
-        sessionId: 'sess-1',
-        isProcessing: true,
-      })
+      // Send a message to create session and mark as processing
+      useChatStore.getState().sendMessage('ws-1', 'sess-1', 'Hello')
 
-      useChatStore.getState().interrupt()
+      // Clear sent messages to check only interrupt
+      const ws = MockWebSocket.instances[0]
+      if (ws) {
+        ws.sentMessages = []
+      }
+
+      useChatStore.getState().interrupt('sess-1')
 
       const sent = JSON.parse(
         MockWebSocket.instances[0]?.sentMessages[0] ?? '{}'
@@ -332,44 +361,28 @@ describe('chat.viewmodel', () => {
       useChatStore.getState().connect()
       MockWebSocket.instances[0]?.simulateOpen()
 
-      useChatStore.setState({
-        sessionId: 'sess-1',
-        isProcessing: false,
-      })
-
-      useChatStore.getState().interrupt()
+      // Session doesn't exist or not processing
+      useChatStore.getState().interrupt('sess-1')
 
       expect(MockWebSocket.instances[0]?.sentMessages).toHaveLength(0)
     })
   })
 
   describe('clearMessages', () => {
-    it('should clear all messages and stats', () => {
-      useChatStore.setState({
-        messages: [
-          {
-            id: 'msg-1',
-            role: 'user',
-            content: [{ type: 'text', text: 'Hello' }],
-            createdAt: 1000,
-          },
-        ],
-        sessionId: 'sess-1',
-        turnStats: {
-          turns: 3,
-          inputTokens: 500,
-          outputTokens: 300,
-          costUsd: 0.05,
-          durationMs: 2000,
-        },
-      })
+    it('should clear session messages and stats', () => {
+      useChatStore.getState().connect()
+      MockWebSocket.instances[0]?.simulateOpen()
+      useChatStore.getState().sendMessage('ws-1', 'sess-1', 'Hello')
 
-      useChatStore.getState().clearMessages()
+      useChatStore.getState().clearMessages('sess-1')
 
-      const state = useChatStore.getState()
-      expect(state.messages).toEqual([])
-      expect(state.sessionId).toBeNull()
-      expect(state.turnStats).toBeNull()
+      // Session should be removed from the map
+      expect(useChatStore.getState().sessions.has('sess-1')).toBe(false)
+
+      // getSessionState should return default state
+      const sessionState = useChatStore.getState().getSessionState('sess-1')
+      expect(sessionState.messages).toEqual([])
+      expect(sessionState.turnStats).toBeNull()
     })
   })
 
@@ -380,6 +393,27 @@ describe('chat.viewmodel', () => {
       useChatStore.getState().clearError()
 
       expect(useChatStore.getState().error).toBeNull()
+    })
+  })
+
+  describe('getSessionState', () => {
+    it('should return default state for unknown session', () => {
+      const sessionState = useChatStore.getState().getSessionState('unknown')
+
+      expect(sessionState.messages).toEqual([])
+      expect(sessionState.isProcessing).toBe(false)
+      expect(sessionState.turnStats).toBeNull()
+    })
+
+    it('should return existing session state', () => {
+      useChatStore.getState().connect()
+      MockWebSocket.instances[0]?.simulateOpen()
+      useChatStore.getState().sendMessage('ws-1', 'sess-1', 'Hello')
+
+      const sessionState = useChatStore.getState().getSessionState('sess-1')
+
+      expect(sessionState.messages).toHaveLength(1)
+      expect(sessionState.isProcessing).toBe(true)
     })
   })
 })

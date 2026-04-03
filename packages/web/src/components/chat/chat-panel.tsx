@@ -114,16 +114,14 @@ export function ChatPanel() {
 
   // Chat store
   const {
-    messages,
     status,
-    isProcessing,
     error,
-    turnStats,
     connect,
     disconnect,
     sendMessage,
     interrupt,
     clearError,
+    getSessionState,
   } = useChatStore()
 
   // Session store
@@ -140,6 +138,12 @@ export function ChatPanel() {
     fetchModels,
     getGroupedModels,
   } = useModelsStore()
+
+  // Get current session's chat state
+  const sessionState = currentSession ? getSessionState(currentSession.id) : null
+  const messages = sessionState?.messages ?? []
+  const isProcessing = sessionState?.isProcessing ?? false
+  const turnStats = sessionState?.turnStats ?? null
 
   // Connect to WebSocket on mount
   useEffect(() => {
@@ -182,7 +186,8 @@ export function ChatPanel() {
   }
 
   const handleStop = () => {
-    interrupt()
+    if (!currentSession) return
+    interrupt(currentSession.id)
   }
 
   const isConnected = status === 'connected'

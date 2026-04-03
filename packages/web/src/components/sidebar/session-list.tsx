@@ -9,7 +9,6 @@ import { useNavigate } from 'react-router'
 import { MessageSquare, Plus, Trash2, Loader2 } from 'lucide-react'
 import { useSessionStore } from '@/viewmodels/session.viewmodel'
 import { useWorkspaceStore } from '@/viewmodels/workspace.viewmodel'
-import { useChatStore } from '@/viewmodels/chat.viewmodel'
 import { cn } from '@/lib/utils'
 import {
   Tooltip,
@@ -34,7 +33,6 @@ export function SessionList({ collapsed = false }: SessionListProps) {
     selectSession,
     deleteSession,
   } = useSessionStore()
-  const { clearMessages } = useChatStore()
 
   // Fetch sessions when workspace changes
   useEffect(() => {
@@ -46,19 +44,14 @@ export function SessionList({ collapsed = false }: SessionListProps) {
   const handleNewSession = async () => {
     if (!currentWorkspace) return
 
-    const session = await createSession(currentWorkspace.id, {
+    await createSession(currentWorkspace.id, {
       name: `Session ${String(sessions.length + 1)}`,
       model: 'claude-sonnet-4-20250514',
     })
-
-    if (session) {
-      clearMessages()
-    }
   }
 
   const handleSelectSession = (sessionId: string) => {
     selectSession(sessionId)
-    clearMessages()
     void navigate('/')
   }
 

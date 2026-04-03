@@ -23,7 +23,8 @@ type ContentBlockParam = Anthropic.ContentBlockParam
  */
 export function* transformStreamEvent(
   event: RawMessageStreamEvent,
-  contentBlocks: ContentBlockAccumulator
+  contentBlocks: ContentBlockAccumulator,
+  sessionId: string
 ): Generator<AgentEvent> {
   switch (event.type) {
     case 'content_block_start': {
@@ -38,9 +39,9 @@ export function* transformStreamEvent(
     case 'content_block_delta': {
       const delta = event.delta
       if (delta.type === 'text_delta') {
-        yield { type: 'text', text: delta.text } satisfies TextEvent
+        yield { type: 'text', sessionId, text: delta.text } satisfies TextEvent
       } else if (delta.type === 'thinking_delta') {
-        yield { type: 'thinking', content: delta.thinking } satisfies ThinkingEvent
+        yield { type: 'thinking', sessionId, content: delta.thinking } satisfies ThinkingEvent
       } else if (delta.type === 'input_json_delta') {
         // Accumulate JSON for tool input
         contentBlocks.appendToolInput(event.index, delta.partial_json)
@@ -54,6 +55,7 @@ export function* transformStreamEvent(
       if (toolUse) {
         yield {
           type: 'tool_use',
+          sessionId,
           id: toolUse.id,
           name: toolUse.name,
           input: toolUse.input,
@@ -73,17 +75,19 @@ export function* transformStreamEvent(
  * Used for non-streaming responses or when processing accumulated content
  */
 export function* transformContentBlocks(
-  content: ContentBlockParam[]
+  content: ContentBlockParam[],
+  sessionId: string
 ): Generator<AgentEvent> {
   for (const block of content) {
     switch (block.type) {
       case 'text':
-        yield { type: 'text', text: block.text } satisfies TextEvent
+        yield { type: 'text', sessionId, text: block.text } satisfies TextEvent
         break
 
       case 'thinking':
         yield {
           type: 'thinking',
+          sessionId,
           content: block.thinking,
         } satisfies ThinkingEvent
         break
@@ -91,6 +95,7 @@ export function* transformContentBlocks(
       case 'tool_use':
         yield {
           type: 'tool_use',
+          sessionId,
           id: block.id,
           name: block.name,
           input: block.input,

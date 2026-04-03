@@ -23,6 +23,7 @@ export interface SessionStartEvent {
  */
 export interface TextEvent {
   type: 'text'
+  sessionId: string
   text: string
 }
 
@@ -31,6 +32,7 @@ export interface TextEvent {
  */
 export interface ThinkingEvent {
   type: 'thinking'
+  sessionId: string
   content: string
 }
 
@@ -39,6 +41,7 @@ export interface ThinkingEvent {
  */
 export interface ToolUseEvent {
   type: 'tool_use'
+  sessionId: string
   id: string
   name: string
   input: unknown
@@ -49,6 +52,7 @@ export interface ToolUseEvent {
  */
 export interface ToolResultEvent {
   type: 'tool_result'
+  sessionId: string
   id: string
   output: string
   isError: boolean
@@ -59,6 +63,7 @@ export interface ToolResultEvent {
  */
 export interface CompactStartEvent {
   type: 'compact_start'
+  sessionId: string
 }
 
 /**
@@ -66,6 +71,7 @@ export interface CompactStartEvent {
  */
 export interface CompactDoneEvent {
   type: 'compact_done'
+  sessionId: string
   summary: string
 }
 
@@ -74,6 +80,7 @@ export interface CompactDoneEvent {
  */
 export interface TurnCompleteEvent {
   type: 'turn_complete'
+  sessionId: string
   turns: number
   inputTokens: number
   outputTokens: number
@@ -86,6 +93,7 @@ export interface TurnCompleteEvent {
  */
 export interface BudgetExceededEvent {
   type: 'budget_exceeded'
+  sessionId: string
   costUsd: number
 }
 
@@ -94,6 +102,7 @@ export interface BudgetExceededEvent {
  */
 export interface SessionSavedEvent {
   type: 'session_saved'
+  sessionId: string
 }
 
 /**
@@ -101,6 +110,7 @@ export interface SessionSavedEvent {
  */
 export interface ErrorEvent {
   type: 'error'
+  sessionId?: string
   message: string
   code?: string
 }
@@ -110,6 +120,7 @@ export interface ErrorEvent {
  */
 export interface InterruptedEvent {
   type: 'interrupted'
+  sessionId: string
 }
 
 /**

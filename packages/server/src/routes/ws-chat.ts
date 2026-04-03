@@ -136,6 +136,7 @@ async function handleChat(
   if (state.activeSessions.has(sessionId)) {
     sendEvent(ws, {
       type: 'error',
+      sessionId,
       message: 'Session already has an active query',
       code: 'SESSION_BUSY',
     })
@@ -147,6 +148,7 @@ async function handleChat(
   if (!workspace) {
     sendEvent(ws, {
       type: 'error',
+      sessionId,
       message: `Workspace not found: ${workspaceId}`,
       code: 'WORKSPACE_NOT_FOUND',
     })
@@ -158,6 +160,7 @@ async function handleChat(
   if (!session) {
     sendEvent(ws, {
       type: 'error',
+      sessionId,
       message: `Session not found: ${sessionId}`,
       code: 'SESSION_NOT_FOUND',
     })
@@ -168,6 +171,7 @@ async function handleChat(
   if (session.workspace_id !== workspaceId) {
     sendEvent(ws, {
       type: 'error',
+      sessionId,
       message: `Session ${sessionId} does not belong to workspace ${workspaceId}`,
       code: 'SESSION_WORKSPACE_MISMATCH',
     })
@@ -256,10 +260,11 @@ async function handleChat(
     await state.sessionSync.saveMessages(sessionId, allMessages)
 
     // Emit session_saved event to confirm persistence
-    sendEvent(ws, { type: 'session_saved' })
+    sendEvent(ws, { type: 'session_saved', sessionId })
   } catch (err) {
     sendEvent(ws, {
       type: 'error',
+      sessionId,
       message: err instanceof Error ? err.message : 'Unknown error',
       code: 'QUERY_ERROR',
     })

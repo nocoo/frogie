@@ -2,6 +2,7 @@
  * Chat ViewModel
  *
  * Zustand store for real-time chat with WebSocket.
+ * Supports multiple concurrent sessions with independent streaming state.
  * Includes auto-reconnection with exponential backoff.
  */
 
@@ -19,6 +20,21 @@ import type {
 type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error'
 
 /**
+ * Per-session state
+ */
+interface SessionChatState {
+  messages: Message[]
+  isProcessing: boolean
+  turnStats: {
+    turns: number
+    inputTokens: number
+    outputTokens: number
+    costUsd: number
+    durationMs: number
+  } | null
+}
+
+/**
  * Reconnection config
  */
 const RECONNECT_CONFIG = {
@@ -32,11 +48,8 @@ const RECONNECT_CONFIG = {
  * Chat store state
  */
 interface ChatState {
-  /** Messages in current conversation */
-  messages: Message[]
-
-  /** Current session ID */
-  sessionId: string | null
+  /** Per-session chat state */
+  sessions: Map<string, SessionChatState>
 
   /** WebSocket connection */
   ws: WebSocket | null
@@ -44,20 +57,8 @@ interface ChatState {
   /** Connection status */
   status: ConnectionStatus
 
-  /** Is agent currently processing */
-  isProcessing: boolean
-
-  /** Error message */
+  /** Global error message */
   error: string | null
-
-  /** Current turn stats */
-  turnStats: {
-    turns: number
-    inputTokens: number
-    outputTokens: number
-    costUsd: number
-    durationMs: number
-  } | null
 
   /** Reconnection state (internal) */
   _reconnectAttempts: number
@@ -73,17 +74,17 @@ interface ChatState {
   /** Send a chat message */
   sendMessage: (workspaceId: string, sessionId: string, prompt: string, model?: string) => void
 
-  /** Interrupt current execution */
-  interrupt: () => void
+  /** Interrupt current execution for a session */
+  interrupt: (sessionId: string) => void
 
-  /** Clear messages */
-  clearMessages: () => void
+  /** Clear messages for a session */
+  clearMessages: (sessionId: string) => void
 
   /** Clear error */
   clearError: () => void
 
-  /** Add a user message */
-  addUserMessage: (prompt: string) => void
+  /** Get session state (creates if not exists) */
+  getSessionState: (sessionId: string) => SessionChatState
 
   /** Handle incoming events (internal) */
   handleEvent: (event: AgentEvent) => void
@@ -100,16 +101,24 @@ function generateId(): string {
 }
 
 /**
+ * Create default session state
+ */
+function createDefaultSessionState(): SessionChatState {
+  return {
+    messages: [],
+    isProcessing: false,
+    turnStats: null,
+  }
+}
+
+/**
  * Chat store
  */
 export const useChatStore = create<ChatState>((set, get) => ({
-  messages: [],
-  sessionId: null,
+  sessions: new Map(),
   ws: null,
   status: 'disconnected',
-  isProcessing: false,
   error: null,
-  turnStats: null,
   _reconnectAttempts: 0,
   _reconnectTimeout: null,
   _intentionalDisconnect: false,
@@ -184,15 +193,32 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   sendMessage: (workspaceId: string, sessionId: string, prompt: string, model?: string) => {
-    const { ws, status } = get()
+    const { ws, status, sessions } = get()
 
     if (!ws || status !== 'connected') {
       set({ error: 'Not connected to server' })
       return
     }
 
-    // Add user message to UI
-    get().addUserMessage(prompt)
+    // Get or create session state
+    const sessionState = sessions.get(sessionId) ?? createDefaultSessionState()
+
+    // Add user message
+    const userMessage: Message = {
+      id: generateId(),
+      role: 'user',
+      content: [{ type: 'text', text: prompt }],
+      createdAt: Date.now(),
+    }
+
+    const newSessions = new Map(sessions)
+    newSessions.set(sessionId, {
+      ...sessionState,
+      messages: [...sessionState.messages, userMessage],
+      isProcessing: true,
+    })
+
+    set({ sessions: newSessions })
 
     // Send chat message
     const message: ClientMessage = {
@@ -204,13 +230,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
 
     ws.send(JSON.stringify(message))
-    set({ isProcessing: true, sessionId })
   },
 
-  interrupt: () => {
-    const { ws, sessionId, isProcessing } = get()
+  interrupt: (sessionId: string) => {
+    const { ws, sessions } = get()
+    const sessionState = sessions.get(sessionId)
 
-    if (!ws || !sessionId || !isProcessing) return
+    if (!ws || !sessionState?.isProcessing) return
 
     const message: ClientMessage = {
       type: 'interrupt',
@@ -220,133 +246,156 @@ export const useChatStore = create<ChatState>((set, get) => ({
     ws.send(JSON.stringify(message))
   },
 
-  clearMessages: () => {
-    set({ messages: [], sessionId: null, turnStats: null })
+  clearMessages: (sessionId: string) => {
+    const { sessions } = get()
+    const newSessions = new Map(sessions)
+    newSessions.delete(sessionId)
+    set({ sessions: newSessions })
   },
 
   clearError: () => {
     set({ error: null })
   },
 
-  addUserMessage: (prompt: string) => {
-    const message: Message = {
-      id: generateId(),
-      role: 'user',
-      content: [{ type: 'text', text: prompt }],
-      createdAt: Date.now(),
-    }
-
-    set((state) => ({ messages: [...state.messages, message] }))
+  getSessionState: (sessionId: string) => {
+    const { sessions } = get()
+    return sessions.get(sessionId) ?? createDefaultSessionState()
   },
 
   handleEvent: (event: AgentEvent) => {
+    // Extract sessionId from event if available
+    const sessionId = 'sessionId' in event ? event.sessionId : null
+    if (!sessionId && event.type !== 'pong') {
+      // Most events should have sessionId
+      return
+    }
+
+    const { sessions } = get()
+
     switch (event.type) {
-      case 'session_start':
-        set({ sessionId: event.sessionId })
+      case 'session_start': {
+        // Initialize session state if not exists
+        if (!sessions.has(event.sessionId)) {
+          const newSessions = new Map(sessions)
+          newSessions.set(event.sessionId, createDefaultSessionState())
+          set({ sessions: newSessions })
+        }
         break
+      }
 
       case 'text': {
-        set((state) => {
-          const messages = [...state.messages]
-          const lastMessage = messages[messages.length - 1]
+        if (!sessionId) return
+        const sessionState = sessions.get(sessionId) ?? createDefaultSessionState()
+        const messages = [...sessionState.messages]
+        const lastMessage = messages[messages.length - 1]
 
-          // Append to existing assistant message or create new one
-          if (lastMessage?.role === 'assistant') {
-            const textContent = lastMessage.content.find(
-              (c) => c.type === 'text'
-            )
-            if (textContent?.type === 'text') {
-              textContent.text += event.text
-            }
-          } else {
-            messages.push({
-              id: generateId(),
-              role: 'assistant',
-              content: [{ type: 'text', text: event.text }],
-              createdAt: Date.now(),
-            })
+        // Append to existing assistant message or create new one
+        if (lastMessage?.role === 'assistant') {
+          const textContent = lastMessage.content.find((c) => c.type === 'text')
+          if (textContent?.type === 'text') {
+            textContent.text += event.text
           }
+        } else {
+          messages.push({
+            id: generateId(),
+            role: 'assistant',
+            content: [{ type: 'text', text: event.text }],
+            createdAt: Date.now(),
+          })
+        }
 
-          return { messages }
-        })
+        const newSessions = new Map(sessions)
+        newSessions.set(sessionId, { ...sessionState, messages })
+        set({ sessions: newSessions })
         break
       }
 
       case 'thinking': {
-        set((state) => {
-          const messages = [...state.messages]
-          const lastMessage = messages[messages.length - 1]
+        if (!sessionId) return
+        const sessionState = sessions.get(sessionId) ?? createDefaultSessionState()
+        const messages = [...sessionState.messages]
+        const lastMessage = messages[messages.length - 1]
 
-          if (lastMessage?.role === 'assistant') {
-            lastMessage.content.push({
-              type: 'thinking',
-              content: event.content,
-            })
-          } else {
-            messages.push({
-              id: generateId(),
-              role: 'assistant',
-              content: [{ type: 'thinking', content: event.content }],
-              createdAt: Date.now(),
-            })
-          }
+        if (lastMessage?.role === 'assistant') {
+          lastMessage.content.push({
+            type: 'thinking',
+            content: event.content,
+          })
+        } else {
+          messages.push({
+            id: generateId(),
+            role: 'assistant',
+            content: [{ type: 'thinking', content: event.content }],
+            createdAt: Date.now(),
+          })
+        }
 
-          return { messages }
-        })
+        const newSessions = new Map(sessions)
+        newSessions.set(sessionId, { ...sessionState, messages })
+        set({ sessions: newSessions })
         break
       }
 
       case 'tool_use': {
-        set((state) => {
-          const messages = [...state.messages]
-          const lastMessage = messages[messages.length - 1]
-          const toolContent: MessageContent = {
-            type: 'tool_use',
-            id: event.id,
-            name: event.name,
-            input: event.input,
-          }
+        if (!sessionId) return
+        const sessionState = sessions.get(sessionId) ?? createDefaultSessionState()
+        const messages = [...sessionState.messages]
+        const lastMessage = messages[messages.length - 1]
+        const toolContent: MessageContent = {
+          type: 'tool_use',
+          id: event.id,
+          name: event.name,
+          input: event.input,
+        }
 
-          if (lastMessage?.role === 'assistant') {
-            lastMessage.content.push(toolContent)
-          } else {
-            messages.push({
-              id: generateId(),
-              role: 'assistant',
-              content: [toolContent],
-              createdAt: Date.now(),
-            })
-          }
+        if (lastMessage?.role === 'assistant') {
+          lastMessage.content.push(toolContent)
+        } else {
+          messages.push({
+            id: generateId(),
+            role: 'assistant',
+            content: [toolContent],
+            createdAt: Date.now(),
+          })
+        }
 
-          return { messages }
-        })
+        const newSessions = new Map(sessions)
+        newSessions.set(sessionId, { ...sessionState, messages })
+        set({ sessions: newSessions })
         break
       }
 
       case 'tool_result': {
-        set((state) => {
-          const messages = [...state.messages]
+        if (!sessionId) return
+        const sessionState = sessions.get(sessionId) ?? createDefaultSessionState()
+        const messages = [...sessionState.messages]
 
-          // Find the tool_use content block and add result
-          for (const msg of messages) {
-            for (const content of msg.content) {
-              if (content.type === 'tool_use' && content.id === event.id) {
-                content.result = {
-                  output: event.output,
-                  isError: event.isError,
-                }
-                return { messages }
+        // Find the tool_use content block and add result
+        for (const msg of messages) {
+          for (const content of msg.content) {
+            if (content.type === 'tool_use' && content.id === event.id) {
+              content.result = {
+                output: event.output,
+                isError: event.isError,
               }
+              break
             }
           }
+        }
 
-          return { messages }
-        })
+        const newSessions = new Map(sessions)
+        newSessions.set(sessionId, { ...sessionState, messages })
+        set({ sessions: newSessions })
         break
       }
 
-      case 'turn_complete':
-        set({
+      case 'turn_complete': {
+        if (!sessionId) return
+        const sessionState = sessions.get(sessionId) ?? createDefaultSessionState()
+
+        const newSessions = new Map(sessions)
+        newSessions.set(sessionId, {
+          ...sessionState,
           isProcessing: false,
           turnStats: {
             turns: event.turns,
@@ -356,22 +405,54 @@ export const useChatStore = create<ChatState>((set, get) => ({
             durationMs: event.durationMs,
           },
         })
+        set({ sessions: newSessions })
         break
+      }
 
-      case 'error':
-        set({ error: event.message, isProcessing: false })
-        break
+      case 'error': {
+        if (!sessionId) {
+          set({ error: event.message })
+          return
+        }
+        const sessionState = sessions.get(sessionId) ?? createDefaultSessionState()
 
-      case 'interrupted':
-        set({ isProcessing: false })
-        break
-
-      case 'budget_exceeded':
-        set({
-          error: `Budget exceeded: $${event.costUsd.toFixed(2)}`,
+        const newSessions = new Map(sessions)
+        newSessions.set(sessionId, {
+          ...sessionState,
           isProcessing: false,
         })
+        set({ sessions: newSessions, error: event.message })
         break
+      }
+
+      case 'interrupted': {
+        if (!sessionId) return
+        const sessionState = sessions.get(sessionId) ?? createDefaultSessionState()
+
+        const newSessions = new Map(sessions)
+        newSessions.set(sessionId, {
+          ...sessionState,
+          isProcessing: false,
+        })
+        set({ sessions: newSessions })
+        break
+      }
+
+      case 'budget_exceeded': {
+        if (!sessionId) return
+        const sessionState = sessions.get(sessionId) ?? createDefaultSessionState()
+
+        const newSessions = new Map(sessions)
+        newSessions.set(sessionId, {
+          ...sessionState,
+          isProcessing: false,
+        })
+        set({
+          sessions: newSessions,
+          error: `Budget exceeded: $${event.costUsd.toFixed(2)}`,
+        })
+        break
+      }
 
       case 'pong':
       case 'compact_start':

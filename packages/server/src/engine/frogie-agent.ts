@@ -178,6 +178,7 @@ export class FrogieAgent {
    */
   async *query(prompt: string): AsyncGenerator<AgentEvent> {
     const startTime = Date.now()
+    const sessionId = this.config.sessionId ?? 'unknown'
     let totalInputTokens = 0
     let totalOutputTokens = 0
     let turns = 0
@@ -194,14 +195,14 @@ export class FrogieAgent {
     // Emit session start
     yield {
       type: 'session_start',
-      sessionId: this.config.sessionId ?? 'unknown',
+      sessionId,
       model: this.config.model,
     } satisfies SessionStartEvent
 
     // === Context Compaction Check ===
     // Check if we need to compact before starting the agentic loop
     if (shouldCompact(this.messages, this.config.model)) {
-      yield { type: 'compact_start' } satisfies CompactStartEvent
+      yield { type: 'compact_start', sessionId } satisfies CompactStartEvent
 
       try {
         const { compacted, summary } = await compactConversation(
@@ -215,7 +216,7 @@ export class FrogieAgent {
         this.messages.length = 0
         this.messages.push(...(compacted as Message[]))
 
-        yield { type: 'compact_done', summary } satisfies CompactDoneEvent
+        yield { type: 'compact_done', sessionId, summary } satisfies CompactDoneEvent
       } catch (err) {
         // Log but don't fail - continue with original messages
         console.error('Context compaction failed:', err instanceof Error ? err.message : 'Unknown error')
@@ -235,7 +236,7 @@ export class FrogieAgent {
       // Check abort flag (may be set by interrupt() via event listener)
       // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
       if (this.aborted) {
-        yield { type: 'interrupted' } satisfies InterruptedEvent
+        yield { type: 'interrupted', sessionId } satisfies InterruptedEvent
         break
       }
 
@@ -243,6 +244,7 @@ export class FrogieAgent {
       if (totalCostUsd >= this.config.maxBudgetUsd) {
         yield {
           type: 'budget_exceeded',
+          sessionId,
           costUsd: totalCostUsd,
         } satisfies BudgetExceededEvent
         break
@@ -276,7 +278,7 @@ export class FrogieAgent {
         }
 
         // Transform and yield events
-        for (const agentEvent of transformStreamEvent(event, accumulator)) {
+        for (const agentEvent of transformStreamEvent(event, accumulator, sessionId)) {
           yield agentEvent
 
           // Track tool calls for execution
@@ -344,6 +346,7 @@ export class FrogieAgent {
           // Yield tool result event
           yield {
             type: 'tool_result',
+            sessionId,
             id: call.id,
             output: result.output,
             isError: result.isError,
@@ -373,6 +376,7 @@ export class FrogieAgent {
     // Emit turn complete
     yield {
       type: 'turn_complete',
+      sessionId,
       turns,
       inputTokens: totalInputTokens,
       outputTokens: totalOutputTokens,
