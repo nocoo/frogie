@@ -137,6 +137,7 @@ export function ChatPanel() {
   const {
     models: availableModels,
     defaultModel,
+    isLoading: isLoadingModels,
     fetchModels,
     getGroupedModels,
   } = useModelsStore()
@@ -217,13 +218,18 @@ export function ChatPanel() {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="sm" className="h-8 gap-2">
-                  {selectedModelInfo ? (
+                  {isLoadingModels ? (
+                    <span className="text-muted-foreground">Loading models...</span>
+                  ) : selectedModelInfo ? (
                     <>
                       <span>{selectedModelInfo.icon}</span>
-                      <span className="max-w-[120px] truncate">{selectedModelInfo.name}</span>
+                      <span className="max-w-[150px] truncate">{selectedModelInfo.name}</span>
                     </>
                   ) : selectedModel ? (
-                    <span className="max-w-[150px] truncate font-mono text-xs">{selectedModel}</span>
+                    <>
+                      <span>🟠</span>
+                      <span className="max-w-[150px] truncate">{selectedModel}</span>
+                    </>
                   ) : (
                     <span className="text-muted-foreground">Select model</span>
                   )}
@@ -231,7 +237,11 @@ export function ChatPanel() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="w-[280px] max-h-[400px] overflow-y-auto">
-                {modelGroups.length > 0 ? (
+                {isLoadingModels ? (
+                  <DropdownMenuItem disabled>
+                    Loading models...
+                  </DropdownMenuItem>
+                ) : modelGroups.length > 0 ? (
                   modelGroups.map((group, groupIndex) => (
                     <div key={group.label}>
                       {groupIndex > 0 && <DropdownMenuSeparator />}
