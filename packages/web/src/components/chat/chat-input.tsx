@@ -48,7 +48,8 @@ export function ChatInput({
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     // Enter to send (without Shift for newline)
-    if (e.key === 'Enter' && !e.shiftKey) {
+    // Check isComposing to avoid triggering during IME composition (e.g., Chinese input)
+    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault()
       if (!isLoading && !disabled && value.trim()) {
         onSend()
@@ -69,50 +70,52 @@ export function ChatInput({
   }
 
   return (
-    <div className="relative flex items-end gap-2 p-3 border-t shrink-0">
-      <textarea
-        ref={textareaRef}
-        value={value}
-        onChange={(e) => {
-          onChange(e.target.value)
-        }}
-        onKeyDown={handleKeyDown}
-        placeholder={placeholder}
-        disabled={disabled || isLoading}
-        rows={1}
-        className={cn(
-          'flex-1 resize-none rounded-lg border border-input bg-background px-3 py-2 text-sm',
-          'placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-          'disabled:cursor-not-allowed disabled:opacity-50',
-          'min-h-[40px] max-h-[200px]'
+    <div className="relative flex flex-col gap-1 p-3 border-t shrink-0">
+      <div className="flex items-end gap-2">
+        <textarea
+          ref={textareaRef}
+          value={value}
+          onChange={(e) => {
+            onChange(e.target.value)
+          }}
+          onKeyDown={handleKeyDown}
+          placeholder={placeholder}
+          disabled={disabled || isLoading}
+          rows={1}
+          className={cn(
+            'flex-1 resize-none rounded-lg border border-input bg-background px-3 py-2 text-sm',
+            'placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+            'disabled:cursor-not-allowed disabled:opacity-50',
+            'min-h-[40px] max-h-[200px]'
+          )}
+        />
+
+        {isLoading ? (
+          <Button
+            type="button"
+            size="icon"
+            variant="destructive"
+            onClick={handleStopClick}
+            className="shrink-0"
+            aria-label="Stop generation"
+          >
+            <Square className="h-4 w-4" />
+          </Button>
+        ) : (
+          <Button
+            type="button"
+            size="icon"
+            onClick={handleSendClick}
+            disabled={disabled || !value.trim()}
+            className="shrink-0"
+            aria-label="Send message"
+          >
+            <Send className="h-4 w-4" />
+          </Button>
         )}
-      />
+      </div>
 
-      {isLoading ? (
-        <Button
-          type="button"
-          size="icon"
-          variant="destructive"
-          onClick={handleStopClick}
-          className="shrink-0"
-          aria-label="Stop generation"
-        >
-          <Square className="h-4 w-4" />
-        </Button>
-      ) : (
-        <Button
-          type="button"
-          size="icon"
-          onClick={handleSendClick}
-          disabled={disabled || !value.trim()}
-          className="shrink-0"
-          aria-label="Send message"
-        >
-          <Send className="h-4 w-4" />
-        </Button>
-      )}
-
-      <div className="absolute bottom-full left-3 mb-1 text-xs text-muted-foreground">
+      <div className="text-xs text-muted-foreground">
         <kbd className="px-1 py-0.5 rounded bg-muted text-[10px]">Enter</kbd>
         <span className="ml-1">to send</span>
         <span className="mx-2 text-muted-foreground/50">·</span>
