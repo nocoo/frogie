@@ -66,6 +66,8 @@ function categorizeModels(models: ModelInfo[]): ModelGroup[] {
   const claude: ModelInfo[] = []
   const gpt: ModelInfo[] = []
   const gemini: ModelInfo[] = []
+  const glm: ModelInfo[] = []
+  const ollama: ModelInfo[] = []
   const embedding: ModelInfo[] = []
   const other: ModelInfo[] = []
 
@@ -77,10 +79,14 @@ function categorizeModels(models: ModelInfo[]): ModelGroup[] {
       embedding.push(model)
     } else if (id.includes('claude') || name.includes('claude')) {
       claude.push(model)
-    } else if (id.includes('gpt') || name.includes('gpt')) {
+    } else if (id.includes('gpt') || name.includes('gpt') || id.includes('o1') || id.includes('o3')) {
       gpt.push(model)
     } else if (id.includes('gemini') || name.includes('gemini')) {
       gemini.push(model)
+    } else if (id.includes('glm') || name.includes('glm') || id.includes('chatglm') || id.includes('zhipu')) {
+      glm.push(model)
+    } else if (OLLAMA_PATTERNS.some(p => id.includes(p) || name.includes(p))) {
+      ollama.push(model)
     } else {
       other.push(model)
     }
@@ -97,6 +103,12 @@ function categorizeModels(models: ModelInfo[]): ModelGroup[] {
   if (gemini.length > 0) {
     result.push({ label: 'Gemini (Google)', icon: '🔵', models: gemini })
   }
+  if (glm.length > 0) {
+    result.push({ label: 'GLM (Zhipu)', icon: '🟣', models: glm })
+  }
+  if (ollama.length > 0) {
+    result.push({ label: 'Local Models', icon: '🖥️', models: ollama })
+  }
   if (other.length > 0) {
     result.push({ label: 'Other Models', icon: '⚪', models: other })
   }
@@ -106,6 +118,11 @@ function categorizeModels(models: ModelInfo[]): ModelGroup[] {
 
   return result
 }
+
+/**
+ * Common Ollama/local model patterns
+ */
+const OLLAMA_PATTERNS = ['llama', 'qwen', 'mistral', 'codellama', 'deepseek', 'phi', 'vicuna', 'wizardlm', 'orca', 'neural', 'solar', 'yi', 'mixtral', 'dolphin', 'openchat', 'starling', 'nous', 'tinyllama', 'stablelm', 'falcon', 'mpt', 'replit', 'starcoder', 'codestral', 'granite', 'command-r', 'aya', 'gemma', 'codegemma', 'llava', 'bakllava', 'moondream']
 
 /**
  * Get display info for a model
@@ -123,10 +140,14 @@ export function getModelDisplayInfo(
   let icon = '⚪'
   if (id.includes('claude') || name.includes('claude')) {
     icon = '🟠'
-  } else if (id.includes('gpt') || name.includes('gpt')) {
+  } else if (id.includes('gpt') || name.includes('gpt') || id.includes('o1') || id.includes('o3')) {
     icon = '🟢'
   } else if (id.includes('gemini') || name.includes('gemini')) {
     icon = '🔵'
+  } else if (id.includes('glm') || name.includes('glm') || id.includes('chatglm') || id.includes('zhipu')) {
+    icon = '🟣'
+  } else if (OLLAMA_PATTERNS.some(p => id.includes(p) || name.includes(p))) {
+    icon = '🖥️'
   } else if (id.includes('embedding') || name.includes('embedding')) {
     icon = '📊'
   }
