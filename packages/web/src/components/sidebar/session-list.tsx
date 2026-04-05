@@ -141,11 +141,21 @@ export function SessionList({ collapsed = false }: SessionListProps) {
 
       <div className="space-y-0.5 px-3">
         {sessions.length === 0 ? (
-          <div className="px-3 py-8 text-center text-sm text-muted-foreground">
-            <MessageSquare className="h-8 w-8 mx-auto mb-2 opacity-50" />
-            <p>No sessions yet</p>
-            <p className="text-xs mt-1">Create one to start chatting</p>
-          </div>
+          <button
+            onClick={() => {
+              void handleNewSession()
+            }}
+            disabled={isLoading}
+            className="w-full px-3 py-6 text-center rounded-lg border border-dashed border-border hover:border-primary/50 hover:bg-accent/30 transition-all group"
+          >
+            <MessageSquare className="h-6 w-6 mx-auto mb-2 text-muted-foreground/50 group-hover:text-primary/70 transition-colors" />
+            <p className="text-sm font-medium text-muted-foreground group-hover:text-foreground transition-colors">
+              Start your first session
+            </p>
+            <p className="text-xs text-muted-foreground/60 mt-1">
+              Click to create
+            </p>
+          </button>
         ) : (
           sessions.map((session) => (
             <div

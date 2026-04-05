@@ -5,7 +5,7 @@
  */
 
 import { useEffect, useRef } from 'react'
-import { User, Bot } from 'lucide-react'
+import { User, Bot, Sparkles, Terminal, FileCode, Zap } from 'lucide-react'
 import type { Message, MessageContent } from '@/models/events'
 import { ThinkingBlock } from './thinking-block'
 import { ToolUseCard } from './tool-use-card'
@@ -124,6 +124,63 @@ function LoadingIndicator() {
   )
 }
 
+/**
+ * Empty state with teaching UI and example prompts
+ */
+function EmptyState() {
+  const examplePrompts = [
+    { icon: FileCode, text: 'Explain this codebase structure' },
+    { icon: Terminal, text: 'Run the tests and fix failures' },
+    { icon: Zap, text: 'Refactor for better performance' },
+  ]
+
+  return (
+    <div className="flex-1 flex items-center justify-center px-4 animate-[card-in_0.5s_cubic-bezier(0.16,1,0.3,1)]">
+      <div className="max-w-md w-full">
+        {/* Hero */}
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center h-16 w-16 rounded-2xl bg-primary/10 mb-4">
+            <Sparkles className="h-8 w-8 text-primary" />
+          </div>
+          <h2 className="text-xl font-semibold text-foreground mb-2">
+            What can I help you build?
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            I can read, write, and run code in your workspace.
+          </p>
+        </div>
+
+        {/* Example prompts */}
+        <div className="space-y-2">
+          <p className="text-xs font-medium text-muted-foreground/70 uppercase tracking-wider mb-3">
+            Try asking
+          </p>
+          {examplePrompts.map((prompt, index) => (
+            <button
+              key={index}
+              type="button"
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-lg border border-border bg-card hover:bg-accent/50 hover:border-primary/30 transition-all text-left group"
+              style={{ animationDelay: `${String(0.1 + index * 0.05)}s` }}
+            >
+              <prompt.icon className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors shrink-0" />
+              <span className="text-sm text-foreground">{prompt.text}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* Keyboard hint */}
+        <p className="text-center text-xs text-muted-foreground/60 mt-6">
+          Press{' '}
+          <kbd className="px-1.5 py-0.5 rounded bg-muted border border-border text-[10px] font-mono">
+            Enter
+          </kbd>{' '}
+          to send
+        </p>
+      </div>
+    </div>
+  )
+}
+
 export function MessageList({ messages, isLoading = false }: MessageListProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -134,15 +191,7 @@ export function MessageList({ messages, isLoading = false }: MessageListProps) {
   }, [messages, isLoading])
 
   if (messages.length === 0 && !isLoading) {
-    return (
-      <div className="flex-1 flex items-center justify-center text-muted-foreground">
-        <div className="text-center">
-          <Bot className="h-12 w-12 mx-auto mb-4 opacity-50" />
-          <p className="text-lg font-medium">Start a conversation</p>
-          <p className="text-sm">Send a message to begin</p>
-        </div>
-      </div>
-    )
+    return <EmptyState />
   }
 
   return (
