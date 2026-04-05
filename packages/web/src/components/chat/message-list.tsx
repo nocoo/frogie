@@ -52,6 +52,8 @@ function ContentBlock({ content, isUser }: { content: MessageContent; isUser: bo
 
 /**
  * Render a single message with entrance animation
+ * User messages: right-aligned, solid primary color
+ * AI messages: left-aligned, subtle background with left accent
  */
 function MessageItem({ message, index }: { message: Message; index: number }) {
   const isUser = message.role === 'user'
@@ -72,7 +74,7 @@ function MessageItem({ message, index }: { message: Message; index: number }) {
           'flex h-8 w-8 shrink-0 items-center justify-center rounded-full',
           isUser
             ? 'bg-primary text-primary-foreground'
-            : 'bg-muted text-muted-foreground'
+            : 'bg-secondary text-muted-foreground border border-border'
         )}
       >
         {isUser ? (
@@ -86,15 +88,15 @@ function MessageItem({ message, index }: { message: Message; index: number }) {
       <div
         className={cn(
           'flex-1 space-y-2 overflow-hidden',
-          isUser ? 'text-right' : 'text-left'
+          isUser ? 'flex justify-end' : 'flex justify-start'
         )}
       >
         <div
           className={cn(
-            'inline-block rounded-lg px-4 py-2 max-w-[85%]',
+            'inline-block max-w-[85%]',
             isUser
-              ? 'bg-primary text-primary-foreground'
-              : 'bg-muted text-foreground'
+              ? 'rounded-2xl rounded-tr-md px-4 py-2.5 bg-primary text-primary-foreground'
+              : 'rounded-2xl rounded-tl-md px-4 py-2.5 bg-secondary/50 text-foreground border-l-2 border-primary/30'
           )}
         >
           {message.content.map((content, idx) => (
@@ -112,10 +114,10 @@ function MessageItem({ message, index }: { message: Message; index: number }) {
 function LoadingIndicator() {
   return (
     <div className="flex gap-3 py-4 animate-[message-in_0.3s_cubic-bezier(0.16,1,0.3,1)]">
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary text-muted-foreground border border-border">
         <Bot className="h-4 w-4" />
       </div>
-      <div className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-muted">
+      <div className="flex items-center gap-1.5 px-4 py-2.5 rounded-2xl rounded-tl-md bg-secondary/50 border-l-2 border-primary/30">
         <div className="h-2 w-2 rounded-full bg-muted-foreground/60 animate-[loading-dot_1.4s_cubic-bezier(0.4,0,0.2,1)_infinite]" />
         <div className="h-2 w-2 rounded-full bg-muted-foreground/60 animate-[loading-dot_1.4s_cubic-bezier(0.4,0,0.2,1)_infinite_0.2s]" />
         <div className="h-2 w-2 rounded-full bg-muted-foreground/60 animate-[loading-dot_1.4s_cubic-bezier(0.4,0,0.2,1)_infinite_0.4s]" />
