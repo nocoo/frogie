@@ -4,7 +4,7 @@
  * Text input for sending messages with keyboard shortcuts.
  */
 
-import { useRef, useEffect, type KeyboardEvent } from 'react'
+import { useRef, useEffect, useState, type KeyboardEvent } from 'react'
 import { Send, Square } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -29,6 +29,7 @@ export function ChatInput({
   placeholder = 'Type a message...',
 }: ChatInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const [isFocused, setIsFocused] = useState(false)
 
   // Auto-resize textarea
   useEffect(() => {
@@ -45,6 +46,32 @@ export function ChatInput({
       textareaRef.current.focus()
     }
   }, [disabled])
+
+  // Global "/" shortcut to focus input
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: globalThis.KeyboardEvent) => {
+      // Skip if already focused on an input/textarea or if modifier keys are pressed
+      const target = e.target as HTMLElement
+      if (
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.isContentEditable ||
+        e.metaKey ||
+        e.ctrlKey ||
+        e.altKey
+      ) {
+        return
+      }
+
+      if (e.key === '/') {
+        e.preventDefault()
+        textareaRef.current?.focus()
+      }
+    }
+
+    window.addEventListener('keydown', handleGlobalKeyDown)
+    return () => { window.removeEventListener('keydown', handleGlobalKeyDown) }
+  }, [])
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     // Enter to send (without Shift for newline)
@@ -72,23 +99,32 @@ export function ChatInput({
   return (
     <div className="relative flex flex-col gap-2 shrink-0 bg-card/50 border-t shadow-[0_-1px_3px_rgba(0,0,0,0.02)]">
       <div className="flex items-end gap-2 px-4 py-3">
-        <textarea
-          ref={textareaRef}
-          value={value}
-          onChange={(e) => {
-            onChange(e.target.value)
-          }}
-          onKeyDown={handleKeyDown}
-          placeholder={placeholder}
-          disabled={disabled || isLoading}
-          rows={1}
-          className={cn(
-            'flex-1 resize-none rounded-xl border border-input bg-background px-4 py-3 text-sm',
-            'placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card',
-            'disabled:cursor-not-allowed disabled:opacity-50',
-            'min-h-[48px] max-h-[200px]'
+        <div className="relative flex-1">
+          <textarea
+            ref={textareaRef}
+            value={value}
+            onChange={(e) => {
+              onChange(e.target.value)
+            }}
+            onKeyDown={handleKeyDown}
+            onFocus={() => { setIsFocused(true) }}
+            onBlur={() => { setIsFocused(false) }}
+            placeholder={placeholder}
+            disabled={disabled || isLoading}
+            rows={1}
+            className={cn(
+              'w-full resize-none rounded-xl border border-input bg-background px-4 py-3 text-sm',
+              'placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card',
+              'disabled:cursor-not-allowed disabled:opacity-50',
+              'min-h-[48px] max-h-[200px]'
+            )}
+          />
+          {!isFocused && !value && (
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+              <kbd className="text-muted-foreground/60">/</kbd>
+            </div>
           )}
-        />
+        </div>
 
         {isLoading ? (
           <Button
