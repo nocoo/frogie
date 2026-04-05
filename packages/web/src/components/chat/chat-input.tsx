@@ -70,7 +70,7 @@ export function ChatInput({
   }
 
   return (
-    <div className="relative flex flex-col gap-2 border-t shrink-0">
+    <div className="relative flex flex-col gap-2 shrink-0 bg-card/50 border-t shadow-[0_-1px_3px_rgba(0,0,0,0.02)]">
       <div className="flex items-end gap-2 px-4 pt-3">
         <textarea
           ref={textareaRef}
@@ -83,10 +83,10 @@ export function ChatInput({
           disabled={disabled || isLoading}
           rows={1}
           className={cn(
-            'flex-1 resize-none rounded-lg border border-input bg-background px-3 py-2 text-sm',
-            'placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+            'flex-1 resize-none rounded-xl border border-input bg-background px-4 py-3 text-sm',
+            'placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card',
             'disabled:cursor-not-allowed disabled:opacity-50',
-            'min-h-[40px] max-h-[200px]'
+            'min-h-[48px] max-h-[200px]'
           )}
         />
 
