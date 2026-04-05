@@ -130,6 +130,7 @@ export function SessionList({ collapsed = false }: SessionListProps) {
             void handleNewSession()
           }}
           disabled={isLoading}
+          aria-label="New session"
         >
           {isLoading ? (
             <Loader2 className="h-4 w-4 animate-spin" />

@@ -231,7 +231,7 @@ export function WorkspaceSelector({ collapsed = false }: WorkspaceSelectorProps)
                       }
                     })()
                   }}
-                  title="Browse..."
+                  aria-label="Browse directory"
                 >
                   <FolderOpen className="h-4 w-4" />
                 </Button>
