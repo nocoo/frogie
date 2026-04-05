@@ -51,17 +51,20 @@ function ContentBlock({ content, isUser }: { content: MessageContent; isUser: bo
 }
 
 /**
- * Render a single message
+ * Render a single message with entrance animation
  */
-function MessageItem({ message }: { message: Message }) {
+function MessageItem({ message, index }: { message: Message; index: number }) {
   const isUser = message.role === 'user'
+  // Stagger animation delay based on index (max 5 messages stagger)
+  const staggerDelay = Math.min(index, 5) * 0.05
 
   return (
     <div
       className={cn(
-        'flex gap-3 py-4',
+        'flex gap-3 py-4 animate-[message-in_0.3s_cubic-bezier(0.16,1,0.3,1)_both]',
         isUser ? 'flex-row-reverse' : 'flex-row'
       )}
+      style={{ animationDelay: `${String(staggerDelay)}s` }}
     >
       {/* Avatar */}
       <div
@@ -148,8 +151,8 @@ export function MessageList({ messages, isLoading = false }: MessageListProps) {
       className="flex-1 min-h-0 overflow-y-auto px-4"
     >
       <div className="max-w-4xl">
-        {messages.map((message) => (
-          <MessageItem key={message.id} message={message} />
+        {messages.map((message, index) => (
+          <MessageItem key={message.id} message={message} index={index} />
         ))}
 
         {isLoading && <LoadingIndicator />}
