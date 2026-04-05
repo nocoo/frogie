@@ -132,7 +132,7 @@ export function ChatInput({
             size="icon"
             variant="destructive"
             onClick={handleStopClick}
-            className="shrink-0"
+            className="shrink-0 h-12 w-12 rounded-xl"
             aria-label="Stop generation"
           >
             <Square className="h-4 w-4" />
@@ -143,7 +143,7 @@ export function ChatInput({
             size="icon"
             onClick={handleSendClick}
             disabled={disabled || !value.trim()}
-            className="shrink-0"
+            className="shrink-0 h-12 w-12 rounded-xl"
             aria-label="Send message"
           >
             <Send className="h-4 w-4" />
