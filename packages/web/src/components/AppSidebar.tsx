@@ -188,7 +188,7 @@ export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
   const userInitial = getUserInitial(user?.name ?? null, userEmail)
 
   return (
-    <TooltipProvider delayDuration={0}>
+    <TooltipProvider delayDuration={200}>
       <aside
         className={cn(
           'flex flex-col h-screen bg-background transition-all duration-300 ease-in-out shrink-0 overflow-hidden',

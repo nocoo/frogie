@@ -88,7 +88,7 @@ export function DashboardLayout() {
   }, [mobileOpen])
 
   return (
-    <TooltipProvider delayDuration={0}>
+    <TooltipProvider delayDuration={200}>
       <div className="flex min-h-screen w-full bg-background">
         <a
           href="#main-content"
