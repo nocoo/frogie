@@ -98,7 +98,7 @@ export function ChatInput({
 
   return (
     <div className="relative flex flex-col gap-2 shrink-0 border-t border-border">
-      <div className="flex items-end gap-2 px-4 py-3">
+      <div className="flex items-center gap-2 px-4 py-3">
         <div className="relative flex-1">
           <textarea
             ref={textareaRef}
@@ -120,7 +120,7 @@ export function ChatInput({
             )}
           />
           {!isFocused && !value && (
-            <div className="absolute right-3 top-[15px] pointer-events-none">
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
               <kbd className="text-muted-foreground/60">/</kbd>
             </div>
           )}
