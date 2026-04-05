@@ -199,7 +199,7 @@ function WorkspaceCard({ workspace }: { workspace: Workspace }) {
           {/* Color Selector */}
           <div className="space-y-2">
             <Label>Color</Label>
-            <div className="grid grid-cols-8 gap-1.5">
+            <div className="grid grid-cols-8 gap-2">
               {WORKSPACE_COLORS.map((c) => (
                 <button
                   key={c.value}
@@ -209,10 +209,10 @@ function WorkspaceCard({ workspace }: { workspace: Workspace }) {
                     markDirty()
                   }}
                   className={cn(
-                    'h-7 w-7 rounded-md border-2 transition-all hover:scale-110',
+                    'h-9 w-9 rounded-lg border-2 transition-all hover:scale-105',
                     color === c.value
-                      ? 'border-foreground ring-1 ring-foreground/20'
-                      : 'border-transparent'
+                      ? 'border-foreground ring-2 ring-foreground/20'
+                      : 'border-transparent hover:border-border'
                   )}
                   style={{ backgroundColor: c.value }}
                   title={c.name}
@@ -431,7 +431,7 @@ function AddWorkspaceCard() {
 
             <div className="space-y-2">
               <Label>Color</Label>
-              <div className="grid grid-cols-8 gap-1.5">
+              <div className="grid grid-cols-8 gap-2">
                 {WORKSPACE_COLORS.map((c) => (
                   <button
                     key={c.value}
@@ -440,10 +440,10 @@ function AddWorkspaceCard() {
                       setColor(c.value)
                     }}
                     className={cn(
-                      'h-7 w-7 rounded-md border-2 transition-all hover:scale-110',
+                      'h-9 w-9 rounded-lg border-2 transition-all hover:scale-105',
                       color === c.value
-                        ? 'border-foreground ring-1 ring-foreground/20'
-                        : 'border-transparent'
+                        ? 'border-foreground ring-2 ring-foreground/20'
+                        : 'border-transparent hover:border-border'
                     )}
                     style={{ backgroundColor: c.value }}
                     title={c.name}
