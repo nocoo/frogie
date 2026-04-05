@@ -120,7 +120,7 @@ export function ChatInput({
             )}
           />
           {!isFocused && !value && (
-            <span className="pointer-events-none absolute right-4 top-[16px] text-sm leading-5 text-muted-foreground/40">/</span>
+            <span className="pointer-events-none absolute right-4 top-[16px] text-xs leading-5 text-muted-foreground/50 border border-border rounded px-1.5">/</span>
           )}
         </div>
 
