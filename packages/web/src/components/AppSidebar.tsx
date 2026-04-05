@@ -271,11 +271,11 @@ export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
           ))}
         </nav>
 
-        {/* Footer - 用户区域 B-2 规范 */}
-        <div className={cn('border-t border-border py-4', collapsed ? 'px-2' : 'px-4')}>
+        {/* Footer - 用户区域 */}
+        <div className={cn(collapsed ? 'px-2 py-3' : 'px-4 py-3')}>
           {collapsed ? (
             // 收起态：仅头像，点击登出，tooltip 显示用户名
-            <div className="flex h-[52px] items-center justify-center animate-[message-in_0.2s_ease-out]">
+            <div className="flex flex-col items-center animate-[message-in_0.2s_ease-out]">
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
@@ -296,7 +296,7 @@ export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
             </div>
           ) : (
             // 展开态：头像 + 用户名 + 邮箱 + 登出按钮
-            <div className="flex h-[52px] items-center gap-3 animate-[message-in_0.2s_ease-out]">
+            <div className="flex items-center gap-3 animate-[message-in_0.2s_ease-out]">
               <Avatar className="h-9 w-9 shrink-0">
                 {userImage && <AvatarImage src={userImage} alt={userName} />}
                 <AvatarFallback className={cn('text-xs text-white', getAvatarColor(userName))}>
