@@ -97,7 +97,7 @@ export function ChatInput({
   }
 
   return (
-    <div className="relative flex flex-col gap-2 shrink-0 bg-card/50 border-t shadow-[0_-1px_3px_rgba(0,0,0,0.02)]">
+    <div className="relative flex flex-col gap-2 shrink-0 border-t border-border">
       <div className="flex items-end gap-2 px-4 py-3">
         <div className="relative flex-1">
           <textarea
