@@ -107,7 +107,7 @@ export function ChatInput({
         )}
       >
         {/* Textarea area */}
-        <div className="relative flex-1 min-w-0">
+        <div className="relative flex-1 min-w-0 flex items-center">
           <textarea
             ref={textareaRef}
             value={value}
@@ -125,7 +125,7 @@ export function ChatInput({
               'placeholder:text-muted-foreground',
               'focus:outline-none',
               'disabled:cursor-not-allowed disabled:opacity-50',
-              'min-h-[52px] max-h-[200px]'
+              'max-h-[200px]'
             )}
           />
           {/* Shortcut hint */}
