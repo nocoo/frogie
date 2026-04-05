@@ -71,7 +71,7 @@ export function ChatInput({
 
   return (
     <div className="relative flex flex-col gap-2 shrink-0 bg-card/50 border-t shadow-[0_-1px_3px_rgba(0,0,0,0.02)]">
-      <div className="flex items-end gap-2 px-4 pt-3">
+      <div className="flex items-end gap-2 px-4 py-3">
         <textarea
           ref={textareaRef}
           value={value}
@@ -115,13 +115,6 @@ export function ChatInput({
         )}
       </div>
 
-      <div className="text-xs text-muted-foreground px-4 pb-3">
-        <kbd>Enter</kbd>
-        <span className="ml-1.5">to send</span>
-        <span className="mx-2 text-muted-foreground/50">·</span>
-        <kbd>Shift+Enter</kbd>
-        <span className="ml-1.5">for new line</span>
-      </div>
     </div>
   )
 }
