@@ -97,8 +97,8 @@ export function ChatInput({
   }
 
   return (
-    <div className="relative flex flex-col gap-2 shrink-0 border-t border-border">
-      <div className="flex items-center gap-2 px-4 py-3">
+    <div className="relative shrink-0 border-t border-border">
+      <div className="flex items-center gap-2 px-4 py-4">
         <div className="relative flex-1">
           <textarea
             ref={textareaRef}
@@ -113,15 +113,15 @@ export function ChatInput({
             disabled={disabled || isLoading}
             rows={1}
             className={cn(
-              'w-full resize-none rounded-xl border border-input bg-background px-4 py-3 text-sm',
+              'w-full resize-none rounded-xl border border-input bg-background px-4 py-[15px] text-sm leading-5',
               'placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card',
               'disabled:cursor-not-allowed disabled:opacity-50',
-              'min-h-[48px] max-h-[200px]'
+              'min-h-[52px] max-h-[200px]'
             )}
           />
           {!isFocused && !value && (
-            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
-              <kbd className="text-muted-foreground/60">/</kbd>
+            <div className="pointer-events-none absolute inset-y-0 right-4 flex items-center">
+              <kbd className="text-sm leading-none text-muted-foreground/60">/</kbd>
             </div>
           )}
         </div>
@@ -132,7 +132,7 @@ export function ChatInput({
             size="icon"
             variant="destructive"
             onClick={handleStopClick}
-            className="shrink-0 h-[50px] w-[50px] rounded-xl"
+            className="shrink-0 h-[52px] w-[52px] rounded-xl"
             aria-label="Stop generation"
           >
             <Square className="h-4 w-4" />
@@ -143,14 +143,13 @@ export function ChatInput({
             size="icon"
             onClick={handleSendClick}
             disabled={disabled || !value.trim()}
-            className="shrink-0 h-[50px] w-[50px] rounded-xl"
+            className="shrink-0 h-[52px] w-[52px] rounded-xl"
             aria-label="Send message"
           >
             <Send className="h-4 w-4" />
           </Button>
         )}
       </div>
-
     </div>
   )
 }
