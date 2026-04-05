@@ -63,6 +63,10 @@
   --animate-accordion-up: accordion-up 0.2s ease-out;
   --animate-collapsible-down: collapsible-down 0.2s ease-out;
   --animate-collapsible-up: collapsible-up 0.2s ease-out;
+  --animate-loading-dot: loading-dot 1.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  --animate-message-in: message-in 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-card-in: card-in 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-status-flash: status-flash 0.6s ease-out;
 }
 
 @keyframes accordion-down {
@@ -83,6 +87,64 @@
 @keyframes collapsible-up {
   from { height: var(--radix-collapsible-content-height); }
   to { height: 0; }
+}
+
+/*
+ * Modern loading animation - replaces dated bounce
+ * Uses exponential easing for natural deceleration
+ */
+@keyframes loading-dot {
+  0%, 100% {
+    opacity: 0.4;
+    transform: scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/*
+ * Message entrance animation
+ * Subtle fade + slide for chat messages
+ */
+@keyframes message-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/*
+ * Card entrance animation
+ * For login badge and other featured elements
+ */
+@keyframes card-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/*
+ * Status change flash
+ * Brief highlight for state transitions
+ */
+@keyframes status-flash {
+  0% {
+    background-color: var(--flash-color, transparent);
+  }
+  100% {
+    background-color: transparent;
+  }
 }
 
 /*

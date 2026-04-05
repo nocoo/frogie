@@ -104,18 +104,18 @@ function MessageItem({ message }: { message: Message }) {
 }
 
 /**
- * Loading indicator
+ * Loading indicator - modern pulse animation
  */
 function LoadingIndicator() {
   return (
-    <div className="flex gap-3 py-4">
+    <div className="flex gap-3 py-4 animate-[message-in_0.3s_cubic-bezier(0.16,1,0.3,1)]">
       <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
         <Bot className="h-4 w-4" />
       </div>
-      <div className="flex items-center gap-1">
-        <div className="h-2 w-2 rounded-full bg-muted-foreground/50 animate-bounce [animation-delay:-0.3s]" />
-        <div className="h-2 w-2 rounded-full bg-muted-foreground/50 animate-bounce [animation-delay:-0.15s]" />
-        <div className="h-2 w-2 rounded-full bg-muted-foreground/50 animate-bounce" />
+      <div className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-muted">
+        <div className="h-2 w-2 rounded-full bg-muted-foreground/60 animate-[loading-dot_1.4s_cubic-bezier(0.4,0,0.2,1)_infinite]" />
+        <div className="h-2 w-2 rounded-full bg-muted-foreground/60 animate-[loading-dot_1.4s_cubic-bezier(0.4,0,0.2,1)_infinite_0.2s]" />
+        <div className="h-2 w-2 rounded-full bg-muted-foreground/60 animate-[loading-dot_1.4s_cubic-bezier(0.4,0,0.2,1)_infinite_0.4s]" />
       </div>
     </div>
   )
