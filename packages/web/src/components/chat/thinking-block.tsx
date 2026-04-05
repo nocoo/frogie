@@ -2,6 +2,7 @@
  * ThinkingBlock Component
  *
  * Displays collapsible thinking/reasoning content from the agent.
+ * Uses grid-template-rows for smooth height animation.
  */
 
 import { useState } from 'react'
@@ -24,7 +25,7 @@ export function ThinkingBlock({
     content.length > 100 ? `${content.slice(0, 100)}...` : content
 
   return (
-    <div className="my-2 rounded-lg border border-amber-200/50 bg-amber-50/50 dark:border-amber-900/50 dark:bg-amber-950/20">
+    <div className="my-2 rounded-lg border border-amber-200/50 bg-amber-50/50 dark:border-amber-900/50 dark:bg-amber-950/20 animate-[message-in_0.3s_cubic-bezier(0.16,1,0.3,1)]">
       <button
         onClick={() => {
           setExpanded(!expanded)
@@ -47,13 +48,19 @@ export function ThinkingBlock({
         )}
       </button>
 
-      {expanded && (
-        <div className="px-3 pb-3 pt-0">
-          <div className="pl-10 text-sm text-amber-800/80 dark:text-amber-300/80 whitespace-pre-wrap">
-            {content}
+      {/* Expandable content with grid animation */}
+      <div
+        className="grid transition-[grid-template-rows] duration-200 ease-out"
+        style={{ gridTemplateRows: expanded ? '1fr' : '0fr' }}
+      >
+        <div className="overflow-hidden">
+          <div className="px-3 pb-3 pt-0">
+            <div className="pl-10 text-sm text-amber-800/80 dark:text-amber-300/80 whitespace-pre-wrap">
+              {content}
+            </div>
           </div>
         </div>
-      )}
+      </div>
     </div>
   )
 }
