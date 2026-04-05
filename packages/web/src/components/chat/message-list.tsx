@@ -172,11 +172,7 @@ function EmptyState() {
 
         {/* Keyboard hint */}
         <p className="text-center text-xs text-muted-foreground/60 mt-6">
-          Press{' '}
-          <kbd className="px-1.5 py-0.5 rounded bg-muted border border-border text-[10px] font-mono">
-            Enter
-          </kbd>{' '}
-          to send
+          Press <kbd>Enter</kbd> to send
         </p>
       </div>
     </div>

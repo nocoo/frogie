@@ -116,11 +116,11 @@ export function ChatInput({
       </div>
 
       <div className="text-xs text-muted-foreground px-4 pb-3">
-        <kbd className="px-1 py-0.5 rounded bg-muted text-[10px]">Enter</kbd>
-        <span className="ml-1">to send</span>
+        <kbd>Enter</kbd>
+        <span className="ml-1.5">to send</span>
         <span className="mx-2 text-muted-foreground/50">·</span>
-        <kbd className="px-1 py-0.5 rounded bg-muted text-[10px]">Shift+Enter</kbd>
-        <span className="ml-1">for new line</span>
+        <kbd>Shift+Enter</kbd>
+        <span className="ml-1.5">for new line</span>
       </div>
     </div>
   )
