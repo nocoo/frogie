@@ -2,6 +2,7 @@
  * WorkspaceSelector Component
  *
  * Dropdown for selecting and managing workspaces.
+ * Uses Radix Popover for accessible, animated dropdown.
  */
 
 import { useEffect, useState } from 'react'
@@ -17,6 +18,11 @@ import { useSessionStore } from '@/viewmodels/session.viewmodel'
 import { WorkspaceIcon } from '@/components/workspace-icon'
 import { Button } from '@/components/ui/button'
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -25,7 +31,13 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
+import type { Workspace } from '@/models'
 
 interface WorkspaceSelectorProps {
   collapsed?: boolean
@@ -77,23 +89,43 @@ export function WorkspaceSelector({ collapsed = false }: WorkspaceSelectorProps)
 
   if (collapsed) {
     return (
-      <button
-        onClick={() => {
-          setOpen(!open)
-        }}
-        className={cn(
-          'flex h-10 w-10 items-center justify-center rounded-lg transition-colors mx-auto',
-          currentWorkspace
-            ? 'bg-accent text-foreground'
-            : 'text-muted-foreground hover:bg-accent hover:text-foreground'
-        )}
-      >
-        {currentWorkspace ? (
-          <WorkspaceIcon workspace={currentWorkspace} size="sm" />
-        ) : (
-          <div className="h-5 w-5 rounded bg-muted" />
-        )}
-      </button>
+      <Popover open={open} onOpenChange={setOpen}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <PopoverTrigger asChild>
+              <button
+                className={cn(
+                  'flex h-10 w-10 items-center justify-center rounded-lg transition-colors mx-auto',
+                  currentWorkspace
+                    ? 'bg-accent text-foreground'
+                    : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+                )}
+                aria-label="Select workspace"
+              >
+                {currentWorkspace ? (
+                  <WorkspaceIcon workspace={currentWorkspace} size="sm" />
+                ) : (
+                  <div className="h-5 w-5 rounded bg-muted" />
+                )}
+              </button>
+            </PopoverTrigger>
+          </TooltipTrigger>
+          <TooltipContent side="right" sideOffset={8}>
+            {currentWorkspace?.name ?? 'Select workspace'}
+          </TooltipContent>
+        </Tooltip>
+        <PopoverContent side="right" align="start" className="w-56 p-0">
+          <WorkspaceList
+            workspaces={workspaces}
+            currentWorkspace={currentWorkspace}
+            onSelect={handleSelect}
+            onAddClick={() => {
+              setOpen(false)
+              setDialogOpen(true)
+            }}
+          />
+        </PopoverContent>
+      </Popover>
     )
   }
 
@@ -103,81 +135,43 @@ export function WorkspaceSelector({ collapsed = false }: WorkspaceSelectorProps)
         <Label className="text-xs text-muted-foreground mb-1.5 block">
           Workspace
         </Label>
-        <button
-          onClick={() => {
-            setOpen(!open)
-          }}
-          className={cn(
-            'flex w-full items-center justify-between rounded-lg border px-3 py-2 text-sm',
-            'bg-input hover:bg-accent transition-colors'
-          )}
-          disabled={isLoading}
-        >
-          <div className="flex items-center gap-2 min-w-0">
-            {isLoading ? (
-              <Loader2 className="h-4 w-4 animate-spin shrink-0" />
-            ) : currentWorkspace ? (
-              <WorkspaceIcon workspace={currentWorkspace} size="sm" />
-            ) : (
-              <div className="h-5 w-5 rounded bg-muted shrink-0" />
-            )}
-            <span className="truncate">
-              {currentWorkspace?.name ?? 'Select workspace...'}
-            </span>
-          </div>
-          <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
-        </button>
-
-        {/* Dropdown */}
-        {open && (
-          <div className="mt-1 rounded-lg border bg-popover shadow-md">
-            <div className="max-h-[200px] overflow-y-auto p-1">
-              {workspaces.length === 0 ? (
-                <div className="px-3 py-6 text-center text-sm text-muted-foreground">
-                  No workspaces
-                </div>
-              ) : (
-                workspaces.map((workspace) => (
-                  <button
-                    key={workspace.id}
-                    onClick={() => {
-                      handleSelect(workspace.id)
-                    }}
-                    className={cn(
-                      'flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm',
-                      'hover:bg-accent transition-colors',
-                      currentWorkspace?.id === workspace.id && 'bg-accent'
-                    )}
-                  >
-                    <Check
-                      className={cn(
-                        'h-4 w-4 shrink-0',
-                        currentWorkspace?.id === workspace.id
-                          ? 'opacity-100'
-                          : 'opacity-0'
-                      )}
-                    />
-                    <WorkspaceIcon workspace={workspace} size="sm" />
-                    <span className="truncate">{workspace.name}</span>
-                  </button>
-                ))
+        <Popover open={open} onOpenChange={setOpen}>
+          <PopoverTrigger asChild>
+            <button
+              className={cn(
+                'flex w-full items-center justify-between rounded-lg border px-3 py-2 text-sm',
+                'bg-input hover:bg-accent transition-colors'
               )}
-            </div>
-
-            <div className="border-t p-1">
-              <button
-                onClick={() => {
-                  setOpen(false)
-                  setDialogOpen(true)
-                }}
-                className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm hover:bg-accent transition-colors"
-              >
-                <Plus className="h-4 w-4" />
-                <span>Add workspace</span>
-              </button>
-            </div>
-          </div>
-        )}
+              disabled={isLoading}
+              aria-label="Select workspace"
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                {isLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin shrink-0" />
+                ) : currentWorkspace ? (
+                  <WorkspaceIcon workspace={currentWorkspace} size="sm" />
+                ) : (
+                  <div className="h-5 w-5 rounded bg-muted shrink-0" />
+                )}
+                <span className="truncate">
+                  {currentWorkspace?.name ?? 'Select workspace...'}
+                </span>
+              </div>
+              <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
+            </button>
+          </PopoverTrigger>
+          <PopoverContent align="start" className="w-[--radix-popover-trigger-width] p-0">
+            <WorkspaceList
+              workspaces={workspaces}
+              currentWorkspace={currentWorkspace}
+              onSelect={handleSelect}
+              onAddClick={() => {
+                setOpen(false)
+                setDialogOpen(true)
+              }}
+            />
+          </PopoverContent>
+        </Popover>
       </div>
 
       {/* Create Workspace Dialog */}
@@ -265,6 +259,70 @@ export function WorkspaceSelector({ collapsed = false }: WorkspaceSelectorProps)
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </>
+  )
+}
+
+/**
+ * Extracted workspace list for reuse in both collapsed and expanded modes
+ */
+interface WorkspaceListProps {
+  workspaces: Workspace[]
+  currentWorkspace: Workspace | null
+  onSelect: (workspaceId: string) => void
+  onAddClick: () => void
+}
+
+function WorkspaceList({
+  workspaces,
+  currentWorkspace,
+  onSelect,
+  onAddClick,
+}: WorkspaceListProps) {
+  return (
+    <>
+      <div className="max-h-[200px] overflow-y-auto p-1">
+        {workspaces.length === 0 ? (
+          <div className="px-3 py-6 text-center text-sm text-muted-foreground">
+            No workspaces
+          </div>
+        ) : (
+          workspaces.map((workspace) => (
+            <button
+              key={workspace.id}
+              onClick={() => {
+                onSelect(workspace.id)
+              }}
+              className={cn(
+                'flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm',
+                'hover:bg-accent transition-colors',
+                currentWorkspace?.id === workspace.id && 'bg-accent'
+              )}
+            >
+              <Check
+                className={cn(
+                  'h-4 w-4 shrink-0',
+                  currentWorkspace?.id === workspace.id
+                    ? 'opacity-100'
+                    : 'opacity-0'
+                )}
+              />
+              <WorkspaceIcon workspace={workspace} size="sm" />
+              <span className="truncate">{workspace.name}</span>
+            </button>
+          ))
+        )}
+      </div>
+
+      <div className="border-t p-1">
+        <button
+          onClick={onAddClick}
+          className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm hover:bg-accent transition-colors"
+        >
+          <Plus className="h-4 w-4" />
+          <span>Add workspace</span>
+        </button>
+      </div>
     </>
   )
 }
