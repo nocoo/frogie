@@ -125,7 +125,7 @@ export function ChatInput({
               'placeholder:text-muted-foreground',
               'focus:outline-none',
               'disabled:cursor-not-allowed disabled:opacity-50',
-              'min-h-[48px] max-h-[200px]'
+              'max-h-[200px]'
             )}
           />
           {/* Shortcut hint */}
