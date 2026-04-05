@@ -120,7 +120,7 @@ export function ChatInput({
             )}
           />
           {!isFocused && !value && (
-            <div className="pointer-events-none absolute inset-y-0 right-4 flex items-center">
+            <div className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2">
               <kbd className="text-sm leading-none text-muted-foreground/60">/</kbd>
             </div>
           )}
