@@ -100,7 +100,7 @@ export function ChatInput({
       {/* Unified input container */}
       <div
         className={cn(
-          'flex items-end gap-0 rounded-2xl border bg-background transition-colors',
+          'flex items-center gap-0 rounded-2xl border bg-background transition-colors',
           isFocused
             ? 'border-ring ring-2 ring-ring/20'
             : 'border-input hover:border-muted-foreground/30'
