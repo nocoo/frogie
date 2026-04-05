@@ -272,7 +272,7 @@ export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
         </nav>
 
         {/* Footer - 用户区域 B-2 规范 */}
-        <div className={cn('border-t border-border', collapsed ? 'px-2 py-[18px]' : 'px-4 py-[18px]')}>
+        <div className={cn('border-t border-border', collapsed ? 'px-2 py-6' : 'px-4 py-6')}>
           {collapsed ? (
             // 收起态：仅头像，点击登出，tooltip 显示用户名
             <div className="flex flex-col items-center animate-[message-in_0.2s_ease-out]">
