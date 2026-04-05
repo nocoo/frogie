@@ -199,7 +199,7 @@ export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
         <div className="px-3 h-14 flex items-center">
           {collapsed ? (
             // 收起态：logo 图标居中
-            <div className="flex w-full items-center justify-center">
+            <div className="flex w-full items-center justify-center animate-[message-in_0.2s_ease-out]">
               <img
                 src="/logo-24.png"
                 alt="Frogie"
@@ -210,7 +210,7 @@ export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
             </div>
           ) : (
             // 展开态：logo + 品牌名 + 版本 + 收起按钮
-            <div className="flex w-full items-center justify-between px-3">
+            <div className="flex w-full items-center justify-between px-3 animate-[message-in_0.2s_ease-out]">
               <div className="flex items-center gap-3">
                 <img
                   src="/logo-24.png"
@@ -275,7 +275,7 @@ export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
         <div className={cn('border-t border-border', collapsed ? 'px-2 py-3' : 'px-4 py-3')}>
           {collapsed ? (
             // 收起态：仅头像，点击登出，tooltip 显示用户名
-            <div className="flex flex-col items-center">
+            <div className="flex flex-col items-center animate-[message-in_0.2s_ease-out]">
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
@@ -296,7 +296,7 @@ export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
             </div>
           ) : (
             // 展开态：头像 + 用户名 + 邮箱 + 登出按钮
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 animate-[message-in_0.2s_ease-out]">
               <Avatar className="h-9 w-9 shrink-0">
                 {userImage && <AvatarImage src={userImage} alt={userName} />}
                 <AvatarFallback className={cn('text-xs text-white', getAvatarColor(userName))}>
