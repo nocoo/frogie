@@ -68,7 +68,7 @@ export function LoginPage() {
       </div>
 
       <div className="flex flex-1 items-center justify-center p-4">
-        <div className="flex flex-col items-center">
+        <div className="flex flex-col items-center animate-[card-in_0.5s_cubic-bezier(0.16,1,0.3,1)]">
           {/* Badge card — bank card flipped vertical: 54/86 */}
           <div
             className="relative aspect-[54/86] w-72 overflow-hidden rounded-2xl bg-card flex flex-col ring-1 ring-black/[0.08] dark:ring-white/[0.06]"
