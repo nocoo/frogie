@@ -6,7 +6,6 @@
 
 import { useRef, useEffect, useState, type KeyboardEvent } from 'react'
 import { Send, Square } from 'lucide-react'
-import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
 interface ChatInputProps {
@@ -97,9 +96,18 @@ export function ChatInput({
   }
 
   return (
-    <div className="relative shrink-0 border-t border-border">
-      <div className="flex items-center gap-2 px-4 py-4">
-        <div className="relative flex-1">
+    <div className="shrink-0 px-4 py-3">
+      {/* Unified input container */}
+      <div
+        className={cn(
+          'flex items-end gap-0 rounded-2xl border bg-background transition-colors',
+          isFocused
+            ? 'border-ring ring-2 ring-ring/20'
+            : 'border-input hover:border-muted-foreground/30'
+        )}
+      >
+        {/* Textarea area */}
+        <div className="relative flex-1 min-w-0">
           <textarea
             ref={textareaRef}
             value={value}
@@ -113,40 +121,47 @@ export function ChatInput({
             disabled={disabled || isLoading}
             rows={1}
             className={cn(
-              'w-full resize-none rounded-xl border border-input bg-background px-4 py-[15px] text-sm leading-5',
-              'placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card',
+              'w-full resize-none bg-transparent px-4 py-3 text-sm leading-6',
+              'placeholder:text-muted-foreground',
+              'focus:outline-none',
               'disabled:cursor-not-allowed disabled:opacity-50',
-              'min-h-[52px] max-h-[200px]'
+              'min-h-[48px] max-h-[200px]'
             )}
           />
+          {/* Shortcut hint */}
           {!isFocused && !value && (
-            <span className="pointer-events-none absolute right-4 top-[16px] text-xs leading-5 text-muted-foreground/50 border border-border rounded px-1.5">/</span>
+            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground/40 border border-muted/60 rounded px-1.5 py-0.5">/</span>
           )}
         </div>
 
-        {isLoading ? (
-          <Button
-            type="button"
-            size="icon"
-            variant="destructive"
-            onClick={handleStopClick}
-            className="shrink-0 h-[54px] w-[54px] rounded-xl"
-            aria-label="Stop generation"
-          >
-            <Square className="h-4 w-4" />
-          </Button>
-        ) : (
-          <Button
-            type="button"
-            size="icon"
-            onClick={handleSendClick}
-            disabled={disabled || !value.trim()}
-            className="shrink-0 h-[54px] w-[54px] rounded-xl"
-            aria-label="Send message"
-          >
-            <Send className="h-4 w-4" />
-          </Button>
-        )}
+        {/* Send button */}
+        <div className="shrink-0 p-1.5">
+          {isLoading ? (
+            <button
+              type="button"
+              onClick={handleStopClick}
+              className="flex h-9 w-9 items-center justify-center rounded-xl bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-colors"
+              aria-label="Stop generation"
+            >
+              <Square className="h-4 w-4" />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleSendClick}
+              disabled={disabled || !value.trim()}
+              className={cn(
+                'flex h-9 w-9 items-center justify-center rounded-xl transition-colors',
+                value.trim()
+                  ? 'bg-primary text-primary-foreground hover:bg-primary/90'
+                  : 'bg-muted text-muted-foreground cursor-not-allowed'
+              )}
+              aria-label="Send message"
+            >
+              <Send className="h-4 w-4" />
+            </button>
+          )}
+        </div>
       </div>
     </div>
   )
