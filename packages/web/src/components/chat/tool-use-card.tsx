@@ -2,6 +2,7 @@
  * ToolUseCard Component
  *
  * Displays tool calls with expandable input/output.
+ * Includes smooth state transitions for pending/success/error.
  */
 
 import { useState } from 'react'
@@ -43,7 +44,8 @@ export function ToolUseCard({ name, input, result }: ToolUseCardProps) {
   return (
     <div
       className={cn(
-        'my-2 rounded-lg border',
+        'my-2 rounded-lg border transition-all duration-300',
+        'animate-[message-in_0.3s_cubic-bezier(0.16,1,0.3,1)]',
         isPending && 'border-blue-200/50 bg-blue-50/50 dark:border-blue-900/50 dark:bg-blue-950/20',
         isSuccess && 'border-green-200/50 bg-green-50/50 dark:border-green-900/50 dark:bg-green-950/20',
         isError && 'border-red-200/50 bg-red-50/50 dark:border-red-900/50 dark:bg-red-950/20'
@@ -68,9 +70,18 @@ export function ToolUseCard({ name, input, result }: ToolUseCardProps) {
           )}
         />
 
-        {isPending && <Loader2 className="h-4 w-4 shrink-0 animate-spin" />}
-        {isSuccess && <CheckCircle2 className="h-4 w-4 shrink-0" />}
-        {isError && <XCircle className="h-4 w-4 shrink-0" />}
+        {/* Status icon with transition */}
+        <span className="relative h-4 w-4 shrink-0">
+          {isPending && (
+            <Loader2 className="absolute inset-0 h-4 w-4 animate-spin" />
+          )}
+          {isSuccess && (
+            <CheckCircle2 className="absolute inset-0 h-4 w-4 animate-[message-in_0.2s_cubic-bezier(0.16,1,0.3,1)]" />
+          )}
+          {isError && (
+            <XCircle className="absolute inset-0 h-4 w-4 animate-[message-in_0.2s_cubic-bezier(0.16,1,0.3,1)]" />
+          )}
+        </span>
 
         <Wrench className="h-4 w-4 shrink-0" />
         <code className="font-mono font-medium">{name}</code>
@@ -82,36 +93,42 @@ export function ToolUseCard({ name, input, result }: ToolUseCardProps) {
         )}
       </button>
 
-      {expanded && (
-        <div className="px-3 pb-3 pt-0 space-y-3">
-          {/* Input */}
-          <div className="pl-10">
-            <div className="text-xs font-medium opacity-60 mb-1">Input</div>
-            <pre className="text-xs font-mono bg-black/5 dark:bg-white/5 rounded p-2 overflow-x-auto">
-              {inputStr}
-            </pre>
-          </div>
-
-          {/* Output */}
-          {result && (
+      {/* Expandable content with grid animation */}
+      <div
+        className="grid transition-[grid-template-rows] duration-200 ease-out"
+        style={{ gridTemplateRows: expanded ? '1fr' : '0fr' }}
+      >
+        <div className="overflow-hidden">
+          <div className="px-3 pb-3 pt-0 space-y-3">
+            {/* Input */}
             <div className="pl-10">
-              <div className="text-xs font-medium opacity-60 mb-1">
-                {isError ? 'Error' : 'Output'}
-              </div>
-              <pre
-                className={cn(
-                  'text-xs font-mono rounded p-2 overflow-x-auto max-h-64 overflow-y-auto',
-                  isError
-                    ? 'bg-red-100/50 dark:bg-red-900/20 text-red-800 dark:text-red-300'
-                    : 'bg-black/5 dark:bg-white/5'
-                )}
-              >
-                {result.output}
+              <div className="text-xs font-medium opacity-60 mb-1">Input</div>
+              <pre className="text-xs font-mono bg-black/5 dark:bg-white/5 rounded p-2 overflow-x-auto">
+                {inputStr}
               </pre>
             </div>
-          )}
+
+            {/* Output */}
+            {result && (
+              <div className="pl-10">
+                <div className="text-xs font-medium opacity-60 mb-1">
+                  {isError ? 'Error' : 'Output'}
+                </div>
+                <pre
+                  className={cn(
+                    'text-xs font-mono rounded p-2 overflow-x-auto max-h-64 overflow-y-auto',
+                    isError
+                      ? 'bg-red-100/50 dark:bg-red-900/20 text-red-800 dark:text-red-300'
+                      : 'bg-black/5 dark:bg-white/5'
+                  )}
+                >
+                  {result.output}
+                </pre>
+              </div>
+            )}
+          </div>
         </div>
-      )}
+      </div>
     </div>
   )
 }
