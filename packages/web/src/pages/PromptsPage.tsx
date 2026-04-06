@@ -452,12 +452,12 @@ export function PromptsPage() {
   }
 
   return (
-    <div className="container max-w-4xl py-6 space-y-6">
-      {/* Header */}
+    <div className="max-w-4xl space-y-4 md:space-y-6">
+      {/* Page Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">System Prompts</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-2xl md:text-3xl font-semibold font-display tracking-tight">System Prompts</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
             Configure AI behavior
             {currentWorkspace && activeTab === 'workspace' && (
               <> for <span className="font-medium text-foreground">{currentWorkspace.name}</span></>
@@ -474,9 +474,9 @@ export function PromptsPage() {
 
       {/* Error */}
       {error && (
-        <div className="flex items-center gap-2 rounded-md bg-destructive/10 p-4 text-destructive">
-          <AlertCircle className="h-5 w-5" />
-          <p>{error}</p>
+        <div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
+          <AlertCircle className="h-4 w-4 shrink-0" />
+          <span>{error}</span>
         </div>
       )}
 
@@ -496,7 +496,7 @@ export function PromptsPage() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="workspace" className="space-y-4 mt-4">
+        <TabsContent value="workspace" className="mt-4">
           {!currentWorkspace ? (
             <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
               <FolderOpen className="h-12 w-12 mb-4 opacity-50" />
@@ -504,7 +504,7 @@ export function PromptsPage() {
             </div>
           ) : (
             <>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-muted-foreground mb-4">
                 Customize prompts for this workspace. Overrides inherit from global defaults.
               </p>
               {isLoading ? (
@@ -534,8 +534,8 @@ export function PromptsPage() {
           )}
         </TabsContent>
 
-        <TabsContent value="global" className="space-y-4 mt-4">
-          <p className="text-sm text-muted-foreground">
+        <TabsContent value="global" className="mt-4">
+          <p className="text-sm text-muted-foreground mb-4">
             Edit global defaults that apply to all workspaces without overrides.
           </p>
           {isLoading ? (
