@@ -175,7 +175,8 @@ export function DashboardLayout() {
             <div className={cn(
               'h-full rounded-[16px] md:rounded-[20px] bg-card',
               // Chat page (/) needs no padding for input to reach edges
-              location.pathname === '/' ? '' : 'p-3 md:p-5'
+              // Non-chat pages need overflow-y-auto for internal scrolling
+              location.pathname === '/' ? '' : 'p-3 md:p-5 overflow-y-auto'
             )}>
               <Outlet />
             </div>
