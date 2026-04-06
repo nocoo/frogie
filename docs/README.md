@@ -12,3 +12,15 @@
 | [06-data-model.md](./architecture/06-data-model.md) | Database schema and data flow |
 | [07-api-protocol.md](./architecture/07-api-protocol.md) | WebSocket and REST API design |
 | [08-ui-design.md](./architecture/08-ui-design.md) | Frontend components and UX |
+
+## Features
+
+| Document | Description |
+|----------|-------------|
+| [01-system-prompt-builder.md](./features/01-system-prompt-builder.md) | 7-layer configurable system prompt |
+
+## Implementation
+
+| Document | Description |
+|----------|-------------|
+| [00-implementation-plan.md](./implementation/00-implementation-plan.md) | Step-by-step implementation plan |

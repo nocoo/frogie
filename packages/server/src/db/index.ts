@@ -37,6 +37,7 @@ export * as workspaces from './repositories/workspaces'
 export * as sessions from './repositories/sessions'
 export * as mcpConfigs from './repositories/mcp-configs'
 export * as users from './repositories/users'
+export * as prompts from './repositories/prompts'
 
 // Convenience re-exports of common functions
 export { getSettings, updateSettings, resetSettings } from './repositories/settings'
@@ -82,6 +83,25 @@ export {
   listUsers,
   deleteUser,
 } from './repositories/users'
+export {
+  PROMPT_LAYERS,
+  isValidLayer,
+  getGlobalPrompt,
+  getAllGlobalPrompts,
+  updateGlobalPrompt,
+  getWorkspacePrompt,
+  getAllWorkspacePrompts,
+  upsertWorkspacePrompt,
+  deleteWorkspacePrompt,
+  deleteAllWorkspacePrompts,
+  getMergedPrompts,
+} from './repositories/prompts'
+export type {
+  PromptLayer,
+  GlobalPrompt,
+  WorkspacePrompt,
+  PromptLayerConfig,
+} from './repositories/prompts'
 
 /**
  * Initialize database with migrations
