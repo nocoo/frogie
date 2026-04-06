@@ -9,7 +9,6 @@ import { create } from 'zustand'
 import type {
   PromptLayerName,
   GlobalPrompt,
-  WorkspacePrompt,
   MergedPromptLayer,
   PromptPreviewResponse,
 } from '@/models'
@@ -25,9 +24,6 @@ const API_BASE = '/api'
 interface PromptsState {
   /** Global prompts (all 7 layers) */
   globalPrompts: GlobalPrompt[]
-
-  /** Workspace prompt overrides */
-  workspacePrompts: WorkspacePrompt[]
 
   /** Merged prompts for current workspace */
   mergedPrompts: MergedPromptLayer[]
@@ -51,9 +47,6 @@ interface PromptsState {
 
   /** Fetch all global prompts */
   fetchGlobalPrompts: () => Promise<void>
-
-  /** Fetch workspace prompts for a specific workspace */
-  fetchWorkspacePrompts: (workspaceId: string) => Promise<void>
 
   /** Fetch merged prompts for a workspace */
   fetchMergedPrompts: (workspaceId: string) => Promise<void>
@@ -92,7 +85,6 @@ interface PromptsState {
  */
 export const usePromptsStore = create<PromptsState>((set, get) => ({
   globalPrompts: [],
-  workspacePrompts: [],
   mergedPrompts: [],
   currentWorkspaceId: null,
   preview: null,
@@ -111,34 +103,12 @@ export const usePromptsStore = create<PromptsState>((set, get) => ({
         throw new Error(data.error?.message ?? 'Failed to fetch global prompts')
       }
 
-      const globalPrompts = (await res.json()) as GlobalPrompt[]
-      set({ globalPrompts, isLoading: false })
+      const response = (await res.json()) as { layers: GlobalPrompt[] }
+      set({ globalPrompts: response.layers, isLoading: false })
     } catch (err) {
-      set({
-        error: err instanceof Error ? err.message : 'Unknown error',
-        isLoading: false,
-      })
-    }
-  },
-
-  fetchWorkspacePrompts: async (workspaceId: string) => {
-    set({ isLoading: true, error: null, currentWorkspaceId: workspaceId })
-
-    try {
-      const res = await fetch(`${API_BASE}/prompts/${workspaceId}`)
-
-      if (!res.ok) {
-        const data = (await res.json()) as { error?: { message?: string } }
-        throw new Error(data.error?.message ?? 'Failed to fetch workspace prompts')
-      }
-
-      const workspacePrompts = (await res.json()) as WorkspacePrompt[]
-      set({ workspacePrompts, isLoading: false })
-    } catch (err) {
-      set({
-        error: err instanceof Error ? err.message : 'Unknown error',
-        isLoading: false,
-      })
+      const message = err instanceof Error ? err.message : 'Unknown error'
+      set({ error: message, isLoading: false })
+      throw err // Re-throw for caller to handle
     }
   },
 
@@ -146,20 +116,19 @@ export const usePromptsStore = create<PromptsState>((set, get) => ({
     set({ isLoading: true, error: null, currentWorkspaceId: workspaceId })
 
     try {
-      const res = await fetch(`${API_BASE}/prompts/${workspaceId}/merged`)
+      const res = await fetch(`${API_BASE}/prompts/${workspaceId}`)
 
       if (!res.ok) {
         const data = (await res.json()) as { error?: { message?: string } }
         throw new Error(data.error?.message ?? 'Failed to fetch merged prompts')
       }
 
-      const mergedPrompts = (await res.json()) as MergedPromptLayer[]
-      set({ mergedPrompts, isLoading: false })
+      const response = (await res.json()) as { workspaceId: string; layers: MergedPromptLayer[] }
+      set({ mergedPrompts: response.layers, isLoading: false })
     } catch (err) {
-      set({
-        error: err instanceof Error ? err.message : 'Unknown error',
-        isLoading: false,
-      })
+      const message = err instanceof Error ? err.message : 'Unknown error'
+      set({ error: message, isLoading: false })
+      throw err // Re-throw for caller to handle
     }
   },
 
@@ -192,15 +161,17 @@ export const usePromptsStore = create<PromptsState>((set, get) => ({
       }))
 
       // Refresh merged prompts if viewing a workspace
-      const { currentWorkspaceId, fetchMergedPrompts } = get()
+      const { currentWorkspaceId } = get()
       if (currentWorkspaceId) {
-        void fetchMergedPrompts(currentWorkspaceId)
+        // Don't await - fire and forget refresh
+        void get().fetchMergedPrompts(currentWorkspaceId).catch(() => {
+          // Ignore refresh errors
+        })
       }
     } catch (err) {
-      set({
-        error: err instanceof Error ? err.message : 'Unknown error',
-        isSaving: false,
-      })
+      const message = err instanceof Error ? err.message : 'Unknown error'
+      set({ error: message, isSaving: false })
+      throw err // Re-throw for caller to handle
     }
   },
 
@@ -223,35 +194,16 @@ export const usePromptsStore = create<PromptsState>((set, get) => ({
         throw new Error(data.error?.message ?? 'Failed to update workspace prompt')
       }
 
-      const updated = (await res.json()) as WorkspacePrompt
-
-      // Update local state
-      set((state) => {
-        const existing = state.workspacePrompts.find(
-          (p) => p.workspaceId === workspaceId && p.layer === layer
-        )
-        if (existing) {
-          return {
-            workspacePrompts: state.workspacePrompts.map((p) =>
-              p.workspaceId === workspaceId && p.layer === layer ? updated : p
-            ),
-            isSaving: false,
-          }
-        } else {
-          return {
-            workspacePrompts: [...state.workspacePrompts, updated],
-            isSaving: false,
-          }
-        }
-      })
+      set({ isSaving: false })
 
       // Refresh merged prompts
-      void get().fetchMergedPrompts(workspaceId)
-    } catch (err) {
-      set({
-        error: err instanceof Error ? err.message : 'Unknown error',
-        isSaving: false,
+      void get().fetchMergedPrompts(workspaceId).catch(() => {
+        // Ignore refresh errors
       })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error'
+      set({ error: message, isSaving: false })
+      throw err // Re-throw for caller to handle
     }
   },
 
@@ -268,21 +220,16 @@ export const usePromptsStore = create<PromptsState>((set, get) => ({
         throw new Error(data.error?.message ?? 'Failed to delete workspace prompt')
       }
 
-      // Update local state
-      set((state) => ({
-        workspacePrompts: state.workspacePrompts.filter(
-          (p) => !(p.workspaceId === workspaceId && p.layer === layer)
-        ),
-        isSaving: false,
-      }))
+      set({ isSaving: false })
 
       // Refresh merged prompts
-      void get().fetchMergedPrompts(workspaceId)
-    } catch (err) {
-      set({
-        error: err instanceof Error ? err.message : 'Unknown error',
-        isSaving: false,
+      void get().fetchMergedPrompts(workspaceId).catch(() => {
+        // Ignore refresh errors
       })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error'
+      set({ error: message, isSaving: false })
+      throw err // Re-throw for caller to handle
     }
   },
 
@@ -307,10 +254,9 @@ export const usePromptsStore = create<PromptsState>((set, get) => ({
       const preview = (await res.json()) as PromptPreviewResponse
       set({ preview, isLoading: false })
     } catch (err) {
-      set({
-        error: err instanceof Error ? err.message : 'Unknown error',
-        isLoading: false,
-      })
+      const message = err instanceof Error ? err.message : 'Unknown error'
+      set({ error: message, isLoading: false })
+      throw err // Re-throw for caller to handle
     }
   },
 

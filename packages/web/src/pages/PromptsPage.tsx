@@ -308,11 +308,13 @@ function PreviewModal({
 export function PromptsPage() {
   const { currentWorkspace } = useWorkspaceStore()
   const {
+    globalPrompts,
     mergedPrompts,
     preview,
     isLoading,
     isSaving,
     error,
+    fetchGlobalPrompts,
     fetchMergedPrompts,
     updateGlobalPrompt,
     updateWorkspacePrompt,
@@ -326,12 +328,23 @@ export function PromptsPage() {
   const [editingLayer, setEditingLayer] = useState<PromptLayerName | null>(null)
   const [showPreview, setShowPreview] = useState(false)
 
-  // Fetch prompts when workspace changes
+  // Fetch prompts when workspace changes or tab changes
   useEffect(() => {
     if (currentWorkspace) {
-      void fetchMergedPrompts(currentWorkspace.id)
+      void fetchMergedPrompts(currentWorkspace.id).catch(() => {
+        // Error is already set in store
+      })
     }
   }, [currentWorkspace, fetchMergedPrompts])
+
+  // Fetch global prompts when switching to global tab
+  useEffect(() => {
+    if (activeTab === 'global') {
+      void fetchGlobalPrompts().catch(() => {
+        // Error is already set in store
+      })
+    }
+  }, [activeTab, fetchGlobalPrompts])
 
   // Clear error on unmount
   useEffect(() => {
@@ -340,13 +353,25 @@ export function PromptsPage() {
     }
   }, [clearError])
 
-  // Get editing layer data
+  // Get editing layer data based on active tab
   const editingLayerData = useMemo(() => {
     if (!editingLayer) return null
-    const layer = mergedPrompts.find((p) => p.layer === editingLayer)
+    const prompts = activeTab === 'global' ? globalPrompts : mergedPrompts
+    const layer = prompts.find((p) => p.layer === editingLayer)
     const info = getLayerInfo(editingLayer)
-    return layer && info ? { layer, info } : null
-  }, [editingLayer, mergedPrompts])
+    if (!layer || !info) return null
+    // Normalize to MergedPromptLayer shape for the modal
+    return {
+      layer: {
+        layer: layer.layer,
+        content: layer.content,
+        enabled: layer.enabled,
+        isTemplate: layer.isTemplate,
+        isGlobal: 'isGlobal' in layer ? layer.isGlobal : true,
+      },
+      info,
+    }
+  }, [editingLayer, activeTab, globalPrompts, mergedPrompts])
 
   // Handle save
   const handleSave = async (content: string, enabled: boolean) => {
@@ -384,7 +409,7 @@ export function PromptsPage() {
     }
   }
 
-  // Handle revert
+  // Handle revert (workspace tab only)
   const handleRevert = async (layer: PromptLayerName) => {
     if (!currentWorkspace) return
 
@@ -502,17 +527,25 @@ export function PromptsPage() {
             </div>
           ) : (
             <div className="space-y-4">
-              {mergedPrompts.map((layer) => {
-                const info = getLayerInfo(layer.layer)
+              {globalPrompts.map((prompt) => {
+                const info = getLayerInfo(prompt.layer)
                 if (!info) return null
+                // Convert GlobalPrompt to MergedPromptLayer shape for the card
+                const layer: MergedPromptLayer = {
+                  layer: prompt.layer,
+                  content: prompt.content,
+                  enabled: prompt.enabled,
+                  isTemplate: prompt.isTemplate,
+                  isGlobal: true,
+                }
                 return (
                   <PromptLayerCard
-                    key={layer.layer}
+                    key={prompt.layer}
                     layer={layer}
                     info={info}
                     isGlobal={true}
-                    onEdit={() => { setEditingLayer(layer.layer) }}
-                    onToggle={(enabled) => { void handleToggle(layer.layer, enabled) }}
+                    onEdit={() => { setEditingLayer(prompt.layer) }}
+                    onToggle={(enabled) => { void handleToggle(prompt.layer, enabled) }}
                   />
                 )
               })}

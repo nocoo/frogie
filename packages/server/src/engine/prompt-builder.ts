@@ -12,6 +12,11 @@ import { getMergedPrompts } from '../db'
 import type { ToolDefinition } from './frogie-agent'
 
 /**
+ * Maximum total size for assembled system prompt (50KB)
+ */
+export const MAX_SYSTEM_PROMPT_SIZE = 50 * 1024
+
+/**
  * Context for building the system prompt
  */
 export interface PromptContext {
@@ -26,6 +31,18 @@ export interface PromptContext {
 }
 
 /**
+ * Build result with metadata
+ */
+export interface BuildResult {
+  /** Assembled system prompt */
+  prompt: string
+  /** Estimated token count */
+  tokenEstimate: number
+  /** Whether size limit was exceeded */
+  sizeExceeded: boolean
+}
+
+/**
  * Build the complete system prompt from configured layers
  *
  * IMPORTANT: This must be called AFTER all tools (builtin + MCP) are loaded,
@@ -34,11 +51,34 @@ export interface PromptContext {
  * @param db - Database connection
  * @param context - Runtime context for template resolution
  * @returns Assembled system prompt string
+ * @throws Error if assembled prompt exceeds MAX_SYSTEM_PROMPT_SIZE
  */
 export function buildSystemPrompt(
   db: DatabaseLike,
   context: PromptContext
 ): string {
+  const result = buildSystemPromptWithMetadata(db, context)
+
+  if (result.sizeExceeded) {
+    throw new Error(
+      `System prompt exceeds maximum size of ${String(MAX_SYSTEM_PROMPT_SIZE)} bytes ` +
+      `(actual: ${String(result.prompt.length)} bytes, ~${String(result.tokenEstimate)} tokens). ` +
+      `Please reduce the content in your prompt layers.`
+    )
+  }
+
+  return result.prompt
+}
+
+/**
+ * Build system prompt with metadata (does not throw on size exceeded)
+ *
+ * Use this for preview or when you need to handle oversized prompts gracefully.
+ */
+export function buildSystemPromptWithMetadata(
+  db: DatabaseLike,
+  context: PromptContext
+): BuildResult {
   // 1. Load layer configs (workspace override → global → defaults)
   const layers = getMergedPrompts(db, context.workspace.id)
 
@@ -49,7 +89,11 @@ export function buildSystemPrompt(
     .filter((content) => hasSubstantiveContent(content))
 
   // 3. Join all layers with double newline separator
-  return resolved.join('\n\n')
+  const prompt = resolved.join('\n\n')
+  const tokenEstimate = estimateTokens(prompt)
+  const sizeExceeded = prompt.length > MAX_SYSTEM_PROMPT_SIZE
+
+  return { prompt, tokenEstimate, sizeExceeded }
 }
 
 /**

@@ -151,7 +151,13 @@ export function getGitStatus(cwd: string): string {
 /**
  * Get current date in YYYY-MM-DD format
  */
+/**
+ * Get current date in YYYY-MM-DD format (local timezone)
+ */
 export function getCurrentDate(): string {
-  const date = new Date().toISOString().split('T')[0]
-  return date ?? ''
+  const now = new Date()
+  const year = String(now.getFullYear())
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
 }
