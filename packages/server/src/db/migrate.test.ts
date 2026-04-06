@@ -36,7 +36,7 @@ describe('db/migrate', () => {
       const firstRun = runMigrations(db)
       const secondRun = runMigrations(db)
 
-      expect(firstRun).toBe(4) // Four migration files (initial + users + workspace_color + prompts)
+      expect(firstRun).toBe(5) // Five migration files (initial + users + workspace_color + prompts + prompts_claude_code_style)
       expect(secondRun).toBe(0) // No new migrations
 
       const tables = getTables(db)
@@ -51,7 +51,7 @@ describe('db/migrate', () => {
         .prepare('SELECT * FROM _migrations ORDER BY id')
         .all() as { id: number; name: string; applied_at: number }[]
 
-      expect(migrations).toHaveLength(4)
+      expect(migrations).toHaveLength(5)
       expect(migrations[0]?.id).toBe(1)
       expect(migrations[0]?.name).toBe('initial')
       expect(migrations[0]?.applied_at).toBeGreaterThan(0)
@@ -61,6 +61,8 @@ describe('db/migrate', () => {
       expect(migrations[2]?.name).toBe('workspace_color')
       expect(migrations[3]?.id).toBe(4)
       expect(migrations[3]?.name).toBe('prompts')
+      expect(migrations[4]?.id).toBe(5)
+      expect(migrations[4]?.name).toBe('prompts_claude_code_style')
     })
 
     it('should initialize settings with default values', () => {

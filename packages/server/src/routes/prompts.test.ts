@@ -333,7 +333,7 @@ describe('routes/prompts', () => {
         layers: PromptLayerResponse[]
       }
 
-      expect(data.assembledPrompt).toContain('AI assistant')
+      expect(data.assembledPrompt).toContain('interactive agent')
       expect(data.tokenEstimate).toBeGreaterThan(0)
       expect(data.layers).toHaveLength(7)
     })

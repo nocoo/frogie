@@ -72,7 +72,7 @@ describe('repositories/prompts', () => {
         expect(prompt).not.toBeNull()
         if (!prompt) throw new Error('Expected prompt to exist')
         expect(prompt.layer).toBe('identity')
-        expect(prompt.content).toContain('AI assistant')
+        expect(prompt.content).toContain('interactive agent')
         expect(prompt.enabled).toBe(true)
       })
 
@@ -265,7 +265,7 @@ describe('repositories/prompts', () => {
         })
 
         // Content should come from global default
-        expect(prompt.content).toContain('AI assistant')
+        expect(prompt.content).toContain('interactive agent')
         expect(prompt.enabled).toBe(false)
       })
     })

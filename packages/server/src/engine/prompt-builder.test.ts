@@ -173,8 +173,9 @@ describe('engine/prompt-builder', () => {
 
       const prompt = buildSystemPrompt(db, context)
 
-      // Should contain identity content
-      expect(prompt).toContain('AI assistant')
+      // Should contain identity content (Claude Code style)
+      expect(prompt).toContain('interactive agent')
+      expect(prompt).toContain('software engineering tasks')
       // Should contain system rules
       expect(prompt).toContain('Github-flavored markdown')
       // Should contain tool descriptions
@@ -236,8 +237,7 @@ describe('engine/prompt-builder', () => {
       const prompt = buildSystemPrompt(db, context)
 
       // project_instructions is empty by default
-      // The prompt should NOT have triple newlines (which would indicate empty layer wasn't filtered)
-      // Note: git_status being empty creates "# Git Status\n\n" which is not empty, so it stays
+      // git_context with empty gitStatus will be filtered out
       // We check that there are no instances of 4+ consecutive newlines
       const badSeparators = prompt.match(/\n{4,}/g)
       expect(badSeparators).toBeNull()
