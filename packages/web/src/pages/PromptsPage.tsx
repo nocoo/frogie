@@ -269,11 +269,13 @@ function PreviewModal({
   onOpenChange,
   assembledPrompt,
   tokenEstimate,
+  builtinToolsOnly,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   assembledPrompt: string
   tokenEstimate: number
+  builtinToolsOnly: boolean
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -287,6 +289,19 @@ function PreviewModal({
             Estimated tokens: ~{tokenEstimate.toLocaleString()}
           </DialogDescription>
         </DialogHeader>
+
+        {builtinToolsOnly && (
+          <div className="flex items-start gap-2 rounded-md bg-amber-500/10 border border-amber-500/20 p-3 text-sm text-amber-700 dark:text-amber-400">
+            <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+            <div>
+              <p className="font-medium">Preview shows builtin tools only</p>
+              <p className="text-xs mt-0.5 opacity-80">
+                MCP tools require async connection and are not included in this preview.
+                The actual chat prompt will include MCP tools if enabled for the workspace.
+              </p>
+            </div>
+          </div>
+        )}
 
         <ScrollArea className="h-[500px] rounded-md border p-4">
           <pre className="whitespace-pre-wrap font-mono text-sm">
@@ -585,6 +600,7 @@ export function PromptsPage() {
           }}
           assembledPrompt={preview.assembledPrompt}
           tokenEstimate={preview.tokenEstimate}
+          builtinToolsOnly={preview.builtinToolsOnly}
         />
       )}
     </div>

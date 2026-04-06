@@ -235,6 +235,12 @@ export interface MergedPromptLayer {
 export interface PromptPreviewResponse {
   assembledPrompt: string
   tokenEstimate: number
+  /**
+   * If true, only builtin tools are included in {{tools}}.
+   * MCP tools require async connection and are not available in preview.
+   * The actual chat prompt will include MCP tools if enabled for the workspace.
+   */
+  builtinToolsOnly: boolean
   layers: {
     layer: PromptLayerName
     content: string
