@@ -336,6 +336,9 @@ export function createPromptsRouter(db: DatabaseLike) {
     return c.json({
       assembledPrompt,
       tokenEstimate,
+      // Note: Preview only includes builtin tools. MCP tools require async connection
+      // and will be included in the actual chat prompt.
+      builtinToolsOnly: true,
       layers: layers.map((l) => ({
         layer: l.layer,
         content: l.content,

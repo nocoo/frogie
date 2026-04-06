@@ -224,44 +224,49 @@ async function handleChat(
     }
   }
 
-  // 2. Build system prompt with complete tool list
-  const promptContext: PromptContext = {
-    workspace,
-    tools: allTools,
-    gitStatus: getGitStatus(workspace.path),
-    date: getCurrentDate(),
-  }
-  const systemPrompt = buildSystemPrompt(state.db, promptContext)
-
-  // 3. Create agent config with system prompt
-  const config: AgentConfig = {
-    baseUrl: settings.llm_base_url,
-    apiKey: settings.llm_api_key,
-    model: model ?? session.model,
-    cwd: workspace.path,
-    maxTurns: settings.max_turns,
-    maxBudgetUsd: settings.max_budget_usd,
-    sessionId,
-    abortController,
-    systemPrompt,
-  }
-
-  // 4. Create agent with restored conversation context
-  const agent = FrogieAgent.create(config, existingMessages)
-
-  // 5. Inject tools into agent (builtin first, then MCP if available)
-  agent.setTools(BUILTIN_TOOLS, builtinToolExecutor)
-  if (mcpToolExecutor) {
-    const mcpTools = allTools.filter(
-      (t) => !BUILTIN_TOOLS.some((b) => b.name === t.name)
-    )
-    agent.addTools(mcpTools, mcpToolExecutor)
-  }
-
-  // Track active session
-  state.activeSessions.set(sessionId, { agent, abortController })
+  // Track placeholder for active session (will be updated once agent is created)
+  const placeholderAgent = { interrupt: () => { abortController.abort() } } as FrogieAgent
+  state.activeSessions.set(sessionId, { agent: placeholderAgent, abortController })
 
   try {
+    // 2. Build system prompt with complete tool list
+    // This can throw if the assembled prompt exceeds size limits
+    const promptContext: PromptContext = {
+      workspace,
+      tools: allTools,
+      gitStatus: getGitStatus(workspace.path),
+      date: getCurrentDate(),
+    }
+    const systemPrompt = buildSystemPrompt(state.db, promptContext)
+
+    // 3. Create agent config with system prompt
+    const config: AgentConfig = {
+      baseUrl: settings.llm_base_url,
+      apiKey: settings.llm_api_key,
+      model: model ?? session.model,
+      cwd: workspace.path,
+      maxTurns: settings.max_turns,
+      maxBudgetUsd: settings.max_budget_usd,
+      sessionId,
+      abortController,
+      systemPrompt,
+    }
+
+    // 4. Create agent with restored conversation context
+    const agent = FrogieAgent.create(config, existingMessages)
+
+    // 5. Inject tools into agent (builtin first, then MCP if available)
+    agent.setTools(BUILTIN_TOOLS, builtinToolExecutor)
+    if (mcpToolExecutor) {
+      const mcpTools = allTools.filter(
+        (t) => !BUILTIN_TOOLS.some((b) => b.name === t.name)
+      )
+      agent.addTools(mcpTools, mcpToolExecutor)
+    }
+
+    // Update active session with the created agent
+    state.activeSessions.set(sessionId, { agent, abortController })
+
     // Stream events from agent
     for await (const event of agent.query(prompt)) {
       sendEvent(ws, event)

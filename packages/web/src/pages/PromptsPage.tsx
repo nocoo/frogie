@@ -324,20 +324,23 @@ export function PromptsPage() {
     clearError,
   } = usePromptsStore()
 
-  const [activeTab, setActiveTab] = useState<'workspace' | 'global'>('workspace')
+  // Default to global tab if no workspace selected
+  const [activeTab, setActiveTab] = useState<'workspace' | 'global'>(
+    currentWorkspace ? 'workspace' : 'global'
+  )
   const [editingLayer, setEditingLayer] = useState<PromptLayerName | null>(null)
   const [showPreview, setShowPreview] = useState(false)
 
-  // Fetch prompts when workspace changes or tab changes
+  // Fetch merged prompts when workspace changes (workspace tab only)
   useEffect(() => {
-    if (currentWorkspace) {
+    if (currentWorkspace && activeTab === 'workspace') {
       void fetchMergedPrompts(currentWorkspace.id).catch(() => {
         // Error is already set in store
       })
     }
-  }, [currentWorkspace, fetchMergedPrompts])
+  }, [currentWorkspace, activeTab, fetchMergedPrompts])
 
-  // Fetch global prompts when switching to global tab
+  // Fetch global prompts on mount and when switching to global tab
   useEffect(() => {
     if (activeTab === 'global') {
       void fetchGlobalPrompts().catch(() => {
@@ -373,14 +376,15 @@ export function PromptsPage() {
     }
   }, [editingLayer, activeTab, globalPrompts, mergedPrompts])
 
-  // Handle save
+  // Handle save - global prompts don't need workspace
   const handleSave = async (content: string, enabled: boolean) => {
-    if (!editingLayer || !currentWorkspace) return
+    if (!editingLayer) return
 
     try {
       if (activeTab === 'global') {
         await updateGlobalPrompt(editingLayer, { content, enabled })
       } else {
+        if (!currentWorkspace) return
         await updateWorkspacePrompt(currentWorkspace.id, editingLayer, {
           content,
           enabled,
@@ -393,14 +397,13 @@ export function PromptsPage() {
     }
   }
 
-  // Handle toggle
+  // Handle toggle - global prompts don't need workspace
   const handleToggle = async (layer: PromptLayerName, enabled: boolean) => {
-    if (!currentWorkspace) return
-
     try {
       if (activeTab === 'global') {
         await updateGlobalPrompt(layer, { enabled })
       } else {
+        if (!currentWorkspace) return
         await updateWorkspacePrompt(currentWorkspace.id, layer, { enabled })
       }
       toast.success(enabled ? 'Layer enabled' : 'Layer disabled')
@@ -421,7 +424,7 @@ export function PromptsPage() {
     }
   }
 
-  // Handle preview
+  // Handle preview (requires workspace for context)
   const handlePreview = async () => {
     if (!currentWorkspace) return
 
@@ -433,18 +436,6 @@ export function PromptsPage() {
     }
   }
 
-  // No workspace selected
-  if (!currentWorkspace) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <div className="text-center text-muted-foreground">
-          <FolderOpen className="mx-auto h-12 w-12 mb-4 opacity-50" />
-          <p>Select a workspace to configure prompts</p>
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div className="container max-w-4xl py-6 space-y-6">
       {/* Header */}
@@ -452,16 +443,18 @@ export function PromptsPage() {
         <div>
           <h1 className="text-2xl font-bold">System Prompts</h1>
           <p className="text-muted-foreground">
-            Configure AI behavior for{' '}
-            <span className="font-medium text-foreground">
-              {currentWorkspace.name}
-            </span>
+            Configure AI behavior
+            {currentWorkspace && activeTab === 'workspace' && (
+              <> for <span className="font-medium text-foreground">{currentWorkspace.name}</span></>
+            )}
           </p>
         </div>
-        <Button onClick={() => { void handlePreview() }} disabled={isLoading}>
-          <Eye className="mr-2 h-4 w-4" />
-          Preview
-        </Button>
+        {currentWorkspace && (
+          <Button onClick={() => { void handlePreview() }} disabled={isLoading}>
+            <Eye className="mr-2 h-4 w-4" />
+            Preview
+          </Button>
+        )}
       </div>
 
       {/* Error */}
@@ -478,7 +471,7 @@ export function PromptsPage() {
         onValueChange={(v) => { setActiveTab(v as 'workspace' | 'global') }}
       >
         <TabsList>
-          <TabsTrigger value="workspace">
+          <TabsTrigger value="workspace" disabled={!currentWorkspace}>
             <FolderOpen className="mr-2 h-4 w-4" />
             Workspace
           </TabsTrigger>
@@ -489,31 +482,40 @@ export function PromptsPage() {
         </TabsList>
 
         <TabsContent value="workspace" className="space-y-4 mt-4">
-          <p className="text-sm text-muted-foreground">
-            Customize prompts for this workspace. Overrides inherit from global defaults.
-          </p>
-          {isLoading ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          {!currentWorkspace ? (
+            <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+              <FolderOpen className="h-12 w-12 mb-4 opacity-50" />
+              <p>Select a workspace to configure workspace-specific overrides</p>
             </div>
           ) : (
-            <div className="space-y-4">
-              {mergedPrompts.map((layer) => {
-                const info = getLayerInfo(layer.layer)
-                if (!info) return null
-                return (
-                  <PromptLayerCard
-                    key={layer.layer}
-                    layer={layer}
-                    info={info}
-                    isGlobal={false}
-                    onEdit={() => { setEditingLayer(layer.layer) }}
-                    onToggle={(enabled) => { void handleToggle(layer.layer, enabled) }}
-                    onRevert={() => { void handleRevert(layer.layer) }}
-                  />
-                )
-              })}
-            </div>
+            <>
+              <p className="text-sm text-muted-foreground">
+                Customize prompts for this workspace. Overrides inherit from global defaults.
+              </p>
+              {isLoading ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {mergedPrompts.map((layer) => {
+                    const info = getLayerInfo(layer.layer)
+                    if (!info) return null
+                    return (
+                      <PromptLayerCard
+                        key={layer.layer}
+                        layer={layer}
+                        info={info}
+                        isGlobal={false}
+                        onEdit={() => { setEditingLayer(layer.layer) }}
+                        onToggle={(enabled) => { void handleToggle(layer.layer, enabled) }}
+                        onRevert={() => { void handleRevert(layer.layer) }}
+                      />
+                    )
+                  })}
+                </div>
+              )}
+            </>
           )}
         </TabsContent>
 
