@@ -13,13 +13,15 @@ import type {
   PongEvent,
   ErrorEvent,
 } from '../engine/types'
-import { FrogieAgent } from '../engine/frogie-agent'
+import { FrogieAgent, type ToolDefinition, type ToolExecutor } from '../engine/frogie-agent'
 import { SessionSync, type MessageStore } from '../engine/session-sync'
 import { BUILTIN_TOOLS, createBuiltinToolExecutor } from '../engine/builtin-tools'
 import { getWorkspace, getSettings, listEnabledMCPConfigs } from '../db'
 import type { MCPConfig } from '../db'
 import { WorkspaceMCPManager, createMCPToolExecutor } from '../mcp'
 import type { MCPServerConfig as MCPTransportConfig } from '../mcp'
+import { buildSystemPrompt, type PromptContext } from '../engine/prompt-builder'
+import { getGitStatus, getCurrentDate } from '../engine/prompt-context'
 
 /**
  * Active agent tracking per session
@@ -188,26 +190,12 @@ async function handleChat(
   // Create abort controller for this query
   const abortController = new AbortController()
 
-  // Create agent config
-  const config: AgentConfig = {
-    baseUrl: settings.llm_base_url,
-    apiKey: settings.llm_api_key,
-    model: model ?? session.model,
-    cwd: workspace.path,
-    maxTurns: settings.max_turns,
-    maxBudgetUsd: settings.max_budget_usd,
-    sessionId,
-    abortController,
-  }
-
-  // Create agent with restored conversation context
-  const agent = FrogieAgent.create(config, existingMessages)
-
-  // Inject built-in tools
+  // 1. Collect all tools FIRST (builtin + MCP)
   const builtinToolExecutor = createBuiltinToolExecutor(workspace.path)
-  agent.setTools(BUILTIN_TOOLS, builtinToolExecutor)
+  const allTools: ToolDefinition[] = [...BUILTIN_TOOLS]
+  let mcpToolExecutor: ToolExecutor | null = null
 
-  // Load MCP tools from workspace config and inject them
+  // Load MCP tools from workspace config
   const mcpConfigs = listEnabledMCPConfigs(state.db, workspaceId)
   if (mcpConfigs.length > 0) {
     try {
@@ -221,11 +209,11 @@ async function handleChat(
       // Connect all enabled MCP servers for this workspace
       await state.mcpManager.connectForWorkspace(workspaceId, transportConfigs)
 
-      // Get MCP tools and inject them (append to built-in tools)
+      // Get MCP tools (append to builtin tools)
       const mcpTools = state.mcpManager.getToolsForWorkspace(workspaceId)
       if (mcpTools.length > 0) {
-        const mcpToolExecutor = createMCPToolExecutor()
-        agent.addTools(mcpTools, mcpToolExecutor)
+        allTools.push(...mcpTools)
+        mcpToolExecutor = createMCPToolExecutor()
       }
     } catch (err) {
       // Log MCP errors but don't fail the chat - continue with built-in tools
@@ -234,6 +222,40 @@ async function handleChat(
         err instanceof Error ? err.message : 'Unknown error'
       )
     }
+  }
+
+  // 2. Build system prompt with complete tool list
+  const promptContext: PromptContext = {
+    workspace,
+    tools: allTools,
+    gitStatus: getGitStatus(workspace.path),
+    date: getCurrentDate(),
+  }
+  const systemPrompt = buildSystemPrompt(state.db, promptContext)
+
+  // 3. Create agent config with system prompt
+  const config: AgentConfig = {
+    baseUrl: settings.llm_base_url,
+    apiKey: settings.llm_api_key,
+    model: model ?? session.model,
+    cwd: workspace.path,
+    maxTurns: settings.max_turns,
+    maxBudgetUsd: settings.max_budget_usd,
+    sessionId,
+    abortController,
+    systemPrompt,
+  }
+
+  // 4. Create agent with restored conversation context
+  const agent = FrogieAgent.create(config, existingMessages)
+
+  // 5. Inject tools into agent (builtin first, then MCP if available)
+  agent.setTools(BUILTIN_TOOLS, builtinToolExecutor)
+  if (mcpToolExecutor) {
+    const mcpTools = allTools.filter(
+      (t) => !BUILTIN_TOOLS.some((b) => b.name === t.name)
+    )
+    agent.addTools(mcpTools, mcpToolExecutor)
   }
 
   // Track active session

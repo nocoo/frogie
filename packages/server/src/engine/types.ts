@@ -215,6 +215,14 @@ export interface AgentConfig {
 
   /** Abort controller for cancellation */
   abortController?: AbortController
+
+  /**
+   * Pre-built system prompt (optional)
+   *
+   * If provided, this will be used as the system prompt for the agent.
+   * Should be built using buildSystemPrompt() with all tools resolved.
+   */
+  systemPrompt?: string
 }
 
 /**

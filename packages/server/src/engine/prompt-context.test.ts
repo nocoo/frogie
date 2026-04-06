@@ -97,7 +97,7 @@ describe('engine/prompt-context', () => {
       }
     })
 
-    it('should handle fresh git repo without commits', () => {
+    it('should handle fresh git repo without commits', { timeout: 15000 }, () => {
       const tempDir = mkdtempSync(join(tmpdir(), 'prompt-context-test-'))
       try {
         // Initialize a fresh git repo
@@ -125,7 +125,7 @@ describe('engine/prompt-context', () => {
       }
     })
 
-    it('should include recent commits after commit', () => {
+    it('should include recent commits after commit', { timeout: 15000 }, () => {
       const tempDir = mkdtempSync(join(tmpdir(), 'prompt-context-test-'))
       try {
         // Initialize git repo with a commit

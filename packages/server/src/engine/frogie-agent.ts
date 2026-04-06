@@ -260,6 +260,7 @@ export class FrogieAgent {
       const stream = this.client.messages.stream({
         model: this.config.model,
         max_tokens: 8192,
+        ...(this.config.systemPrompt && { system: this.config.systemPrompt }),
         messages: this.messages.map((m) => ({
           role: m.role,
           content: m.content,
