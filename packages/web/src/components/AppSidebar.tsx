@@ -5,6 +5,7 @@ import {
   ChevronUp,
   PanelLeft,
   LogOut,
+  FileText,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useNavigate, useLocation } from 'react-router'
@@ -41,6 +42,7 @@ const NAV_GROUPS: NavGroup[] = [
     defaultOpen: true,
     items: [
       { title: 'Workspaces', icon: FolderOpen, path: '/workspaces' },
+      { title: 'Prompts', icon: FileText, path: '/prompts' },
       { title: 'Settings', icon: Settings, path: '/settings' },
     ],
   },

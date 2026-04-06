@@ -126,3 +126,118 @@ export interface ApiError {
     message: string
   }
 }
+
+// =============================================================================
+// Prompt Types
+// =============================================================================
+
+/**
+ * Valid prompt layer names
+ */
+export type PromptLayerName =
+  | 'identity'
+  | 'system_rules'
+  | 'tool_descriptions'
+  | 'git_context'
+  | 'project_instructions'
+  | 'working_directory'
+  | 'date_context'
+
+/**
+ * Prompt layer display information
+ */
+export interface PromptLayerInfo {
+  name: PromptLayerName
+  title: string
+  description: string
+}
+
+/**
+ * All prompt layers with metadata
+ */
+export const PROMPT_LAYERS: PromptLayerInfo[] = [
+  {
+    name: 'identity',
+    title: 'Identity',
+    description: 'AI basic identity and behavior rules',
+  },
+  {
+    name: 'system_rules',
+    title: 'System Rules',
+    description: 'Tool usage rules, permission settings, output format',
+  },
+  {
+    name: 'tool_descriptions',
+    title: 'Tool Descriptions',
+    description: 'Available tools list (auto-generated from {{tools}})',
+  },
+  {
+    name: 'git_context',
+    title: 'Git Context',
+    description: 'Git status: branch, recent commits, working tree',
+  },
+  {
+    name: 'project_instructions',
+    title: 'Project Instructions',
+    description: 'Project-specific instructions (CLAUDE.md style)',
+  },
+  {
+    name: 'working_directory',
+    title: 'Working Directory',
+    description: 'Current working directory path',
+  },
+  {
+    name: 'date_context',
+    title: 'Date Context',
+    description: 'Current date information',
+  },
+]
+
+/**
+ * Global prompt layer data
+ */
+export interface GlobalPrompt {
+  layer: PromptLayerName
+  content: string
+  enabled: boolean
+  isTemplate: boolean
+  updatedAt: number
+}
+
+/**
+ * Workspace prompt override data
+ */
+export interface WorkspacePrompt {
+  id: string
+  workspaceId: string
+  layer: PromptLayerName
+  content: string
+  enabled: boolean
+  isTemplate: boolean
+  createdAt: number
+  updatedAt: number
+}
+
+/**
+ * Merged prompt layer (global + workspace override)
+ */
+export interface MergedPromptLayer {
+  layer: PromptLayerName
+  content: string
+  enabled: boolean
+  isTemplate: boolean
+  isGlobal: boolean
+}
+
+/**
+ * Prompt preview response
+ */
+export interface PromptPreviewResponse {
+  assembledPrompt: string
+  tokenEstimate: number
+  layers: {
+    layer: PromptLayerName
+    content: string
+    enabled: boolean
+  }[]
+}

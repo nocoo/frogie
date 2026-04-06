@@ -17,6 +17,7 @@ import { createSettingsRouter } from './routes/settings'
 import { createWorkspacesRouter } from './routes/workspaces'
 import { createSessionsRouter } from './routes/sessions'
 import { createMCPRouter } from './routes/mcp'
+import { createPromptsRouter } from './routes/prompts'
 import { createWSHandler, type ConnectionState } from './routes/ws-chat'
 import { createAuthRouter, authMiddleware, type AuthConfig } from './auth'
 
@@ -98,6 +99,7 @@ export function startServer(config: ServerConfig = {}): FrogieServer {
   app.route('/api/workspaces', createWorkspacesRouter(db))
   app.route('/api/workspaces/:wid/sessions', createSessionsRouter(db, messageStore))
   app.route('/api/workspaces/:wid/mcp', createMCPRouter(db, mcpManager))
+  app.route('/api/prompts', createPromptsRouter(db))
 
   // Create WebSocket handler
   const wsHandler = createWSHandler(db, messageStore, mcpManager)
