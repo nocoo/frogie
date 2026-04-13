@@ -1,6 +1,0 @@
-[allowlist]
-description = "Allow common false positives"
-paths = [
-  '''(^|/)bun\.lock$''',
-  '''(^|/)pnpm-lock\.yaml$''',
-]
