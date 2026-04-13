@@ -1,0 +1,35 @@
+[[IgnoredVulns]]
+id = "GHSA-92pp-h63x-v22m"
+reason = "Indirect dependency, no direct exposure"
+
+[[IgnoredVulns]]
+id = "GHSA-26pp-8wgv-hjvm"
+reason = "Indirect dependency, no direct exposure"
+
+[[IgnoredVulns]]
+id = "GHSA-r5rp-j6wh-rvv4"
+reason = "Indirect dependency, no direct exposure"
+
+[[IgnoredVulns]]
+id = "GHSA-wmmm-f939-6g9c"
+reason = "Indirect dependency, no direct exposure"
+
+[[IgnoredVulns]]
+id = "GHSA-xf4j-xp2r-rqqx"
+reason = "Indirect dependency, no direct exposure"
+
+[[IgnoredVulns]]
+id = "GHSA-xpcf-pg52-r92g"
+reason = "Indirect dependency, no direct exposure"
+
+[[IgnoredVulns]]
+id = "GHSA-4w7w-66w2-5vf9"
+reason = "Indirect dependency, no direct exposure"
+
+[[IgnoredVulns]]
+id = "GHSA-p9ff-h696-f583"
+reason = "Indirect dependency, no direct exposure"
+
+[[IgnoredVulns]]
+id = "GHSA-v2wj-q39q-566r"
+reason = "Indirect dependency, no direct exposure"
