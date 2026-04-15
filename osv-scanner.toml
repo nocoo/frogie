@@ -1,0 +1,6 @@
+[[IgnoredVulns]]
+# Add vulnerability IDs to ignore here, with a reason and expiry date.
+# Example:
+# id = "GHSA-xxxx-xxxx-xxxx"
+# reason = "Not applicable to this project"
+# ignoreUntil = 2026-07-16T00:00:00Z
