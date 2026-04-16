@@ -1,0 +1,52 @@
+# OSV-Scanner ignore list — transitive deps pinned by upstream packages
+
+[[IgnoredVulns]]
+# @hono/node-server 1.19.12
+id = "GHSA-92pp-h63x-v22m"
+reason = "Pinned by upstream; update requires testing"
+
+[[IgnoredVulns]]
+# hono 4.12.9
+id = "GHSA-26pp-8wgv-hjvm"
+reason = "Pinned by upstream; update requires testing"
+
+[[IgnoredVulns]]
+# hono 4.12.9
+id = "GHSA-458j-xx4x-4375"
+reason = "Pinned by upstream; update requires testing"
+
+[[IgnoredVulns]]
+# hono 4.12.9
+id = "GHSA-r5rp-j6wh-rvv4"
+reason = "Pinned by upstream; update requires testing"
+
+[[IgnoredVulns]]
+# hono 4.12.9
+id = "GHSA-wmmm-f939-6g9c"
+reason = "Pinned by upstream; update requires testing"
+
+[[IgnoredVulns]]
+# hono 4.12.9
+id = "GHSA-xf4j-xp2r-rqqx"
+reason = "Pinned by upstream; update requires testing"
+
+[[IgnoredVulns]]
+# hono 4.12.9
+id = "GHSA-xpcf-pg52-r92g"
+reason = "Pinned by upstream; update requires testing"
+
+[[IgnoredVulns]]
+# vite 8.0.3
+id = "GHSA-4w7w-66w2-5vf9"
+reason = "Pinned by upstream; update requires testing"
+
+[[IgnoredVulns]]
+# vite 8.0.3
+id = "GHSA-p9ff-h696-f583"
+reason = "Pinned by upstream; update requires testing"
+
+[[IgnoredVulns]]
+# vite 8.0.3
+id = "GHSA-v2wj-q39q-566r"
+reason = "Pinned by upstream; update requires testing"
+

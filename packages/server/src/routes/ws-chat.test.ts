@@ -2,6 +2,28 @@
  * WebSocket Chat Handler Tests
  */
 
+/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-explicit-any */
+// Polyfill WebSocket for CI environments where it is not globally available
+if (typeof (globalThis as any).WebSocket === "undefined") {
+  (globalThis as any).WebSocket = class WebSocket {
+    static readonly CONNECTING = 0;
+    static readonly OPEN = 1;
+    static readonly CLOSING = 2;
+    static readonly CLOSED = 3;
+    readonly CONNECTING = 0;
+    readonly OPEN = 1;
+    readonly CLOSING = 2;
+    readonly CLOSED = 3;
+    readyState = 1;
+    send() { /* noop */ }
+    close() { /* noop */ }
+    addEventListener() { /* noop */ }
+    removeEventListener() { /* noop */ }
+    dispatchEvent() { return true; }
+  };
+}
+/* eslint-enable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-explicit-any */
+
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { mkdirSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
