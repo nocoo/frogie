@@ -2,25 +2,25 @@
  * WebSocket Chat Handler Tests
  */
 
-// Polyfill WebSocket for CI environments where it's not globally available
-if (typeof globalThis.WebSocket === 'undefined') {
-  (globalThis as any).WebSocket = class WebSocket {
-    static readonly CONNECTING = 0;
-    static readonly OPEN = 1;
-    static readonly CLOSING = 2;
-    static readonly CLOSED = 3;
-    readonly CONNECTING = 0;
-    readonly OPEN = 1;
-    readonly CLOSING = 2;
-    readonly CLOSED = 3;
-    readyState = 1;
-    send() {}
-    close() {}
-    addEventListener() {}
-    removeEventListener() {}
-    dispatchEvent() { return true; }
-  } as any;
-}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { mkdirSync, rmSync } from 'node:fs'
