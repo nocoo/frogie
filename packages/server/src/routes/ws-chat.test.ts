@@ -90,16 +90,22 @@ function removeTempDir(dir: string): void {
 }
 
 /**
- * Mock WebSocket implementation
+ * WebSocket readyState constants (avoids dependency on global WebSocket)
  */
-function createMockWebSocket(): WebSocket & {
-  sentMessages: string[]
-  mockClose: () => void
-} {
+const WS_OPEN = 1
+
+/**
+ * Mock WebSocket implementation
+ *
+ * Uses a plain object that satisfies the WebSocket interface without
+ * relying on the global WebSocket class (which is unavailable in
+ * Node.js / vitest "node" environment).
+ */
+function createMockWebSocket() {
   const sentMessages: string[] = []
 
   const result = {
-    readyState: WebSocket.OPEN,
+    readyState: WS_OPEN,
     send: vi.fn((data: string) => {
       sentMessages.push(data)
     }),
