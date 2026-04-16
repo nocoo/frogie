@@ -2,7 +2,7 @@
  * WebSocket Chat Handler Tests
  */
 
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-explicit-any, @typescript-eslint/no-empty-function */
+/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-explicit-any */
 // Polyfill WebSocket for CI environments where it is not globally available
 if (typeof (globalThis as any).WebSocket === "undefined") {
   (globalThis as any).WebSocket = class WebSocket {
@@ -22,7 +22,7 @@ if (typeof (globalThis as any).WebSocket === "undefined") {
     dispatchEvent() { return true; }
   };
 }
-/* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-explicit-any, @typescript-eslint/no-empty-function */
+/* eslint-enable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-explicit-any */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { mkdirSync, rmSync } from 'node:fs'
