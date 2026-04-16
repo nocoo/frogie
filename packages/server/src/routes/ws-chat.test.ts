@@ -2,6 +2,26 @@
  * WebSocket Chat Handler Tests
  */
 
+// Polyfill WebSocket for CI environments where it's not globally available
+if (typeof globalThis.WebSocket === 'undefined') {
+  (globalThis as any).WebSocket = class WebSocket {
+    static readonly CONNECTING = 0;
+    static readonly OPEN = 1;
+    static readonly CLOSING = 2;
+    static readonly CLOSED = 3;
+    readonly CONNECTING = 0;
+    readonly OPEN = 1;
+    readonly CLOSING = 2;
+    readonly CLOSED = 3;
+    readyState = 1;
+    send() {}
+    close() {}
+    addEventListener() {}
+    removeEventListener() {}
+    dispatchEvent() { return true; }
+  } as any;
+}
+
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { mkdirSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
@@ -90,22 +110,16 @@ function removeTempDir(dir: string): void {
 }
 
 /**
- * WebSocket readyState constants (avoids dependency on global WebSocket)
- */
-const WS_OPEN = 1
-
-/**
  * Mock WebSocket implementation
- *
- * Uses a plain object that satisfies the WebSocket interface without
- * relying on the global WebSocket class (which is unavailable in
- * Node.js / vitest "node" environment).
  */
-function createMockWebSocket() {
+function createMockWebSocket(): WebSocket & {
+  sentMessages: string[]
+  mockClose: () => void
+} {
   const sentMessages: string[] = []
 
   const result = {
-    readyState: WS_OPEN,
+    readyState: WebSocket.OPEN,
     send: vi.fn((data: string) => {
       sentMessages.push(data)
     }),
