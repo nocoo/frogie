@@ -475,5 +475,26 @@ describe('routes/workspaces', () => {
       })
       expect(res.status).toBe(400)
     })
+
+    it('should return 500 when Bun.spawn is unavailable (Node test env)', async () => {
+      const dir = createTempDir('open-ok')
+      tempDirs.push(dir)
+      const workspace = createWorkspace(db, { name: 'OK', path: dir })
+
+      const res = await app.request(`/api/workspaces/${workspace.id}/open`, {
+        method: 'POST',
+      })
+      // In Node, `Bun` is undefined → caught → 500
+      expect(res.status).toBe(500)
+    })
+  })
+
+  describe('POST /api/workspaces/browse', () => {
+    it('should return 500 when Bun.spawn is unavailable (Node test env)', async () => {
+      const res = await app.request('/api/workspaces/browse', {
+        method: 'POST',
+      })
+      expect(res.status).toBe(500)
+    })
   })
 })

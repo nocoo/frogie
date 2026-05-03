@@ -378,4 +378,67 @@ describe('routes/mcp', () => {
       expect(res.status).toBe(400)
     })
   })
+
+  describe('POST /api/workspaces/:wid/mcp/:name/reconnect', () => {
+    it('should return 404 for non-existent workspace', async () => {
+      const res = await app.request(
+        '/api/workspaces/missing/mcp/anything/reconnect',
+        { method: 'POST' }
+      )
+      expect(res.status).toBe(404)
+    })
+
+    it('should return 404 for non-existent MCP config', async () => {
+      const res = await app.request(
+        `/api/workspaces/${workspaceId}/mcp/missing/reconnect`,
+        { method: 'POST' }
+      )
+      expect(res.status).toBe(404)
+    })
+
+    it('should report success=false when MCP server is disabled', async () => {
+      // Create disabled config
+      await app.request(`/api/workspaces/${workspaceId}/mcp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: 'disabled-server',
+          type: 'stdio',
+          config: { command: 'node' },
+          enabled: false,
+        }),
+      })
+
+      const res = await app.request(
+        `/api/workspaces/${workspaceId}/mcp/disabled-server/reconnect`,
+        { method: 'POST' }
+      )
+      expect(res.status).toBe(200)
+      const body = (await res.json()) as { success: boolean; message: string }
+      expect(body.success).toBe(false)
+      expect(body.message).toContain('disabled')
+    })
+
+    it('should return 500 when reconnect fails (no real MCP server)', async () => {
+      await app.request(`/api/workspaces/${workspaceId}/mcp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: 'enabled-server',
+          type: 'stdio',
+          config: { command: '/nonexistent-bin-xyz' },
+          enabled: true,
+        }),
+      })
+
+      const res = await app.request(
+        `/api/workspaces/${workspaceId}/mcp/enabled-server/reconnect`,
+        { method: 'POST' }
+      )
+      expect(res.status).toBe(500)
+      const body = (await res.json()) as { success: boolean; message: string }
+      expect(body.success).toBe(false)
+      expect(body.message).toContain('Failed to reconnect')
+    })
+  })
 })

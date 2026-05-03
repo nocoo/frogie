@@ -1,8 +1,13 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { mkdtempSync, rmSync, existsSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { initDb, closeDb, runMigrations, createWorkspace } from '../db'
 import {
   SessionSync,
   InMemoryMessageStore,
+  FileMessageStore,
+  createSessionSync,
 } from './session-sync'
 import { getTestDbPath, cleanupTestDb } from '../test/db-utils'
 import type { Message } from './types'
@@ -311,6 +316,90 @@ describe('engine/session-sync', () => {
 
       expect(await store.loadMessages('session1')).toEqual([])
       expect(await store.loadMessages('session2')).toEqual([])
+    })
+  })
+
+  describe('FileMessageStore', () => {
+    let baseDir: string
+
+    beforeEach(() => {
+      baseDir = mkdtempSync(join(tmpdir(), 'frogie-fms-'))
+    })
+
+    afterEach(() => {
+      rmSync(baseDir, { recursive: true, force: true })
+    })
+
+    it('should return empty array when transcript file does not exist', async () => {
+      const store = new FileMessageStore(baseDir)
+      const messages = await store.loadMessages('missing-session')
+      expect(messages).toEqual([])
+    })
+
+    it('should round-trip save/load messages', async () => {
+      const store = new FileMessageStore(baseDir)
+      const sample: Message[] = [
+        { role: 'user', content: 'Hi' },
+        { role: 'assistant', content: 'Hello!' },
+      ]
+      await store.saveMessages('s1', sample)
+      const loaded = await store.loadMessages('s1')
+      expect(loaded).toEqual(sample)
+    })
+
+    it('should overwrite previous messages on save', async () => {
+      const store = new FileMessageStore(baseDir)
+      await store.saveMessages('s1', [{ role: 'user', content: 'first' }])
+      await store.saveMessages('s1', [{ role: 'user', content: 'second' }])
+      const loaded = await store.loadMessages('s1')
+      expect(loaded).toEqual([{ role: 'user', content: 'second' }])
+    })
+
+    it('should delete session files', async () => {
+      const store = new FileMessageStore(baseDir)
+      await store.saveMessages('s1', [{ role: 'user', content: 'x' }])
+      const sessionDir = join(baseDir, 'sessions', 's1')
+      expect(existsSync(sessionDir)).toBe(true)
+
+      await store.deleteSession('s1')
+      expect(existsSync(sessionDir)).toBe(false)
+    })
+
+    it('should not throw when deleting non-existent session', async () => {
+      const store = new FileMessageStore(baseDir)
+      await expect(store.deleteSession('never-existed')).resolves.toBeUndefined()
+    })
+
+    it('should return empty array when file is corrupt JSON', async () => {
+      const store = new FileMessageStore(baseDir)
+      const { mkdirSync, writeFileSync } = await import('node:fs')
+      const sessionDir = join(baseDir, 'sessions', 'corrupt')
+      mkdirSync(sessionDir, { recursive: true })
+      writeFileSync(join(sessionDir, 'transcript.json'), '{invalid')
+      const loaded = await store.loadMessages('corrupt')
+      expect(loaded).toEqual([])
+    })
+  })
+
+  describe('createSessionSync factory', () => {
+    let baseDir: string
+
+    beforeEach(() => {
+      baseDir = mkdtempSync(join(tmpdir(), 'frogie-css-'))
+    })
+
+    afterEach(() => {
+      rmSync(baseDir, { recursive: true, force: true })
+    })
+
+    it('should construct a SessionSync backed by a FileMessageStore', async () => {
+      const db = initDb(testDbPath)
+      const sync = createSessionSync(db, baseDir)
+      const sessionId = sync.createSession(workspaceId, 'Factory', 'claude-sonnet-4-6')
+      await sync.saveMessages(sessionId, [{ role: 'user', content: 'hi' }])
+
+      const result = await sync.getSessionWithMessages(sessionId)
+      expect(result?.messages).toEqual([{ role: 'user', content: 'hi' }])
     })
   })
 })

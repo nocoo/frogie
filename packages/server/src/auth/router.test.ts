@@ -112,6 +112,57 @@ describe('auth/router', () => {
       expect(cookies).toContain('frogie-session=')
     })
 
+    it('should redirect when token exchange fails', async () => {
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        text: () => Promise.resolve('bad request'),
+      })
+
+      const res = await app.request('/api/auth/callback?code=bad-code')
+      expect(res.status).toBe(302)
+      expect(res.headers.get('Location')).toBe('/login?error=TokenExchangeFailed')
+
+      consoleSpy.mockRestore()
+    })
+
+    it('should redirect when user info fetch fails', async () => {
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            access_token: 'tok',
+            token_type: 'Bearer',
+            expires_in: 3600,
+          }),
+      })
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        text: () => Promise.resolve('forbidden'),
+      })
+
+      const res = await app.request('/api/auth/callback?code=test-code')
+      expect(res.status).toBe(302)
+      expect(res.headers.get('Location')).toBe('/login?error=UserInfoFailed')
+
+      consoleSpy.mockRestore()
+    })
+
+    it('should redirect on unexpected error during callback', async () => {
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+      mockFetch.mockRejectedValueOnce(new Error('network down'))
+
+      const res = await app.request('/api/auth/callback?code=test-code')
+      expect(res.status).toBe(302)
+      expect(res.headers.get('Location')).toBe('/login?error=AuthFailed')
+
+      consoleSpy.mockRestore()
+    })
+
     it('should redirect on access denied for restricted emails', async () => {
       const restrictedApp = new Hono()
       const restrictedConfig: AuthConfig = {
@@ -148,6 +199,29 @@ describe('auth/router', () => {
 
       expect(res.status).toBe(302)
       expect(res.headers.get('Location')).toBe('/login?error=AccessDenied')
+    })
+  })
+
+  describe('GET /api/auth/me edge cases', () => {
+    it('should clear cookie and return null when JWT references deleted user', async () => {
+      // Mint a JWT for a user that does not exist in the DB
+      const orphanToken = await createToken(
+        { sub: 'nonexistent-user-id', email: 'ghost@example.com' },
+        testSecret,
+        3600
+      )
+
+      const res = await app.request('/api/auth/me', {
+        headers: { Cookie: `frogie-session=${orphanToken}` },
+      })
+
+      expect(res.status).toBe(200)
+      const data = (await res.json()) as { user: unknown }
+      expect(data.user).toBeNull()
+
+      // Should also have asked the browser to delete the cookie
+      const setCookie = res.headers.get('Set-Cookie')
+      expect(setCookie).toContain('frogie-session=;')
     })
   })
 

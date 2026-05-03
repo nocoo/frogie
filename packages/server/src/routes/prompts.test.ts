@@ -284,6 +284,22 @@ describe('routes/prompts', () => {
     })
   })
 
+  describe('DELETE /api/prompts/:workspaceId/:layer edge cases', () => {
+    it('should return 400 for invalid layer name', async () => {
+      const res = await app.request(`/api/prompts/${workspaceId}/bogus_layer`, {
+        method: 'DELETE',
+      })
+      expect(res.status).toBe(400)
+    })
+
+    it('should return 404 for non-existent workspace', async () => {
+      const res = await app.request('/api/prompts/missing-ws/identity', {
+        method: 'DELETE',
+      })
+      expect(res.status).toBe(404)
+    })
+  })
+
   describe('DELETE /api/prompts/:workspaceId/:layer', () => {
     it('should delete workspace override', async () => {
       // Create override
@@ -401,6 +417,39 @@ describe('routes/prompts', () => {
         body: JSON.stringify({ workspaceId: 'nonexistent' }),
       })
       expect(res.status).toBe(404)
+    })
+
+    it('should return 400 when workspaceId is missing', async () => {
+      const res = await app.request('/api/prompts/preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      })
+      expect(res.status).toBe(400)
+    })
+
+    it('should return 400 when body is invalid JSON', async () => {
+      const res = await app.request('/api/prompts/preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{not-json',
+      })
+      expect(res.status).toBe(400)
+    })
+
+    it('should reject overrides that exceed per-layer schema limits', async () => {
+      // Schema rejects override content > 10240 chars
+      const huge = 'x'.repeat(11_000)
+
+      const res = await app.request('/api/prompts/preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          workspaceId,
+          overrides: { identity: { content: huge } },
+        }),
+      })
+      expect(res.status).toBe(400)
     })
   })
 })
