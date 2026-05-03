@@ -1,9 +1,12 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { Hono } from 'hono'
-import { initDb, closeDb, runMigrations } from '../db'
+import { initDb, closeDb, runMigrations, updateSettings } from '../db'
 import { createSettingsRouter } from './settings'
 import { getTestDbPath, cleanupTestDb } from '../test/db-utils'
 import { ApiError, ErrorCodes } from '../middleware'
+
+const mockFetch = vi.fn()
+vi.stubGlobal('fetch', mockFetch)
 
 /**
  * Settings API response type
@@ -142,6 +145,146 @@ describe('routes/settings', () => {
       })
 
       expect(res.status).toBe(400)
+    })
+
+    it('should reject base URL ending with /v1', async () => {
+      const res = await app.request('/api/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ llm_base_url: 'https://api.example.com/v1' }),
+      })
+      expect(res.status).toBe(400)
+    })
+
+    it('should reject empty model string', async () => {
+      const res = await app.request('/api/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ llm_model: '' }),
+      })
+      expect(res.status).toBe(400)
+    })
+
+    it('should accept empty base URL (clears it)', async () => {
+      const res = await app.request('/api/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ llm_base_url: '' }),
+      })
+      expect(res.status).toBe(200)
+    })
+  })
+
+  describe('POST /api/settings/test-api', () => {
+    let db: ReturnType<typeof initDb>
+
+    beforeEach(() => {
+      mockFetch.mockReset()
+      // Re-acquire db reference for in-test mutations
+      db = initDb(testDbPath)
+    })
+
+    it('should reject when no API key provided and none stored', async () => {
+      const res = await app.request('/api/settings/test-api', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      })
+      expect(res.status).toBe(400)
+      const body = (await res.json()) as { success: boolean; error: string }
+      expect(body.success).toBe(false)
+      expect(body.error).toContain('API key')
+    })
+
+    it('should reject invalid base URL', async () => {
+      const res = await app.request('/api/settings/test-api', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ base_url: 'not-a-url', api_key: 'sk-test' }),
+      })
+      expect(res.status).toBe(400)
+    })
+
+    it('should reject base URL ending with /v1', async () => {
+      const res = await app.request('/api/settings/test-api', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ base_url: 'https://api.example.com/v1/', api_key: 'sk-test' }),
+      })
+      expect(res.status).toBe(400)
+    })
+
+    it('should return models on successful API call', async () => {
+      mockFetch.mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            data: [
+              { id: 'claude-opus-4', display_name: 'Claude Opus 4', created_at: '2026-01-15' },
+              { id: 'claude-sonnet-4-6', display_name: 'Claude Sonnet 4.6', created_at: '2026-03-20' },
+            ],
+            has_more: false,
+            first_id: 'claude-opus-4',
+            last_id: 'claude-sonnet-4-6',
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      )
+
+      const res = await app.request('/api/settings/test-api', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          base_url: 'https://api.example.com',
+          api_key: 'sk-test-key',
+        }),
+      })
+
+      expect(res.status).toBe(200)
+      const body = (await res.json()) as {
+        success: boolean
+        models: { id: string; name: string; createdAt: string }[]
+      }
+      expect(body.success).toBe(true)
+      expect(body.models).toHaveLength(2)
+      // Sorted by createdAt desc — Sonnet 4.6 (2026-03-20) first
+      expect(body.models[0]?.id).toBe('claude-sonnet-4-6')
+    })
+
+    it('should fall back to stored credentials when none provided in body', async () => {
+      updateSettings(db, { llm_api_key: 'sk-stored', llm_base_url: 'https://stored.example.com' })
+
+      mockFetch.mockResolvedValueOnce(
+        new Response(JSON.stringify({ data: [], has_more: false, first_id: null, last_id: null }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      )
+
+      const res = await app.request('/api/settings/test-api', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      })
+
+      expect(res.status).toBe(200)
+    })
+
+    it('should return 400 with error message when API call throws', async () => {
+      mockFetch.mockRejectedValueOnce(new Error('Network down'))
+
+      const res = await app.request('/api/settings/test-api', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          base_url: 'https://api.example.com',
+          api_key: 'sk-test',
+        }),
+      })
+
+      expect(res.status).toBe(400)
+      const body = (await res.json()) as { success: boolean; error: string }
+      expect(body.success).toBe(false)
+      expect(body.error).toBeDefined()
     })
   })
 })

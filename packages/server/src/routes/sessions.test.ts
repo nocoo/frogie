@@ -346,4 +346,195 @@ describe('routes/sessions', () => {
       expect(res.status).toBe(404)
     })
   })
+
+  describe('PATCH /api/workspaces/:wid/sessions/:id', () => {
+    async function createTestSession(name: string | null = 'Original'): Promise<SessionResponse> {
+      const res = await app.request(`/api/workspaces/${workspaceId}/sessions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, model: 'claude-sonnet-4-6' }),
+      })
+      return (await res.json()) as SessionResponse
+    }
+
+    it('should update session name', async () => {
+      const created = await createTestSession()
+      const res = await app.request(
+        `/api/workspaces/${workspaceId}/sessions/${created.id}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: 'Renamed' }),
+        }
+      )
+      expect(res.status).toBe(200)
+      const body = (await res.json()) as SessionResponse
+      expect(body.name).toBe('Renamed')
+    })
+
+    it('should clear session name with null', async () => {
+      const created = await createTestSession()
+      const res = await app.request(
+        `/api/workspaces/${workspaceId}/sessions/${created.id}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: null }),
+        }
+      )
+      expect(res.status).toBe(200)
+      const body = (await res.json()) as SessionResponse
+      expect(body.name).toBeNull()
+    })
+
+    it('should update model', async () => {
+      const created = await createTestSession()
+      const res = await app.request(
+        `/api/workspaces/${workspaceId}/sessions/${created.id}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ model: 'claude-opus-4' }),
+        }
+      )
+      expect(res.status).toBe(200)
+      const body = (await res.json()) as SessionResponse
+      expect(body.model).toBe('claude-opus-4')
+    })
+
+    it('should accept empty body without changes', async () => {
+      const created = await createTestSession()
+      const res = await app.request(
+        `/api/workspaces/${workspaceId}/sessions/${created.id}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({}),
+        }
+      )
+      expect(res.status).toBe(200)
+    })
+
+    it('should reject empty model string', async () => {
+      const created = await createTestSession()
+      const res = await app.request(
+        `/api/workspaces/${workspaceId}/sessions/${created.id}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ model: '' }),
+        }
+      )
+      expect(res.status).toBe(400)
+    })
+
+    it('should return 404 for non-existent workspace', async () => {
+      const res = await app.request(
+        '/api/workspaces/missing/sessions/anything',
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: 'X' }),
+        }
+      )
+      expect(res.status).toBe(404)
+    })
+
+    it('should return 404 for session in different workspace', async () => {
+      const created = await createTestSession()
+      const dir2 = createTempDir('ws-patch')
+      tempDirs.push(dir2)
+      const ws2 = createWorkspace(db, { name: 'WS2', path: dir2 })
+
+      const res = await app.request(
+        `/api/workspaces/${ws2.id}/sessions/${created.id}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: 'X' }),
+        }
+      )
+      expect(res.status).toBe(404)
+    })
+  })
+
+  describe('POST /api/workspaces/:wid/sessions/:id/fork', () => {
+    it('should fork session preserving messages', async () => {
+      const createRes = await app.request(`/api/workspaces/${workspaceId}/sessions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'Source', model: 'claude-sonnet-4-6' }),
+      })
+      const created = (await createRes.json()) as SessionResponse
+
+      await messageStore.saveMessages(created.id, [
+        { role: 'user', content: 'Hello' },
+        { role: 'assistant', content: 'Hi' },
+      ] as Parameters<typeof messageStore.saveMessages>[1])
+
+      const res = await app.request(
+        `/api/workspaces/${workspaceId}/sessions/${created.id}/fork`,
+        { method: 'POST' }
+      )
+      expect(res.status).toBe(201)
+      const body = (await res.json()) as SessionResponse
+      expect(body.name).toBe('Source (fork)')
+      expect(body.id).not.toBe(created.id)
+
+      const messages = await messageStore.loadMessages(body.id)
+      expect(messages).toHaveLength(2)
+    })
+
+    it('should fork session without messages', async () => {
+      const createRes = await app.request(`/api/workspaces/${workspaceId}/sessions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: 'claude-sonnet-4-6' }),
+      })
+      const created = (await createRes.json()) as SessionResponse
+
+      const res = await app.request(
+        `/api/workspaces/${workspaceId}/sessions/${created.id}/fork`,
+        { method: 'POST' }
+      )
+      expect(res.status).toBe(201)
+      const body = (await res.json()) as SessionResponse
+      expect(body.name).toBe('Session (fork)')
+    })
+
+    it('should return 404 for non-existent workspace', async () => {
+      const res = await app.request(
+        '/api/workspaces/missing/sessions/anything/fork',
+        { method: 'POST' }
+      )
+      expect(res.status).toBe(404)
+    })
+
+    it('should return 404 for non-existent session', async () => {
+      const res = await app.request(
+        `/api/workspaces/${workspaceId}/sessions/missing/fork`,
+        { method: 'POST' }
+      )
+      expect(res.status).toBe(404)
+    })
+
+    it('should return 404 for session in different workspace', async () => {
+      const createRes = await app.request(`/api/workspaces/${workspaceId}/sessions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: 'claude-sonnet-4-6' }),
+      })
+      const created = (await createRes.json()) as SessionResponse
+
+      const dir2 = createTempDir('ws-fork')
+      tempDirs.push(dir2)
+      const ws2 = createWorkspace(db, { name: 'Other', path: dir2 })
+
+      const res = await app.request(
+        `/api/workspaces/${ws2.id}/sessions/${created.id}/fork`,
+        { method: 'POST' }
+      )
+      expect(res.status).toBe(404)
+    })
+  })
 })
