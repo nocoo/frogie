@@ -28,12 +28,10 @@ export default defineConfig({
         'src/viewmodels/prompts.viewmodel.ts',
       ],
       thresholds: {
-        // Targets reflect what is currently testable: viewmodels still have
-        // gaps and many branches are defensive null guards.
-        lines: 75,
-        functions: 70,
-        branches: 50,
-        statements: 70,
+        lines: 95,
+        functions: 95,
+        branches: 85,
+        statements: 95,
       },
     },
   },
