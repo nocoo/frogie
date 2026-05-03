@@ -157,4 +157,46 @@ describe('settings.viewmodel', () => {
       expect(useSettingsStore.getState().error).toBeNull()
     })
   })
+
+  describe('error fallbacks', () => {
+    it('fetchSettings should fall back to default error message', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        json: () => Promise.resolve({}),
+      })
+
+      await useSettingsStore.getState().fetchSettings()
+
+      expect(useSettingsStore.getState().error).toBe('Failed to fetch settings')
+    })
+
+    it('fetchSettings should report unknown error on non-Error rejection', async () => {
+      mockFetch.mockRejectedValueOnce('boom')
+
+      await useSettingsStore.getState().fetchSettings()
+
+      expect(useSettingsStore.getState().error).toBe('Unknown error')
+    })
+
+    it('updateSettings should fall back to default error message', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        json: () => Promise.resolve({}),
+      })
+
+      await useSettingsStore.getState().updateSettings({ max_turns: 1 })
+
+      expect(useSettingsStore.getState().error).toBe(
+        'Failed to update settings'
+      )
+    })
+
+    it('updateSettings should report unknown error on non-Error rejection', async () => {
+      mockFetch.mockRejectedValueOnce('boom')
+
+      await useSettingsStore.getState().updateSettings({ max_turns: 1 })
+
+      expect(useSettingsStore.getState().error).toBe('Unknown error')
+    })
+  })
 })

@@ -299,4 +299,215 @@ describe('session.viewmodel', () => {
       expect(useSessionStore.getState().error).toBeNull()
     })
   })
+
+  describe('updateSession', () => {
+    const baseSession = {
+      id: 'sess-1',
+      workspaceId: 'ws-1',
+      name: 'Old',
+      model: 'claude-sonnet',
+      createdAt: 1000,
+      updatedAt: 2000,
+      messageCount: 0,
+      totalInputTokens: 0,
+      totalOutputTokens: 0,
+      totalCostUsd: 0,
+    }
+
+    it('should update session and replace currentSession when matching', async () => {
+      const updated = { ...baseSession, name: 'Renamed' }
+      useSessionStore.setState({
+        sessions: [baseSession],
+        currentSession: baseSession,
+      })
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(updated),
+      })
+
+      const result = await useSessionStore
+        .getState()
+        .updateSession('ws-1', 'sess-1', { name: 'Renamed' })
+
+      expect(result).toEqual(updated)
+      const state = useSessionStore.getState()
+      expect(state.sessions[0]).toEqual(updated)
+      expect(state.currentSession).toEqual(updated)
+    })
+
+    it('should not touch currentSession when ids do not match', async () => {
+      const other = { ...baseSession, id: 'sess-2' }
+      const updated = { ...baseSession, name: 'Renamed' }
+
+      useSessionStore.setState({
+        sessions: [baseSession, other],
+        currentSession: other,
+      })
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(updated),
+      })
+
+      await useSessionStore
+        .getState()
+        .updateSession('ws-1', 'sess-1', { model: 'x' })
+
+      expect(useSessionStore.getState().currentSession).toEqual(other)
+    })
+
+    it('should return null and store error message on failure', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        json: () =>
+          Promise.resolve({ error: { message: 'cannot rename' } }),
+      })
+
+      const result = await useSessionStore
+        .getState()
+        .updateSession('ws-1', 'sess-1', { name: 'x' })
+
+      expect(result).toBeNull()
+      expect(useSessionStore.getState().error).toBe('cannot rename')
+    })
+
+    it('should fall back to default error message when server returns nothing useful', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        json: () => Promise.resolve({}),
+      })
+
+      await useSessionStore
+        .getState()
+        .updateSession('ws-1', 'sess-1', { name: 'x' })
+
+      expect(useSessionStore.getState().error).toBe('Failed to update session')
+    })
+
+    it('should report unknown error when fetch rejects with a non-Error', async () => {
+      mockFetch.mockRejectedValueOnce('boom')
+
+      await useSessionStore
+        .getState()
+        .updateSession('ws-1', 'sess-1', { name: 'x' })
+
+      expect(useSessionStore.getState().error).toBe('Unknown error')
+    })
+  })
+
+  describe('error fallbacks', () => {
+    it('fetchSessions should fall back to default error message', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        json: () => Promise.resolve({}),
+      })
+
+      await useSessionStore.getState().fetchSessions('ws-1')
+
+      expect(useSessionStore.getState().error).toBe('Failed to fetch sessions')
+    })
+
+    it('fetchSessions should set Unknown error on non-Error rejection', async () => {
+      mockFetch.mockRejectedValueOnce('boom')
+
+      await useSessionStore.getState().fetchSessions('ws-1')
+
+      expect(useSessionStore.getState().error).toBe('Unknown error')
+    })
+
+    it('createSession should fall back to default error message', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        json: () => Promise.resolve({}),
+      })
+
+      const result = await useSessionStore
+        .getState()
+        .createSession('ws-1', { model: 'x' })
+
+      expect(result).toBeNull()
+      expect(useSessionStore.getState().error).toBe('Failed to create session')
+    })
+
+    it('createSession should set Unknown error on non-Error rejection', async () => {
+      mockFetch.mockRejectedValueOnce('boom')
+
+      await useSessionStore.getState().createSession('ws-1', { model: 'x' })
+
+      expect(useSessionStore.getState().error).toBe('Unknown error')
+    })
+
+    it('deleteSession should fall back to default error message', async () => {
+      useSessionStore.setState({
+        sessions: [
+          {
+            id: 'sess-1',
+            workspaceId: 'ws-1',
+            name: '',
+            model: '',
+            createdAt: 0,
+            updatedAt: 0,
+            messageCount: 0,
+            totalInputTokens: 0,
+            totalOutputTokens: 0,
+            totalCostUsd: 0,
+          },
+        ],
+      })
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        json: () => Promise.resolve({}),
+      })
+
+      const ok = await useSessionStore
+        .getState()
+        .deleteSession('ws-1', 'sess-1')
+
+      expect(ok).toBe(false)
+      expect(useSessionStore.getState().error).toBe('Failed to delete session')
+    })
+
+    it('deleteSession should set Unknown error on non-Error rejection', async () => {
+      mockFetch.mockRejectedValueOnce('boom')
+
+      await useSessionStore.getState().deleteSession('ws-1', 'sess-1')
+
+      expect(useSessionStore.getState().error).toBe('Unknown error')
+    })
+  })
+
+  describe('deleteSession — non-current', () => {
+    it('should leave currentSession alone when deleting another session', async () => {
+      const a = {
+        id: 'sess-a',
+        workspaceId: 'ws-1',
+        name: 'A',
+        model: 'm',
+        createdAt: 0,
+        updatedAt: 0,
+        messageCount: 0,
+        totalInputTokens: 0,
+        totalOutputTokens: 0,
+        totalCostUsd: 0,
+      }
+      const b = { ...a, id: 'sess-b', name: 'B' }
+
+      useSessionStore.setState({
+        sessions: [a, b],
+        currentSession: a,
+      })
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({}),
+      })
+
+      await useSessionStore.getState().deleteSession('ws-1', 'sess-b')
+
+      const state = useSessionStore.getState()
+      expect(state.sessions).toHaveLength(1)
+      expect(state.currentSession).toEqual(a)
+    })
+  })
 })

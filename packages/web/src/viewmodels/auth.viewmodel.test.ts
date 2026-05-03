@@ -1,19 +1,24 @@
 /**
  * Auth ViewModel Tests
+ *
+ * @vitest-environment jsdom
  */
 
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
-import { useAuthStore } from './auth.viewmodel'
+import { act, createElement, type FC } from 'react'
+import { createRoot, type Root } from 'react-dom/client'
+import { useAuthStore, useAuth } from './auth.viewmodel'
 
 // Mock fetch
 const mockFetch = vi.fn()
 globalThis.fetch = mockFetch
 
-// Mock window.location
+// Use a writable href on the existing jsdom window.location.
 const mockLocation = { href: '' }
-Object.defineProperty(globalThis, 'window', {
-  value: { location: mockLocation },
+Object.defineProperty(window, 'location', {
+  value: mockLocation,
   writable: true,
+  configurable: true,
 })
 
 describe('auth.viewmodel', () => {
@@ -153,6 +158,79 @@ describe('auth.viewmodel', () => {
       useAuthStore.getState().clearError()
 
       expect(useAuthStore.getState().error).toBeNull()
+    })
+  })
+
+  describe('error fallbacks', () => {
+    it('should use default message when fetchUser rejects with non-Error', async () => {
+      mockFetch.mockRejectedValueOnce('boom')
+
+      await useAuthStore.getState().fetchUser()
+
+      expect(useAuthStore.getState().error).toBe('Unknown error')
+    })
+
+    it('should use default message when logout rejects with non-Error', async () => {
+      mockFetch.mockRejectedValueOnce('boom')
+
+      await useAuthStore.getState().logout()
+
+      expect(useAuthStore.getState().error).toBe('Unknown error')
+    })
+  })
+
+  describe('useAuth hook', () => {
+    let container: HTMLDivElement
+    let root: Root
+
+    beforeEach(() => {
+      container = document.createElement('div')
+      document.body.appendChild(container)
+      root = createRoot(container)
+    })
+
+    afterEach(() => {
+      act(() => {
+        root.unmount()
+      })
+      container.remove()
+    })
+
+    it('should expose auth state and actions, with isAuthenticated flag', () => {
+      type Snapshot = ReturnType<typeof useAuth>
+      let snapshot: Snapshot | null = null
+      const Probe: FC = () => {
+        snapshot = useAuth()
+        return null
+      }
+
+      act(() => {
+        root.render(createElement(Probe))
+      })
+
+      expect(snapshot).not.toBeNull()
+      const view = snapshot as unknown as Snapshot
+      expect(view.user).toBeNull()
+      expect(view.isAuthenticated).toBe(false)
+      expect(view.isLoading).toBe(false)
+      expect(view.isInitialized).toBe(false)
+      expect(view.error).toBeNull()
+      expect(typeof view.fetchUser).toBe('function')
+      expect(typeof view.login).toBe('function')
+      expect(typeof view.logout).toBe('function')
+      expect(typeof view.clearError).toBe('function')
+
+      act(() => {
+        useAuthStore.setState({
+          user: { id: 'u-1', email: 'a@b.c', name: null, image: null },
+          isInitialized: true,
+        })
+      })
+
+      const view2 = snapshot as unknown as Snapshot
+      expect(view2.user?.id).toBe('u-1')
+      expect(view2.isAuthenticated).toBe(true)
+      expect(view2.isInitialized).toBe(true)
     })
   })
 })
