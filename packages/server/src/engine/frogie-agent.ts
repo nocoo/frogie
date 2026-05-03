@@ -307,7 +307,7 @@ export class FrogieAgent {
 
       // Extract content blocks from response
       const responseContent = extractContentBlocks(
-        finalMessage.content as Anthropic.ContentBlockParam[]
+        finalMessage.content
       )
       assistantContent.push(...responseContent)
 

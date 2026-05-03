@@ -86,7 +86,7 @@ export function initDb(dbPath: string): DatabaseLike {
       exec: (sql: string) => {
         nodeDb.exec(sql)
       },
-      prepare: (sql: string) => nodeDb.prepare(sql) as unknown as StatementLike,
+      prepare: (sql: string) => nodeDb.prepare(sql),
       transaction: <T>(fn: () => T) => nodeDb.transaction(fn),
       close: () => {
         nodeDb.close()

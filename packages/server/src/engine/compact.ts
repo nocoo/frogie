@@ -215,7 +215,7 @@ export function microCompact(messages: Message[], maxChars = 50000): Message[] {
       return block
     })
 
-    return { ...msg, content } as Message
+    return { ...msg, content }
   })
 }
 
