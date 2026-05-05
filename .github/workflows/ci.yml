@@ -11,7 +11,7 @@ jobs:
   quality:
     uses: nocoo/base-ci/.github/workflows/bun-quality.yml@v2026.1
     with:
-      test-command: "bun run test"
+      test-command: "bun run test:coverage"
       typecheck-command: "bun run typecheck"
       lint-command: "bun run lint"
       osv-config: "osv-scanner.toml"
