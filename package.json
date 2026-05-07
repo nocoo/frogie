@@ -18,7 +18,7 @@
     "lint": "eslint . --max-warnings 0",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "test:l2": "vitest run --project l2",
+    "test:l2": "vitest run packages/server/src/routes/",
     "test:l3": "playwright test",
     "prepare": "husky"
   },
@@ -41,5 +41,11 @@
     "*.{ts,tsx}": [
       "eslint --max-warnings=0"
     ]
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.95.0",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "express-rate-limit": "^8.5.1",
+    "ip-address": "^10.2.0"
   }
 }
