@@ -86,6 +86,9 @@
       },
     },
   },
+  "trustedDependencies": [
+    "better-sqlite3",
+  ],
   "packages": {
     "@anthropic-ai/sdk": ["@anthropic-ai/sdk@0.95.0", "", { "dependencies": { "json-schema-to-ts": "^3.1.1", "standardwebhooks": "^1.0.0" }, "peerDependencies": { "zod": "^3.25.0 || ^4.0.0" }, "optionalPeers": ["zod"], "bin": { "anthropic-ai-sdk": "bin/cli" } }, "sha512-7It2B76OFJH9jC/a0TicXFMq0ZZM25ei+i/mK7JnsE1Ibmo0Yfkqm+DXOHeU/ZxxKwLLGPP6qaAvKmQmgV6XhA=="],
 
