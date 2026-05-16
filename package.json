@@ -47,8 +47,5 @@
     "@modelcontextprotocol/sdk": "^1.29.0",
     "express-rate-limit": "^8.5.1",
     "ip-address": "^10.2.0"
-  },
-  "trustedDependencies": [
-    "better-sqlite3"
-  ]
+  }
 }

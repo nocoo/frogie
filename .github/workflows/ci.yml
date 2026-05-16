@@ -11,13 +11,18 @@ jobs:
   quality:
     uses: nocoo/base-ci/.github/workflows/bun-quality.yml@v2026.3
     with:
-      # Pin Bun: 1.3.12+ makes `bun pm trust` exit non-zero when a package
-      # is already listed in trustedDependencies, which breaks base-ci's
-      # trusted-native-deps step. base-ci's self-tests pin 1.3.11, so do the
-      # same here. Revisit once base-ci ships a fix.
-      bun-version: "1.3.11"
       ignore-scripts: true
-      trusted-native-deps: "better-sqlite3"
+      # better-sqlite3 lives in packages/server and ships a `.node` binding
+      # via prebuild-install. Under --ignore-scripts the install script is
+      # skipped, and `trusted-native-deps` doesn't re-run it because the
+      # package is in Bun's default-trusted list — bun considers nothing
+      # blocked. Rebuild the binding manually here.
+      pre-command: |
+        for pkg_dir in $(find node_modules/.bun -mindepth 3 -maxdepth 3 -type d -name better-sqlite3 -path '*/node_modules/better-sqlite3' 2>/dev/null); do
+          echo "::group::rebuild trusted native dep: $pkg_dir"
+          (cd "$pkg_dir" && bun run install)
+          echo "::endgroup::"
+        done
       test-command: "bun run test:coverage"
       typecheck-command: "bun run typecheck"
       lint-command: "bun run lint"
