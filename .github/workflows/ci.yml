@@ -11,6 +11,11 @@ jobs:
   quality:
     uses: nocoo/base-ci/.github/workflows/bun-quality.yml@v2026.3
     with:
+      # Pin Bun: 1.3.12+ makes `bun pm trust` exit non-zero when a package
+      # is already listed in trustedDependencies, which breaks base-ci's
+      # trusted-native-deps step. base-ci's self-tests pin 1.3.11, so do the
+      # same here. Revisit once base-ci ships a fix.
+      bun-version: "1.3.11"
       ignore-scripts: true
       trusted-native-deps: "better-sqlite3"
       test-command: "bun run test:coverage"
