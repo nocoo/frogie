@@ -1,6 +1,0 @@
-# OSV-Scanner ignore list — transitive deps pinned by upstream packages
-
-[[IgnoredVulns]]
-# ip-address 10.1.0 via @modelcontextprotocol/sdk > express-rate-limit
-id = "GHSA-v2v4-37r5-5v8g"
-reason = "Transitive dep ip-address 10.1.0 via @modelcontextprotocol/sdk > express-rate-limit. Cannot upgrade without MCP SDK update."
