@@ -42,10 +42,16 @@
       "eslint --max-warnings=0"
     ]
   },
+  "overrides": {
+    "brace-expansion": ">=5.0.6",
+    "fast-uri": ">=3.1.2",
+    "hono": ">=4.12.18"
+  },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.95.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "express-rate-limit": "^8.5.1",
+    "hono": "^4.12.19",
     "ip-address": "^10.2.0"
   }
 }

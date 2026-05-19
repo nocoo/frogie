@@ -13,6 +13,8 @@ bun run lint || exit 1
 
 # L1: Unit tests
 echo "🧪 Running tests..."
+# Unset git env vars that leak into test processes during commit hooks
+unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES
 bun run test:coverage || exit 1
 
 echo "✅ Pre-commit checks passed!"
