@@ -1,0 +1,3 @@
+# Ignore local .env file (not tracked by git)
+.env:generic-api-key:3
+.env:generic-api-key:6

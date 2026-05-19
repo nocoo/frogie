@@ -1,0 +1,11 @@
+[allowlist]
+  description = "Allow test fixtures and snapshots"
+  paths = [
+    '''(^|\/)tests\/''',
+    '''\.test\.ts$''',
+    '''\.test\.tsx$''',
+    '''\.spec\.ts$''',
+    '''\.spec\.tsx$''',
+    '''(^|\/)__snapshots__\/''',
+    '''(^|\/)fixtures\/''',
+  ]
