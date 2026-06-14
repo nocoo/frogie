@@ -14,7 +14,7 @@
     "@anthropic-ai/sdk": "^0.104.1",
     "@hono/zod-validator": "^0.8.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "better-sqlite3": "^12.10.0",
+    "better-sqlite3": "^12.10.1",
     "hono": "^4.12.25",
     "jose": "^6.2.2",
     "ulid": "^3.0.2",
