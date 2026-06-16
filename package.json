@@ -50,7 +50,7 @@
     "qs": ">=6.15.2"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.104.1",
+    "@anthropic-ai/sdk": "^0.104.2",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "express-rate-limit": "^8.5.2",
     "hono": "^4.12.25",
