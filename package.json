@@ -35,7 +35,7 @@
     "husky": "^9.1.7",
     "jsdom": "^29.0.1",
     "typescript": "^6.0.2",
-    "typescript-eslint": "^8.62.0",
+    "typescript-eslint": "^8.62.1",
     "vitest": "^4.1.9"
   },
   "lint-staged": {
@@ -51,7 +51,7 @@
     "undici": "^7.28.0"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.106.0",
+    "@anthropic-ai/sdk": "^0.107.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "express-rate-limit": "^8.5.2",
     "hono": "^4.12.27",
