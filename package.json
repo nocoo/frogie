@@ -52,7 +52,7 @@
     "undici": "^7.28.0"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.111.0",
+    "@anthropic-ai/sdk": "^0.112.3",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "express-rate-limit": "^8.5.2",
     "hono": "^4.12.30",
