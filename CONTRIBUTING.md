@@ -7,7 +7,7 @@ Thank you for your interest in contributing to Frogie! This document provides gu
 ### Prerequisites
 
 - [Bun](https://bun.sh/) >= 1.0
-- Node.js >= 20 (for some tooling)
+- Node.js >= 22 (for some tooling)
 - Git
 
 ### Development Setup
