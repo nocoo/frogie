@@ -12,17 +12,9 @@ jobs:
     uses: nocoo/base-ci/.github/workflows/bun-quality.yml@aec4adc1a817c56790d1698329ef9398a15a754a  # v2026.5
     with:
       ignore-scripts: true
-      # better-sqlite3 lives in packages/server and ships a `.node` binding
-      # via prebuild-install. Under --ignore-scripts the install script is
-      # skipped, and `trusted-native-deps` doesn't re-run it because the
-      # package is in Bun's default-trusted list — bun considers nothing
-      # blocked. Rebuild the binding manually here.
-      pre-command: |
-        for pkg_dir in $(find node_modules/.bun -mindepth 3 -maxdepth 3 -type d -name better-sqlite3 -path '*/node_modules/better-sqlite3' 2>/dev/null); do
-          echo "::group::rebuild trusted native dep: $pkg_dir"
-          (cd "$pkg_dir" && bun run install)
-          echo "::endgroup::"
-        done
+      # better-sqlite3 v13 ships prebuilt bindings under `prebuilds/<platform>-<arch>.node`
+      # and loads them at require time — no install script, no runtime rebuild.
+      # Nothing extra is needed under --ignore-scripts.
       test-command: "bun run test:coverage"
       typecheck-command: "bun run typecheck"
       lint-command: "bun run lint"
