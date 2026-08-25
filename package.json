@@ -60,7 +60,7 @@
     "@anthropic-ai/sdk": "0.120.0",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "express-rate-limit": "^8.6.2",
-    "hono": "4.13.3",
+    "hono": "4.13.4",
     "ip-address": "^10.5.0"
   },
   "engines": {
