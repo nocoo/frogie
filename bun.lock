@@ -5,7 +5,7 @@
     "": {
       "name": "frogie",
       "dependencies": {
-        "@anthropic-ai/sdk": "0.120.0",
+        "@anthropic-ai/sdk": "0.122.0",
         "@modelcontextprotocol/sdk": "^1.30.0",
         "express-rate-limit": "^8.6.2",
         "hono": "4.13.5",
@@ -32,7 +32,7 @@
       "name": "@frogie/server",
       "version": "0.1.1",
       "dependencies": {
-        "@anthropic-ai/sdk": "0.120.0",
+        "@anthropic-ai/sdk": "0.122.0",
         "@hono/zod-validator": "^0.9.0",
         "@modelcontextprotocol/sdk": "^1.30.0",
         "better-sqlite3": "13.0.3",
@@ -102,7 +102,7 @@
     "undici": "^8.9.0",
   },
   "packages": {
-    "@anthropic-ai/sdk": ["@anthropic-ai/sdk@0.120.0", "", { "dependencies": { "json-schema-to-ts": "^3.1.1", "standardwebhooks": "^1.0.0" }, "peerDependencies": { "zod": "^3.25.0 || ^4.0.0" }, "optionalPeers": ["zod"], "bin": { "anthropic-ai-sdk": "bin/cli" } }, "sha512-ZlvmNFT/iIF6JD13rxbbMWD8nvGR0RaUp6yMQnoc+4Af0YjVVe/bIdW1XSQQsoxXAtg1NaT6Vak0LKFlJ4d37Q=="],
+    "@anthropic-ai/sdk": ["@anthropic-ai/sdk@0.122.0", "", { "dependencies": { "json-schema-to-ts": "^3.1.1", "standardwebhooks": "^1.0.0" }, "peerDependencies": { "zod": "^3.25.0 || ^4.0.0" }, "optionalPeers": ["zod"], "bin": { "anthropic-ai-sdk": "bin/cli" } }, "sha512-GGPNftt0caaz9MDlmNQGHX8855Ojaduyy5pm9Sm1h7HalCn0cWNb5/bweadJF+4yzbal+QL6ztBa09WAAOzLmQ=="],
 
     "@asamuzakjp/css-color": ["@asamuzakjp/css-color@6.0.5", "", { "dependencies": { "@csstools/css-calc": "^3.2.1", "@csstools/css-color-parser": "^4.1.9", "@csstools/css-parser-algorithms": "^4.0.0", "@csstools/css-tokenizer": "^4.0.0", "lru-cache": "^11.5.2" } }, "sha512-mbhpPMmnw/kwW19aRNmSUl1QzLbdGo1SCuE49BT98MNwqF6zaHb3o2owssFc/PEO/4t2UjqtCNwocuDtJornzA=="],
 
