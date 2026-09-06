@@ -1,6 +1,6 @@
 {
-  "study": "https://github.com/nocoo/hexly.ai/tree/aeeac5d/artwork/logo-family/frogie/2026-09-06-01",
-  "finishing": "02",
+  "study": "hexly.ai/artwork/logo-family/frogie/2026-09-06-01",
+  "finishing": "03",
   "approved": "2026-09-06",
   "nativeSize": [
     2048,
@@ -12,12 +12,42 @@
       "source": "frogie-transparent-2048.png"
     },
     "assets/brand/icon.png": {
-      "sha256": "977a64101410e2aa217e1d74256728e019949d5ee725ec22a04e8469e930628e",
+      "sha256": "d1df7b7901af384a3eed8ccdf326d474159ee766e6384990b4e938f33696b2cc",
       "source": "frogie-icon-2048.png"
     },
     "assets/brand/icon-rounded.png": {
-      "sha256": "e912154d67a958af43d09c5d0c7c66a50be21a5231d1616e7386b1eb3a3df931",
+      "sha256": "5363cb58535b8904182a37a725b5f64a2f381296f82b4a15969defff3b37cbc0",
       "source": "frogie-rounded-2048.png"
     }
+  },
+  "history": [
+    {
+      "finishing": "02",
+      "study": "https://github.com/nocoo/hexly.ai/tree/aeeac5d/artwork/logo-family/frogie/2026-09-06-01",
+      "files": {
+        "logo.png": {
+          "sha256": "752fae79301d175093cc726313c470b4cef4b7b56d299d2e802a4a0f59e39a2b",
+          "source": "frogie-transparent-2048.png"
+        },
+        "assets/brand/icon.png": {
+          "sha256": "d1df7b7901af384a3eed8ccdf326d474159ee766e6384990b4e938f33696b2cc",
+          "source": "frogie-icon-2048.png"
+        },
+        "assets/brand/icon-rounded.png": {
+          "sha256": "5363cb58535b8904182a37a725b5f64a2f381296f82b4a15969defff3b37cbc0",
+          "source": "frogie-rounded-2048.png"
+        }
+      }
+    }
+  ],
+  "archiveRevision": "dbde89154844529f77422fde391c06e012b8b08f",
+  "usage": {
+    "updated": "2026-09-07",
+    "scope": "Local source adoption and usage standard; publication remains paused",
+    "foreground": "Root logo.png supplies transparent app marks and browser favicons; preserve framing without extra background or corner mask",
+    "largePresentation": "Rounded master supplies the README header and large social presentation",
+    "platformIcon": "Use square presentation only where the platform manages app-icon masking",
+    "sop": "hexly.ai/docs/07-logo-usage-sop.md",
+    "generator": "uv run --with pillow python scripts/resize-logos.py"
   }
 }
