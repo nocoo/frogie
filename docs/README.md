@@ -1,5 +1,7 @@
 # Frogie Documentation
 
+- [Logo and application assets](./logo.md)
+
 ## Architecture
 
 | Document | Description |

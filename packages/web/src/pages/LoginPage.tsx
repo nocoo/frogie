@@ -115,9 +115,13 @@ export function LoginPage() {
 
             {/* Badge content */}
             <div className="flex flex-1 flex-col items-center px-6 pt-6 pb-14">
-              <div className="h-24 w-24 overflow-hidden rounded-full bg-secondary dark:bg-[#171717] ring-1 ring-border p-2.5 flex items-center justify-center">
-                <span className="text-5xl">🐸</span>
-              </div>
+              <img
+                src="/logo-80.png"
+                alt="Frogie"
+                width={80}
+                height={80}
+                className="drop-shadow-lg"
+              />
 
               <p className="mt-5 text-lg font-semibold text-foreground">AI Coding Agent</p>
               <p className="mt-1 text-xs text-muted-foreground">

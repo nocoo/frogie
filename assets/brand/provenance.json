@@ -1,0 +1,23 @@
+{
+  "study": "https://github.com/nocoo/hexly.ai/tree/aeeac5d/artwork/logo-family/frogie/2026-09-06-01",
+  "finishing": "02",
+  "approved": "2026-09-06",
+  "nativeSize": [
+    2048,
+    2048
+  ],
+  "files": {
+    "logo.png": {
+      "sha256": "752fae79301d175093cc726313c470b4cef4b7b56d299d2e802a4a0f59e39a2b",
+      "source": "frogie-transparent-2048.png"
+    },
+    "assets/brand/icon.png": {
+      "sha256": "977a64101410e2aa217e1d74256728e019949d5ee725ec22a04e8469e930628e",
+      "source": "frogie-icon-2048.png"
+    },
+    "assets/brand/icon-rounded.png": {
+      "sha256": "e912154d67a958af43d09c5d0c7c66a50be21a5231d1616e7386b1eb3a3df931",
+      "source": "frogie-rounded-2048.png"
+    }
+  }
+}

@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="logo.png" width="128" height="128" alt="Frogie Logo"/>
+  <img src="assets/brand/icon-rounded.png" width="128" height="128" alt="Frogie Logo"/>
 </p>
 
 <h1 align="center">Frogie</h1>
