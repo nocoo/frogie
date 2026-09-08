@@ -1,169 +1,127 @@
 <p align="center">
-  <img src="assets/brand/icon-rounded.png" width="128" height="128" alt="Frogie Logo"/>
+  <img src="assets/brand/icon-rounded.png" width="128" height="128" alt="Frogie Logo" />
 </p>
 
 <h1 align="center">Frogie</h1>
 
+<p align="center">在浏览器中管理本地项目的 AI 对话、工具执行和会话历史。</p>
+
 <p align="center">
-  <strong>Local-first web shell for an agent engine</strong><br>
-  Agentic Chat · Multi-workspace · MCP Integration · Session Persistence
+  <a href="docs/README.en.md">English</a>
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/runtime-Bun-f9f1e1?logo=bun" alt="Bun">
-  <img src="https://img.shields.io/badge/TypeScript-5.8-blue?logo=typescript" alt="TypeScript">
-  <img src="https://img.shields.io/badge/React-19-61dafb?logo=react" alt="React">
-  <img src="https://img.shields.io/badge/Hono-4-orange?logo=hono" alt="Hono">
-  <img src="https://img.shields.io/badge/license-MIT-green" alt="MIT License">
+  <img src="https://img.shields.io/badge/Bun-f9f1e1?logo=bun&logoColor=000" alt="Bun" />
+  <img src="https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=fff" alt="TypeScript" />
+  <img src="https://img.shields.io/badge/React-20232a?logo=react&logoColor=61dafb" alt="React" />
+  <img src="https://img.shields.io/badge/Hono-E36002?logo=hono&logoColor=fff" alt="Hono" />
+  <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License" />
 </p>
-
----
 
 ## 这是什么
 
-Frogie 是一个基于 Web 的 Coding 平台，封装了 [open-agent-sdk](https://github.com/codeany-ai/open-agent-sdk-typescript)，提供多工作区管理、会话持久化和丰富的工具可视化。它运行在本地机器上，拥有完整的文件系统访问权限。
+Frogie 是面向个人开发者的本地 Web 编程助手。浏览器展示对话与工具执行过程，Bun 服务连接配置好的模型接口，在本机项目目录中读写文件、执行命令，并保存会话。多个工作区可以共用这套界面，各自保留会话和 MCP 配置。
 
-```
-┌─────────────────────────────────────────────────────┐
-│              Browser (localhost:7033)               │
-│  React 19 + Vite 7 + Tailwind CSS 4                │
-└─────────────────────────┬───────────────────────────┘
-                          │ WebSocket
-┌─────────────────────────▼───────────────────────────┐
-│              Frogie Server (localhost:7034)         │
-│  Bun + Hono + open-agent-sdk                       │
-└───────────┬─────────────────────────┬───────────────┘
-            │                         │
-┌───────────▼───────────┐   ┌────────▼────────┐
-│    Anthropic API      │   │   MCP Servers   │
-│    (Claude)           │   │   (local spawn) │
-└───────────────────────┘   └─────────────────┘
-```
+当前引擎直接使用 Anthropic SDK。对话、工具调用和模型列表都要求兼容 Anthropic 接口；列表中出现 GPT、Gemini 等名称时，仍然需要能转换协议的上游服务。
+
+项目仍处于早期阶段：Google 登录已接入界面，但业务 API 和 WebSocket 尚未强制鉴权。工具会自动执行，使用服务进程的系统权限，也没有可靠的工作区沙箱。运行时应限制网络访问，适用于自己控制的设备和项目。
 
 ## 功能
 
-### Web 界面
+- **流式对话**：展示正文、模型返回的 thinking 内容、工具参数与结果，可在会话中切换模型。
+- **本地工具**：内置读取文件、写入文件、列目录、执行 Shell 命令和简单文件名搜索五项工具。
+- **工作区与会话**：关联已有目录，创建、重命名、删除和继续会话；Fork 复制当前对话历史，不复制项目文件。
+- **stdio MCP**：按工作区保存服务命令、参数和环境变量，连接后把工具加入对话。配置类型包含 SSE / HTTP，但这两种传输尚未实现。
+- **系统提示词**：编辑全局提示词层，按工作区覆盖、启停或恢复，并预览组合结果。预览只列内置工具，实际对话再加入已连接的 MCP 工具。
+- **会话用量**：展示轮次、token 和估算费用，按配置限制每次请求的轮次与估算预算。长对话达到估算阈值时会尝试生成摘要；摘要请求使用同一模型服务。
 
-- **Chat Panel** — 实时流式对话，支持 thinking blocks 展示
-- **Tool Visualization** — 工具调用过程可视化，输入/输出实时展示
-- **Model Selector** — 会话级别的模型切换，支持多提供商（Claude/GPT/Gemini）
-- **Session Management** — 会话列表、历史记录、Fork 功能
+## 使用
 
-### Agent 引擎
+完成下方源码启动与登录配置后，打开 `http://localhost:7033`：
 
-- **Agentic Loop** — 基于 open-agent-sdk 的多轮对话循环
-- **Built-in Tools** — 30+ 内置工具（文件操作、Shell 执行、搜索）
-- **MCP Integration** — 支持 stdio/sse/http 三种传输协议
-- **Context Compaction** — 自动上下文压缩，支持长会话
+1. 在 **Settings** 填入 API Base URL、API Key 和默认模型。Base URL 不带末尾的 `/v1`，例如 `https://api.anthropic.com`；SDK 会添加接口路径。初始设置仍指向旧的本地代理地址，需要先改成实际服务。
+2. 在 **Workspaces** 添加一个已经存在的项目目录，再创建会话。目录选择与 Finder 打开功能依赖 macOS；其他环境可直接填写路径。
+3. 发送任务，在对话中查看工具执行结果。需要额外工具时，为工作区添加可运行的 stdio MCP 服务；需要调整行为时进入 **System Prompts**。
 
-### 工作区
+设置、工作区、会话索引与 MCP 配置存放在 `~/.frogie/frogie.db`；对话正文存放在 `~/.frogie/sessions/<id>/transcript.json`。API Key 在本地数据库中以明文保存，接口显示时才做遮盖。消息在本次查询完成后写入，异常退出时当前轮次可能尚未落盘。对话和相关工具输出会发送到配置的模型服务。
 
-- **Multi-workspace** — 多项目并行，独立的会话和 MCP 配置
-- **Local-first** — 数据存储在本地 SQLite，隐私优先
-- **Full Access** — 无沙箱限制，拥有用户完整权限
-
-## 安装
-
-```bash
-# 克隆仓库
-git clone https://github.com/nocoo/frogie.git
-cd frogie
-
-# 安装依赖
-bun install
-
-# 配置环境变量
-cp .env.example .env
-# 编辑 .env 填入必要配置
-
-# 启动开发服务器
-bun run dev
-```
-
-访问 http://localhost:7033 开始使用。
-
-## 项目结构
-
-```
-frogie/
-├── packages/
-│   ├── server/              # Hono 后端
-│   │   ├── src/
-│   │   │   ├── auth/        # Google OAuth + JWT
-│   │   │   ├── db/          # SQLite 数据层
-│   │   │   ├── engine/      # Agent 引擎适配
-│   │   │   ├── mcp/         # MCP 客户端管理
-│   │   │   └── routes/      # API 路由
-│   │   └── package.json
-│   └── web/                 # React 前端
-│       ├── src/
-│       │   ├── components/  # UI 组件
-│       │   ├── pages/       # 页面
-│       │   └── viewmodels/  # 状态管理 (Zustand)
-│       └── package.json
-├── docs/                    # 架构文档
-├── tests/                   # E2E 测试 (Playwright)
-├── scripts/                 # 构建脚本
-└── package.json
-```
-
-## 技术栈
-
-| 层 | 技术 |
-|---|---|
-| Runtime | [Bun](https://bun.sh/) |
-| Backend | [Hono](https://hono.dev/) + WebSocket |
-| Frontend | [React 19](https://react.dev/) + [Vite 7](https://vite.dev/) |
-| Styling | [Tailwind CSS 4](https://tailwindcss.com/) + [shadcn/ui](https://ui.shadcn.com/) |
-| State | [Zustand](https://zustand-demo.pmnd.rs/) |
-| Database | SQLite ([bun:sqlite](https://bun.sh/docs/api/sqlite)) |
-| Agent | [open-agent-sdk](https://github.com/codeany-ai/open-agent-sdk-typescript) |
-| Auth | Google OAuth + JWT |
+费用来自本地固定单价表，用于请求间的估算控制，不等同于服务商账单或硬性扣费上限。
 
 ## 开发
 
-### 环境要求
+需要 Bun、Node.js 22.13+（或 24+）和 Git。内置命令工具依赖 `sh`、`find`、`head`；macOS 目录选择另用 `osascript` 和 `open`。
 
-- [Bun](https://bun.sh/) >= 1.0
-- Node.js >= 22（部分工具需要）
+```bash
+git clone https://github.com/nocoo/frogie.git
+cd frogie
+bun install --frozen-lockfile
+cp .env.example .env
+```
 
-### 常用命令
+编辑根目录 `.env`，替换占位值。当前前端没有免登录本地模式，三个认证变量都需要有效配置。
 
-| 命令 | 说明 |
-|---|---|
-| `bun run dev` | 启动开发服务器（前后端并行） |
-| `bun run dev:server` | 仅启动后端 (localhost:7034) |
-| `bun run dev:web` | 仅启动前端 (localhost:7033) |
-| `bun run build` | 构建生产版本 |
-| `bun run typecheck` | TypeScript 类型检查 |
-| `bun run lint` | ESLint 检查 |
-| `bun run test` | 运行单元测试 |
+```dotenv
+GOOGLE_CLIENT_ID=your-google-client-id
+GOOGLE_CLIENT_SECRET=your-google-client-secret
+JWT_SECRET=replace-with-a-random-secret
+PORT=7034
+BASE_URL=http://localhost:7033
+ALLOWED_EMAILS=you@example.com
+```
+
+在 Google OAuth 客户端中登记回调地址 `http://localhost:7033/api/auth/callback`。这里的 `BASE_URL` 指向前端：Vite 会把 `/api` 和 `/ws` 代理到 7034，登录回调后才能回到同一界面。登录 cookie 带有 `Secure` 属性；Chromium 的 localhost 开发环境可用，自定义域名需要 HTTPS。`ALLOWED_EMAILS` 为空时接受任何成功登录的 Google 账号，但不会补上业务接口缺少的访问控制。
+
+```bash
+bun run dev
+```
+
+| 命令 | 用途 |
+| --- | --- |
+| `bun run dev:server` | 启动 Bun / Hono 服务，默认端口 7034 |
+| `bun run dev:web` | 启动 Vite 界面，默认端口 7033 |
+| `bun run build` | 构建服务端与前端 |
+| `bun run typecheck` | 检查两个包的 TypeScript 类型 |
+| `bun run lint` | 运行 ESLint |
+
+当前启动入口读取 `PORT`，数据目录默认为 `~/.frogie`。独立配置模块中的 `FROGIE_HOST`、`FROGIE_PORT` 和 `FROGIE_DB_PATH` 尚未接入该入口；隔离运行需要通过 `startServer({ port, dataDir, dbPath })` 显式配置。默认启动也没有限制为仅监听回环地址。
+
+构建产物在 `packages/server/dist` 和 `packages/web/dist`。后端尚未挂载前端静态资源，部署时需要自行配置静态文件服务与 HTTP / WebSocket 代理。
 
 ## 测试
 
-| 层 | 内容 | 触发时机 |
-|---|---|---|
-| L1 Unit | ViewModel、工具函数、数据转换 | pre-commit |
-| L2 Integration | API 端点、WebSocket、数据库操作 | pre-push |
-| L3 E2E | Playwright 浏览器测试 | CI/手动 |
+在仓库根目录运行：
 
-```bash
-# 单元测试
-bun run test
+| 范围 | 命令 |
+| --- | --- |
+| 单元测试：数据层、路由、引擎转换与前端状态 | `bun run test` |
+| 同一组测试及覆盖率 | `bun run test:coverage` |
+| API 路由测试子集 | `bun run test:l2` |
+| Chromium 浏览器测试 | `bunx playwright install chromium`，然后 `bun run test:l3` |
 
-# E2E 测试
-bun run test:l3
-```
+`test:l2` 是 Vitest 中的路由测试，不需要启动真实模型服务。Node 下的默认测试会跳过依赖 Bun 原生服务的启动用例。
+
+现有浏览器脚本会启动或复用 7033 / 7034，并使用默认 `~/.frogie` 数据。用例会创建会话、修改设置和尝试发送消息，尚未提供登录 fixture 与独立数据目录。运行前需要准备隔离的测试实例、登录状态、已有测试目录及模拟模型接口，不能直接当作日常实例上的无副作用检查。
+
+## 技术栈
+
+| 技术 | 用途 |
+| --- | --- |
+| TypeScript / Bun | 工作区代码、服务运行与构建 |
+| Hono / WebSocket | HTTP API 与流式会话事件 |
+| Anthropic SDK | 模型调用、自定义工具循环与摘要请求 |
+| MCP TypeScript SDK | stdio 服务连接和工具发现 |
+| SQLite | 配置与会话索引；Bun 运行时使用 `bun:sqlite`，Node 测试使用 `better-sqlite3` |
+| React / Vite / Zustand | 网页界面、开发服务与客户端状态 |
+| Tailwind CSS / Radix UI | 样式与交互组件 |
+| react-markdown / remark-gfm / rehype-highlight | Markdown 和代码高亮 |
+| Vitest / Playwright | 单元、路由与浏览器测试 |
 
 ## 文档
 
-| 文档 | 说明 |
-|---|---|
-| [架构概览](docs/architecture/01-overview.md) | 项目愿景和架构设计 |
-| [系统架构](docs/architecture/02-system-architecture.md) | 详细系统设计 |
-| [Agent 引擎](docs/architecture/03-agent-engine.md) | Agent 循环和工具系统 |
-| [API 协议](docs/architecture/07-api-protocol.md) | WebSocket 和 REST API |
+- [文档索引](docs/README.md)：架构与功能设计。部分文档保留了早期 SDK、传输和配置方案，当前行为以本 README 与源码为准。
+- [系统提示词设计](docs/features/01-system-prompt-builder.md)：提示词层、继承与预览约定。
+- [服务入口](packages/server/src/index.ts)、[工具实现](packages/server/src/engine/builtin-tools.ts)、[MCP 客户端](packages/server/src/mcp/client.ts)：运行与扩展的主要入口。
 
-## License
+## 许可证
 
-[MIT](LICENSE) © 2026
+[MIT](LICENSE)
