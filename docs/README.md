@@ -1,5 +1,9 @@
 # Frogie Documentation
 
+Project overview and setup: [中文](../README.md) · [English](README.en.md).
+
+Some architecture documents preserve earlier SDK, transport and configuration plans. Refer to the project README and source for the current implementation; the MCP client currently implements stdio only.
+
 - [Logo and application assets](./logo.md)
 
 ## Architecture
