@@ -25,7 +25,6 @@ export type {
   InterruptMessage,
   PingMessage,
   AgentConfig,
-  QueryResult,
   TextBlock,
   ThinkingBlock,
   ToolUseBlock,

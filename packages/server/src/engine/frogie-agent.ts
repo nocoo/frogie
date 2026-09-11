@@ -9,7 +9,6 @@ import Anthropic from '@anthropic-ai/sdk'
 import type {
   AgentEvent,
   AgentConfig,
-  QueryResult,
   SessionStartEvent,
   TurnCompleteEvent,
   InterruptedEvent,
@@ -138,31 +137,10 @@ export class FrogieAgent {
   }
 
   /**
-   * Get the session ID
-   */
-  getSessionId(): string | undefined {
-    return this.config.sessionId
-  }
-
-  /**
-   * Get the model
-   */
-  getModel(): string {
-    return this.config.model
-  }
-
-  /**
    * Get conversation messages
    */
   getMessages(): Message[] {
     return [...this.messages]
-  }
-
-  /**
-   * Clear conversation history
-   */
-  clear(): void {
-    this.messages = []
   }
 
   /**
@@ -384,35 +362,5 @@ export class FrogieAgent {
       costUsd: totalCostUsd,
       durationMs: Date.now() - startTime,
     } satisfies TurnCompleteEvent
-  }
-
-  /**
-   * Close the agent (cleanup)
-   */
-  close(): void {
-    this.aborted = true
-    // No persistent resources to clean up in this implementation
-  }
-
-  /**
-   * Get query result summary (for testing)
-   */
-  getQueryResult(
-    turns: number,
-    inputTokens: number,
-    outputTokens: number,
-    durationMs: number,
-    interrupted: boolean,
-    budgetExceeded: boolean
-  ): QueryResult {
-    return {
-      turns,
-      inputTokens,
-      outputTokens,
-      costUsd: calculateCost(inputTokens, outputTokens, this.config.model),
-      durationMs,
-      interrupted,
-      budgetExceeded,
-    }
   }
 }

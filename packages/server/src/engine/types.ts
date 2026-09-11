@@ -225,32 +225,6 @@ export interface AgentConfig {
   systemPrompt?: string
 }
 
-/**
- * Query result with usage statistics
- */
-export interface QueryResult {
-  /** Number of turns executed */
-  turns: number
-
-  /** Total input tokens */
-  inputTokens: number
-
-  /** Total output tokens */
-  outputTokens: number
-
-  /** Total cost in USD */
-  costUsd: number
-
-  /** Query duration in milliseconds */
-  durationMs: number
-
-  /** Whether the query was interrupted */
-  interrupted: boolean
-
-  /** Whether budget was exceeded */
-  budgetExceeded: boolean
-}
-
 // =============================================================================
 // Anthropic SDK Types (subset used by Frogie)
 // =============================================================================
