@@ -9,17 +9,14 @@ on:
 
 jobs:
   quality:
-    uses: nocoo/base-ci/.github/workflows/bun-quality.yml@aec4adc1a817c56790d1698329ef9398a15a754a  # v2026.5
+    uses: nocoo/base-ci/.github/workflows/quality.yml@ab52d72877d386c9a8fd224e9ac868e88be90539
     with:
-      ignore-scripts: true
-      # better-sqlite3 v13 ships prebuilt bindings under `prebuilds/<platform>-<arch>.node`
-      # and loads them at require time — no install script, no runtime rebuild.
-      # Nothing extra is needed under --ignore-scripts.
+      runtime-version: "1.4.2"
+      install-policy: "blocked"
       test-command: "bun run test:coverage"
       typecheck-command: "bun run typecheck"
       lint-command: "bun run lint"
       osv-config: "osv-scanner.toml"
-      enable-security: "true"
-      enable-l2: "true"
+      l2: true
       l2-command: "bun run test:l2"
     secrets: inherit
