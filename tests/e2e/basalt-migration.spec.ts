@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from './fixtures'
 
 const mockUser = {
   id: 'basalt-check',
@@ -23,7 +23,7 @@ test.describe('Basalt migration', () => {
       ['/settings', 'Settings'],
     ] as const) {
       await page.goto(path)
-      await expect(page.getByRole('heading', { name: heading, level: 1 })).toBeVisible()
+      await expect(page.getByRole('heading', { name: heading, level: 1 }).last()).toBeVisible()
       await expect(page.getByText('Frogie', { exact: true }).first()).toBeVisible()
       await expect(page.getByText(/^v\d+\.\d+\.\d+$/)).toBeVisible()
     }

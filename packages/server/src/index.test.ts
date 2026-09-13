@@ -66,7 +66,7 @@ describe.skipIf(!isBun)('server entry point', () => {
       expect(body.status).toBe('ok')
     })
 
-    it('should serve settings API', async () => {
+    it('should fail closed for settings without auth configuration', async () => {
       tempDir = createTempDir('settings')
       const port = 7199 + Math.floor(Math.random() * 100)
 
@@ -77,13 +77,10 @@ describe.skipIf(!isBun)('server entry point', () => {
       })
 
       const res = await fetch(`http://localhost:${String(port)}/api/settings`)
-      expect(res.status).toBe(200)
-
-      const body = (await res.json()) as { llmModel: string }
-      expect(body.llmModel).toBeDefined()
+      expect(res.status).toBe(503)
     })
 
-    it('should serve workspaces API', async () => {
+    it('should fail closed for workspaces without auth configuration', async () => {
       tempDir = createTempDir('workspaces')
       const port = 7299 + Math.floor(Math.random() * 100)
 
@@ -94,10 +91,7 @@ describe.skipIf(!isBun)('server entry point', () => {
       })
 
       const res = await fetch(`http://localhost:${String(port)}/api/workspaces`)
-      expect(res.status).toBe(200)
-
-      const body = (await res.json()) as unknown[]
-      expect(Array.isArray(body)).toBe(true)
+      expect(res.status).toBe(503)
     })
 
     it('should gracefully stop', async () => {

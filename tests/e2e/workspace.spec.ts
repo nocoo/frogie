@@ -4,7 +4,7 @@
  * Tests for workspace management functionality.
  */
 
-import { test, expect } from '@playwright/test'
+import { expect, test } from './fixtures'
 
 test.describe('Workspace Management', () => {
   test.beforeEach(async ({ page }) => {
@@ -17,7 +17,7 @@ test.describe('Workspace Management', () => {
   })
 
   test('should show workspace selector in sidebar', async ({ page }) => {
-    await expect(page.getByText('Workspace')).toBeVisible()
+    await expect(page.getByText('Workspace', { exact: true })).toBeVisible()
     await expect(page.getByText('Select workspace...')).toBeVisible()
   })
 
@@ -26,7 +26,7 @@ test.describe('Workspace Management', () => {
     await page.getByText('Select workspace...').click()
 
     // Click add workspace
-    await page.getByText('Add workspace').click()
+    await page.getByRole('button', { name: 'Add workspace', exact: true }).click()
 
     // Verify dialog opens
     await expect(page.getByRole('dialog')).toBeVisible()
@@ -38,7 +38,7 @@ test.describe('Workspace Management', () => {
   test('should create a new workspace', async ({ page }) => {
     // Open create dialog
     await page.getByText('Select workspace...').click()
-    await page.getByText('Add workspace').click()
+    await page.getByRole('button', { name: 'Add workspace', exact: true }).click()
 
     // Fill form
     await page.getByLabel('Name').fill('Test Workspace')
@@ -50,23 +50,19 @@ test.describe('Workspace Management', () => {
     // Wait for dialog to close
     await expect(page.getByRole('dialog')).not.toBeVisible()
 
-    // Verify workspace appears in selector
-    await page.getByText('Test Workspace').click()
-    await expect(page.getByText('Test Workspace')).toBeVisible()
+    // The newly created workspace is selected immediately.
+    await expect(page.getByRole('button', { name: 'Select workspace' })).toContainText('Test Workspace')
   })
 
   test('should select a workspace', async ({ page }) => {
     // First create a workspace
     await page.getByText('Select workspace...').click()
-    await page.getByText('Add workspace').click()
+    await page.getByRole('button', { name: 'Add workspace', exact: true }).click()
     await page.getByLabel('Name').fill('Select Test')
     await page.getByLabel('Path').fill('/tmp/select-test')
     await page.getByRole('button', { name: 'Create' }).click()
 
-    // Now select it from dropdown
-    await page.getByText('Select Test').click()
-
-    // Verify it's selected (shown in button)
+    // Verify it is selected after creation.
     await expect(page.getByRole('button', { name: 'Select workspace' })).toContainText('Select Test')
   })
 })

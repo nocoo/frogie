@@ -4,7 +4,7 @@
  * Tests for chat functionality (requires mock or real API).
  */
 
-import { test, expect } from '@playwright/test'
+import { expect, test } from './fixtures'
 
 test.describe('Chat Interface', () => {
   test.beforeEach(async ({ page }) => {

@@ -4,7 +4,7 @@
  * Tests for session management functionality.
  */
 
-import { test, expect } from '@playwright/test'
+import { expect, test } from './fixtures'
 
 test.describe('Session Management', () => {
   test.beforeEach(async ({ page }) => {

@@ -4,7 +4,7 @@
  * Tests for settings page functionality.
  */
 
-import { test, expect } from '@playwright/test'
+import { expect, test } from './fixtures'
 
 test.describe('Settings Page', () => {
   test.beforeEach(async ({ page }) => {
@@ -12,7 +12,7 @@ test.describe('Settings Page', () => {
   })
 
   test('should display settings page', async ({ page }) => {
-    await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Settings', level: 1 }).last()).toBeVisible()
     await expect(page.getByText('Configure your Frogie instance')).toBeVisible()
   })
 
@@ -23,12 +23,12 @@ test.describe('Settings Page', () => {
   })
 
   test('should display model selection', async ({ page }) => {
-    await expect(page.getByText('Model')).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Model', level: 2 })).toBeVisible()
     await expect(page.getByLabel('Default Model')).toBeVisible()
   })
 
   test('should display limits section', async ({ page }) => {
-    await expect(page.getByText('Limits')).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Limits', level: 2 })).toBeVisible()
     await expect(page.getByLabel('Max Turns per Query')).toBeVisible()
     await expect(page.getByLabel('Max Budget (USD)')).toBeVisible()
   })
