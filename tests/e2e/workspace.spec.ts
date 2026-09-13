@@ -13,7 +13,7 @@ test.describe('Workspace Management', () => {
   })
 
   test('should display workspaces page', async ({ page }) => {
-    await expect(page.getByRole('heading', { name: 'Workspaces' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Workspaces', level: 1 }).last()).toBeVisible()
   })
 
   test('should show workspace selector in sidebar', async ({ page }) => {
