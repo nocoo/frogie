@@ -24,7 +24,7 @@ Frogie 是面向个人开发者的本地 Web 编程助手。浏览器展示对�
 
 当前引擎直接使用 Anthropic SDK。对话、工具调用和模型列表都要求兼容 Anthropic 接口；列表中出现 GPT、Gemini 等名称时，仍然需要能转换协议的上游服务。
 
-项目仍处于早期阶段：Google 登录已接入界面，但业务 API 和 WebSocket 尚未强制鉴权。工具会自动执行，使用服务进程的系统权限，也没有可靠的工作区沙箱。运行时应限制网络访问，适用于自己控制的设备和项目。
+项目仍处于早期阶段：业务 API 和 WebSocket 会校验 Google 登录会话，未配置认证时会拒绝业务请求；WebSocket 还会校验浏览器来源。工具会自动执行，使用服务进程的系统权限，也没有可靠的工作区沙箱。运行时仍应限制网络访问，只用于自己控制的设备和项目。
 
 ## 功能
 
@@ -69,7 +69,7 @@ BASE_URL=http://localhost:7033
 ALLOWED_EMAILS=you@example.com
 ```
 
-在 Google OAuth 客户端中登记回调地址 `http://localhost:7033/api/auth/callback`。这里的 `BASE_URL` 指向前端：Vite 会把 `/api` 和 `/ws` 代理到 7034，登录回调后才能回到同一界面。登录 cookie 带有 `Secure` 属性；Chromium 的 localhost 开发环境可用，自定义域名需要 HTTPS。`ALLOWED_EMAILS` 为空时接受任何成功登录的 Google 账号，但不会补上业务接口缺少的访问控制。
+在 Google OAuth 客户端中登记回调地址 `http://localhost:7033/api/auth/callback`。这里的 `BASE_URL` 指向前端：Vite 会把 `/api` 和 `/ws` 代理到 7034，登录回调后才能回到同一界面。登录 cookie 带有 `Secure` 属性；Chromium 的 localhost 开发环境可用，自定义域名需要 HTTPS。`ALLOWED_EMAILS` 为空时接受任何通过验证的 Google 账号，但业务 API 和 WebSocket 仍要求有效登录会话。
 
 ```bash
 bun run dev

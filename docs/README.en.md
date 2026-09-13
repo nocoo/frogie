@@ -24,7 +24,7 @@ Frogie is a local web coding assistant for individual developers. The browser sh
 
 The current engine uses the Anthropic SDK directly. Conversations, tool calls and model listing require an Anthropic-compatible API. GPT, Gemini or other names in the model list still require an upstream service that translates the protocol.
 
-The project is at an early stage: Google sign-in is integrated with the interface, but business APIs and WebSocket connections do not yet enforce authentication. Tools execute automatically with the server process's system permissions, and there is no reliable workspace sandbox. Restrict network access and use it with devices and projects you control.
+The project is at an early stage. Business APIs and WebSocket connections enforce the Google sign-in session and fail closed when authentication is not configured; browser WebSocket upgrades also validate their origin. Tools still execute automatically with the server process's system permissions, and there is no reliable workspace sandbox. Restrict network access and use it only with devices and projects you control.
 
 ## Features
 
@@ -69,7 +69,7 @@ BASE_URL=http://localhost:7033
 ALLOWED_EMAILS=you@example.com
 ```
 
-Register `http://localhost:7033/api/auth/callback` in your Google OAuth client. `BASE_URL` points to the frontend: Vite proxies `/api` and `/ws` to port 7034 so the callback returns to the same interface. Sign-in cookies use `Secure`; Chromium supports this on localhost for development, while custom domains need HTTPS. An empty `ALLOWED_EMAILS` allows any Google account that signs in successfully, and does not add the missing access checks to business APIs.
+Register `http://localhost:7033/api/auth/callback` in your Google OAuth client. `BASE_URL` points to the frontend: Vite proxies `/api` and `/ws` to port 7034 so the callback returns to the same interface. Sign-in cookies use `Secure`; Chromium supports this on localhost for development, while custom domains need HTTPS. An empty `ALLOWED_EMAILS` allows any verified Google account that signs in successfully; the resulting session is still required for business APIs and WebSocket connections.
 
 ```bash
 bun run dev
