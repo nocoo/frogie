@@ -181,6 +181,13 @@ function EmptyState() {
 export function MessageList({ messages, isLoading = false }: MessageListProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const latestAssistant = [...messages].reverse().find((message) => message.role === 'assistant')
+  const completedResponse = isLoading
+    ? ''
+    : latestAssistant?.content
+        .filter((content) => content.type === 'text')
+        .map((content) => content.text)
+        .join('') ?? ''
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -195,10 +202,13 @@ export function MessageList({ messages, isLoading = false }: MessageListProps) {
     <div
       ref={containerRef}
       role="log"
-      aria-live="polite"
+      aria-live="off"
       aria-relevant="additions"
       className="flex-1 min-h-0 overflow-y-auto px-4"
     >
+      <div className="sr-only" aria-live="polite" aria-atomic="true">
+        {completedResponse}
+      </div>
       <div className="max-w-4xl">
         {messages.map((message, index) => (
           <MessageItem key={message.id} message={message} index={index} />
