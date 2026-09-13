@@ -30,9 +30,11 @@ export interface AuthVariables {
  * This middleware always runs and sets ctx.get('user') to the user or null.
  * Use requireAuth() to block unauthenticated requests.
  */
-export function authMiddleware(jwtSecret: string): MiddlewareHandler {
+export function authMiddleware(
+  jwtSecret: string,
+  cookieName: string = AUTH_DEFAULTS.cookieName
+): MiddlewareHandler {
   return async (ctx: Context, next: Next) => {
-    const cookieName = AUTH_DEFAULTS.cookieName
     const token = getCookie(ctx, cookieName)
 
     let user: AuthUser | null = null

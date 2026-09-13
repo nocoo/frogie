@@ -54,6 +54,24 @@ describe('auth/middleware', () => {
       expect(body.user?.id).toBe('user-1')
       expect(body.user?.email).toBe('a@b.com')
     })
+
+    it('should read a configured cookie name', async () => {
+      const customApp = new Hono()
+      customApp.use('*', authMiddleware(secret, 'custom-session'))
+      customApp.get('/probe', (c) => c.json({ user: getAuthUser(c) }))
+      const token = await createToken(
+        { sub: 'custom-user', email: 'custom@example.test' },
+        secret,
+        3600
+      )
+
+      const res = await customApp.request('/probe', {
+        headers: { Cookie: `custom-session=${token}` },
+      })
+
+      const body = (await res.json()) as { user: { id: string } | null }
+      expect(body.user?.id).toBe('custom-user')
+    })
   })
 
   describe('requireAuth', () => {

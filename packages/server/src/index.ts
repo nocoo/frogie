@@ -126,7 +126,10 @@ export function configureAuthentication(
     return
   }
 
-  app.use('/api/auth/*', authMiddleware(auth.jwtSecret))
+  app.use(
+    '/api/auth/*',
+    authMiddleware(auth.jwtSecret, auth.cookieName ?? AUTH_DEFAULTS.cookieName)
+  )
   app.use('/api/*', async (ctx, next) => {
     if (ctx.req.path.startsWith('/api/auth/')) {
       await next()
