@@ -68,6 +68,9 @@ export function DashboardLayout() {
               onToggle={() => {
                 setMobileOpen(false)
               }}
+              onNavigate={() => {
+                setMobileOpen(false)
+              }}
             />
           </SheetContent>
         </Sheet>

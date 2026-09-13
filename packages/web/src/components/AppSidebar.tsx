@@ -58,9 +58,10 @@ function getUserInitial(name: string | null, email: string): string {
 interface AppSidebarProps {
   collapsed: boolean
   onToggle: () => void
+  onNavigate?: () => void
 }
 
-export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
+export function AppSidebar({ collapsed, onToggle, onNavigate }: AppSidebarProps) {
   const location = useLocation()
   const navigate = useNavigate()
   const { user, logout } = useAuth()
@@ -114,9 +115,9 @@ export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
         </Tooltip>
       )}
 
-      <WorkspaceSelector collapsed={collapsed} />
+      <WorkspaceSelector collapsed={collapsed} onSelection={onNavigate} />
       <SidebarNav className={collapsed ? 'w-full items-center gap-1 pt-1' : 'pt-1'}>
-        <SessionList collapsed={collapsed} />
+        <SessionList collapsed={collapsed} onSelection={onNavigate} />
         {collapsed ? (
           NAV_ITEMS.map((item) => (
             <Tooltip key={item.path} delayDuration={0}>
@@ -125,7 +126,10 @@ export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
                   active={location.pathname === item.path}
                   className="self-center"
                   aria-label={item.title}
-                  onClick={() => void navigate(item.path)}
+                  onClick={() => {
+                    void navigate(item.path)
+                    onNavigate?.()
+                  }}
                 >
                   <item.icon className="h-4 w-4" aria-hidden="true" strokeWidth={1.5} />
                 </SidebarIconItem>
@@ -139,7 +143,10 @@ export function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
               <SidebarItem
                 key={item.path}
                 active={location.pathname === item.path}
-                onClick={() => void navigate(item.path)}
+                onClick={() => {
+                  void navigate(item.path)
+                  onNavigate?.()
+                }}
               >
                 <item.icon className="h-4 w-4 shrink-0" aria-hidden="true" strokeWidth={1.5} />
                 <span className="flex-1 truncate text-left">{item.title}</span>

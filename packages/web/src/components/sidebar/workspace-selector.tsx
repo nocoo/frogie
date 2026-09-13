@@ -41,9 +41,10 @@ import type { Workspace } from '@/models'
 
 interface WorkspaceSelectorProps {
   collapsed?: boolean
+  onSelection?: (() => void) | undefined
 }
 
-export function WorkspaceSelector({ collapsed = false }: WorkspaceSelectorProps) {
+export function WorkspaceSelector({ collapsed = false, onSelection }: WorkspaceSelectorProps) {
   const {
     workspaces,
     currentWorkspace,
@@ -69,6 +70,7 @@ export function WorkspaceSelector({ collapsed = false }: WorkspaceSelectorProps)
     selectWorkspace(workspaceId)
     clearSessions()
     setOpen(false)
+    onSelection?.()
   }
 
   const handleCreate = async () => {
@@ -84,6 +86,7 @@ export function WorkspaceSelector({ collapsed = false }: WorkspaceSelectorProps)
       setNewName('')
       setNewPath('')
       clearSessions()
+      onSelection?.()
     }
   }
 

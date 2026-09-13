@@ -19,9 +19,10 @@ import { Button } from '@nocoo/basalt/components/button'
 
 interface SessionListProps {
   collapsed?: boolean
+  onSelection?: (() => void) | undefined
 }
 
-export function SessionList({ collapsed = false }: SessionListProps) {
+export function SessionList({ collapsed = false, onSelection }: SessionListProps) {
   const navigate = useNavigate()
   const { currentWorkspace } = useWorkspaceStore()
   const {
@@ -44,15 +45,19 @@ export function SessionList({ collapsed = false }: SessionListProps) {
   const handleNewSession = async () => {
     if (!currentWorkspace) return
 
-    await createSession(currentWorkspace.id, {
+    const session = await createSession(currentWorkspace.id, {
       name: `Session ${String(sessions.length + 1)}`,
       model: 'claude-sonnet-4-20250514',
     })
+    if (session) {
+      onSelection?.()
+    }
   }
 
   const handleSelectSession = (sessionId: string) => {
     selectSession(sessionId)
     void navigate('/')
+    onSelection?.()
   }
 
   const handleDeleteSession = async (e: React.MouseEvent, sessionId: string) => {
