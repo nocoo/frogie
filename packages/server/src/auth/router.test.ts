@@ -32,6 +32,24 @@ describe('auth/router', () => {
     },
   }
 
+  async function requestOAuthCallback(
+    target: Hono,
+    code = 'test-code'
+  ): Promise<Response> {
+    const start = await target.request('/api/auth/google')
+    const location = start.headers.get('Location')
+    const state = location ? new URL(location).searchParams.get('state') : null
+    const cookie = (start.headers.get('Set-Cookie') ?? '').split(';')[0] ?? ''
+    if (!state || !cookie) {
+      throw new Error('OAuth start did not return state')
+    }
+
+    return target.request(
+      `/api/auth/callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`,
+      { headers: { Cookie: cookie } }
+    )
+  }
+
   beforeEach(() => {
     testDbPath = getTestDbPath()
     db = initDb(testDbPath)
@@ -77,6 +95,20 @@ describe('auth/router', () => {
       expect(res.headers.get('Location')).toBe('/login?error=InvalidCallback')
     })
 
+    it('should reject a callback with a mismatched OAuth state', async () => {
+      const start = await app.request('/api/auth/google')
+      const cookie = (start.headers.get('Set-Cookie') ?? '').split(';')[0] ?? ''
+
+      const res = await app.request(
+        '/api/auth/callback?code=test-code&state=wrong-state',
+        { headers: { Cookie: cookie } }
+      )
+
+      expect(res.status).toBe(302)
+      expect(res.headers.get('Location')).toBe('/login?error=InvalidCallback')
+      expect(mockFetch).not.toHaveBeenCalled()
+    })
+
     it('should handle successful OAuth flow', async () => {
       // Mock token exchange
       mockFetch.mockResolvedValueOnce({
@@ -102,7 +134,7 @@ describe('auth/router', () => {
           }),
       })
 
-      const res = await app.request('/api/auth/callback?code=test-code')
+      const res = await requestOAuthCallback(app)
 
       expect(res.status).toBe(302)
       expect(res.headers.get('Location')).toBe('/')
@@ -120,7 +152,7 @@ describe('auth/router', () => {
         text: () => Promise.resolve('bad request'),
       })
 
-      const res = await app.request('/api/auth/callback?code=bad-code')
+      const res = await requestOAuthCallback(app, 'bad-code')
       expect(res.status).toBe(302)
       expect(res.headers.get('Location')).toBe('/login?error=TokenExchangeFailed')
 
@@ -144,7 +176,7 @@ describe('auth/router', () => {
         text: () => Promise.resolve('forbidden'),
       })
 
-      const res = await app.request('/api/auth/callback?code=test-code')
+      const res = await requestOAuthCallback(app)
       expect(res.status).toBe(302)
       expect(res.headers.get('Location')).toBe('/login?error=UserInfoFailed')
 
@@ -156,7 +188,7 @@ describe('auth/router', () => {
 
       mockFetch.mockRejectedValueOnce(new Error('network down'))
 
-      const res = await app.request('/api/auth/callback?code=test-code')
+      const res = await requestOAuthCallback(app)
       expect(res.status).toBe(302)
       expect(res.headers.get('Location')).toBe('/login?error=AuthFailed')
 
@@ -195,7 +227,7 @@ describe('auth/router', () => {
           }),
       })
 
-      const res = await restrictedApp.request('/api/auth/callback?code=test-code')
+      const res = await requestOAuthCallback(restrictedApp)
 
       expect(res.status).toBe(302)
       expect(res.headers.get('Location')).toBe('/login?error=AccessDenied')
@@ -258,9 +290,10 @@ describe('auth/router', () => {
           }),
       })
 
-      const callbackRes = await app.request('/api/auth/callback?code=test-code')
+      const callbackRes = await requestOAuthCallback(app)
       const cookies = callbackRes.headers.get('Set-Cookie') ?? ''
-      const sessionCookie = cookies.split(';')[0] ?? ''
+      const sessionToken = /(?:^|, )frogie-session=([^;]+)/.exec(cookies)?.[1] ?? ''
+      const sessionCookie = `frogie-session=${sessionToken}`
 
       // Now request /me with the session cookie
       const res = await app.request('/api/auth/me', {

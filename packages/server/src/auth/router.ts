@@ -5,7 +5,7 @@
  */
 
 import { Hono } from 'hono'
-import { setCookie, deleteCookie } from 'hono/cookie'
+import { setCookie, deleteCookie, getCookie } from 'hono/cookie'
 import type { DatabaseLike } from '../db/connection'
 import { z } from 'zod'
 import { upsertUser, getUserById } from '../db/repositories/users'
@@ -46,7 +46,7 @@ interface GoogleUserInfo {
  */
 const callbackSchema = z.object({
   code: z.string(),
-  state: z.string().optional(),
+  state: z.string(),
 })
 
 /**
@@ -112,7 +112,12 @@ export function createAuthRouter(
       return ctx.redirect('/login?error=InvalidCallback')
     }
 
-    const { code } = parsed.data
+    const { code, state } = parsed.data
+    const expectedState = getCookie(ctx, 'oauth_state')
+    deleteCookie(ctx, 'oauth_state', { path: '/' })
+    if (!expectedState || state !== expectedState) {
+      return ctx.redirect('/login?error=InvalidCallback')
+    }
 
     try {
       // Exchange code for tokens
@@ -151,6 +156,10 @@ export function createAuthRouter(
 
       const googleUser = (await userRes.json()) as GoogleUserInfo
 
+      if (!googleUser.verified_email) {
+        return ctx.redirect('/login?error=AccessDenied')
+      }
+
       // Check allowed emails
       if (
         config.allowedEmails &&
@@ -183,9 +192,6 @@ export function createAuthRouter(
         path: '/',
         maxAge: jwtExpiresIn,
       })
-
-      // Clear OAuth state cookie
-      deleteCookie(ctx, 'oauth_state')
 
       return ctx.redirect('/')
     } catch (err) {
