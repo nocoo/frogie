@@ -86,8 +86,14 @@ test.describe('Chat Interface', () => {
     await input.fill('Stream a response')
     await page.getByRole('button', { name: 'Send message' }).click()
 
-    await expect(page.locator('[aria-live="polite"][aria-atomic="true"]'))
-      .toHaveText('Mock response complete')
+    const announcement = page.locator('[aria-live="polite"][aria-atomic="true"]')
+    await expect(announcement).toHaveText('Mock response complete')
+    const firstCompletion = await announcement.getAttribute('data-completion-id')
+
+    await input.fill('Repeat the same response')
+    await page.getByRole('button', { name: 'Send message' }).click()
+    await expect(announcement).toHaveText('Mock response complete')
+    await expect(announcement).not.toHaveAttribute('data-completion-id', firstCompletion ?? '')
   })
 
   test('should show connection status', async ({ page }) => {
