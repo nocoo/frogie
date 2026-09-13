@@ -74,7 +74,7 @@ function PromptLayerCard({
   isGlobal: boolean
 }) {
   return (
-    <LayerCard outlined className="group">
+    <LayerCard outlined>
       <LayerCard.Header className="pb-3">
         <div className="flex items-start justify-between">
           <div className="space-y-1">
@@ -111,15 +111,16 @@ function PromptLayerCard({
         </div>
       </LayerCard.Header>
       <LayerCard.Body>
-        <div
-          className="cursor-pointer rounded-md border bg-basalt-muted/50 p-3 font-mono text-xs text-basalt-muted-foreground hover:bg-basalt-muted transition-colors"
+        <Button
+          variant="ghost"
+          className="h-auto w-full justify-start whitespace-normal rounded-md border bg-basalt-muted/50 p-3 text-left font-mono text-xs text-basalt-muted-foreground hover:bg-basalt-muted"
           onClick={onEdit}
         >
           <div className="line-clamp-3 whitespace-pre-wrap">
             {layer.content || '(empty)'}
           </div>
-        </div>
-        <div className="mt-3 flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+        </Button>
+        <div className="mt-3 flex items-center justify-end gap-2">
           {!isGlobal && onRevert && !layer.isGlobal && (
             <Button variant="ghost" size="sm" onClick={onRevert}>
               <RotateCcw className="mr-1 h-3 w-3" />
