@@ -196,7 +196,7 @@ export function MessageList({ messages, isLoading = false }: MessageListProps) {
       ref={containerRef}
       role="log"
       aria-live="polite"
-      aria-relevant="additions text"
+      aria-relevant="additions"
       className="flex-1 min-h-0 overflow-y-auto px-4"
     >
       <div className="max-w-4xl">

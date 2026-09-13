@@ -280,7 +280,7 @@ export function ChatPanel() {
 
           {/* Mobile stats - only show on small screens */}
           {turnStats && (
-            <div className="hidden items-center gap-4 text-xs text-basalt-muted-foreground sm:flex lg:hidden">
+            <div className="grid w-full grid-cols-3 gap-3 text-center text-xs text-basalt-muted-foreground sm:flex sm:w-auto sm:items-center sm:gap-4 lg:hidden">
               <span>{turnStats.turns} turns</span>
               <span>{turnStats.inputTokens + turnStats.outputTokens} tokens</span>
               <span>${turnStats.costUsd.toFixed(4)}</span>
