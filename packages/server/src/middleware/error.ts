@@ -1,5 +1,7 @@
 /**
- * Error handling middleware
+ * Error handling helpers
+ *
+ * Handled by Hono app.onError in app.ts
  */
 
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
