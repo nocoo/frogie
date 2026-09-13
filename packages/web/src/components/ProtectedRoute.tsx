@@ -7,7 +7,7 @@
 import { Navigate } from 'react-router'
 import type { ReactNode } from 'react'
 import { useAuth } from '@/viewmodels/auth.viewmodel'
-import { Loader2 } from 'lucide-react'
+import { LoadingScreen } from '@nocoo/basalt/components/loading-screen'
 
 interface ProtectedRouteProps {
   children: ReactNode
@@ -17,11 +17,7 @@ interface ProtectedRouteProps {
  * Loading spinner for auth check
  */
 function AuthLoading() {
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-basalt-background">
-      <Loader2 className="h-8 w-8 animate-spin text-basalt-muted-foreground" />
-    </div>
-  )
+  return <LoadingScreen label="Checking authentication" />
 }
 
 /**

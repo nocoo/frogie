@@ -201,7 +201,7 @@ export function ChatPanel() {
         <div className="flex items-center justify-between px-4 py-2 border-b shrink-0">
           <div className="flex items-center gap-4">
             {/* Connection status */}
-            <div className="flex items-center gap-2 text-sm">
+            <div role="status" aria-live="polite" className="flex items-center gap-2 text-sm">
               {status === 'connected' ? (
                 <>
                   <Wifi className="h-4 w-4 text-green-500" />
@@ -291,6 +291,7 @@ export function ChatPanel() {
         {/* Connection error (affects all sessions) */}
         {connectionError && (
           <div
+            role="alert"
             className={cn(
               'flex items-center gap-2 px-4 py-2 text-sm shrink-0',
               'bg-basalt-destructive/10 text-basalt-destructive border-b border-basalt-destructive/20'
@@ -312,6 +313,7 @@ export function ChatPanel() {
         {/* Session-specific error */}
         {error && currentSession && (
           <div
+            role="alert"
             className={cn(
               'flex items-center gap-2 px-4 py-2 text-sm shrink-0',
               'bg-basalt-destructive/10 text-basalt-destructive border-b border-basalt-destructive/20'

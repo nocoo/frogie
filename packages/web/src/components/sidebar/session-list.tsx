@@ -90,7 +90,7 @@ export function SessionList({ collapsed = false, onSelection }: SessionListProps
               aria-label="New session"
             >
               {isLoading ? (
-                <Loader2 className="h-5 w-5 animate-spin" />
+                <Loader2 className="h-5 w-5 animate-spin" aria-label="Creating session" />
               ) : (
                 <Plus className="h-5 w-5" />
               )}
@@ -143,7 +143,7 @@ export function SessionList({ collapsed = false, onSelection }: SessionListProps
           aria-label="New session"
         >
           {isLoading ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
+            <Loader2 className="h-4 w-4 animate-spin" aria-label="Creating session" />
           ) : (
             <Plus className="h-4 w-4" />
           )}
@@ -160,13 +160,13 @@ export function SessionList({ collapsed = false, onSelection }: SessionListProps
             disabled={isLoading}
             className="group h-auto w-full flex-col border-dashed px-3 py-6"
           >
-            <MessageSquare className="h-6 w-6 mx-auto mb-2 text-basalt-muted-foreground/50 group-hover:text-basalt-primary/70 transition-colors" />
-            <p className="text-sm font-medium text-basalt-muted-foreground group-hover:text-basalt-foreground transition-colors">
+            <MessageSquare className="h-6 w-6 text-basalt-muted-foreground/50 group-hover:text-basalt-primary/70" />
+            <span className="text-sm font-medium text-basalt-muted-foreground group-hover:text-basalt-foreground">
               Start your first session
-            </p>
-            <p className="text-xs text-basalt-muted-foreground/60 mt-1">
+            </span>
+            <span className="text-xs text-basalt-muted-foreground/60">
               Click to create
-            </p>
+            </span>
           </Button>
         ) : (
           sessions.map((session) => (
@@ -195,7 +195,7 @@ export function SessionList({ collapsed = false, onSelection }: SessionListProps
                 onClick={(e) => {
                   void handleDeleteSession(e, session.id)
                 }}
-                className="h-7 w-7 shrink-0 opacity-0 hover:bg-basalt-destructive/10 hover:text-basalt-destructive group-hover:opacity-100"
+                className="h-7 w-7 shrink-0 opacity-0 hover:bg-basalt-destructive/10 hover:text-basalt-destructive focus-visible:opacity-100 group-focus-within:opacity-100 group-hover:opacity-100"
                 aria-label="Delete session"
               >
                 <Trash2 className="h-3.5 w-3.5" />

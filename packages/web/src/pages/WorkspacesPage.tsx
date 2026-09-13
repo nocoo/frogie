@@ -18,6 +18,7 @@ import { Button } from '@nocoo/basalt/components/button'
 import { Input } from '@nocoo/basalt/components/input'
 import { LayerCard } from '@nocoo/basalt/components/layer-card'
 import { Label } from '@nocoo/basalt/components/label'
+import { LoadingScreen } from '@nocoo/basalt/components/loading-screen'
 import { PageHeader } from '@nocoo/basalt/components/page-header'
 import {
   Dialog,
@@ -213,6 +214,8 @@ function WorkspaceCard({ workspace }: { workspace: Workspace }) {
                   )}
                   style={{ backgroundColor: c.value }}
                   title={c.name}
+                  aria-label={`Select ${c.name} color`}
+                  aria-pressed={color === c.value}
                 >
                   {color === c.value && (
                     <Check className="h-4 w-4 mx-auto text-white drop-shadow-md" />
@@ -250,6 +253,7 @@ function WorkspaceCard({ workspace }: { workspace: Workspace }) {
                 onClick={() => {
                   setDeleteDialogOpen(true)
                 }}
+                aria-label={`Delete ${workspace.name}`}
               >
                 <Trash2 className="h-4 w-4" />
               </Button>
@@ -354,13 +358,13 @@ function AddWorkspaceCard() {
             setDialogOpen(true)
           }}
         >
-          <div className="h-12 w-12 rounded-xl bg-basalt-muted flex items-center justify-center mb-3">
+          <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-basalt-muted">
             <Plus className="h-6 w-6 text-basalt-muted-foreground" />
-          </div>
-          <p className="text-sm font-medium">Add Workspace</p>
-          <p className="text-xs text-basalt-muted-foreground">
+          </span>
+          <span className="text-sm font-medium">Add Workspace</span>
+          <span className="text-xs text-basalt-muted-foreground">
             Create a new workspace for your project
-          </p>
+          </span>
         </Button>
       </LayerCard>
 
@@ -447,6 +451,8 @@ function AddWorkspaceCard() {
                     )}
                     style={{ backgroundColor: c.value }}
                     title={c.name}
+                    aria-label={`Select ${c.name} color`}
+                    aria-pressed={color === c.value}
                   >
                     {color === c.value && (
                       <Check className="h-4 w-4 mx-auto text-white drop-shadow-md" />
@@ -508,11 +514,7 @@ export function WorkspacesPage() {
   }, [error, clearError])
 
   if (isLoading && workspaces.length === 0) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <Loader2 className="h-8 w-8 animate-spin text-basalt-muted-foreground" />
-      </div>
-    )
+    return <LoadingScreen label="Loading workspaces" />
   }
 
   return (
@@ -520,7 +522,7 @@ export function WorkspacesPage() {
       <PageHeader title="Workspaces" description="Manage your project workspaces" />
 
       {error && (
-        <div className="flex items-center gap-2 p-3 rounded-lg bg-basalt-destructive/10 text-basalt-destructive text-sm">
+        <div role="alert" className="flex items-center gap-2 p-3 rounded-lg bg-basalt-destructive/10 text-basalt-destructive text-sm">
           <AlertCircle className="h-4 w-4 shrink-0" />
           <span>{error}</span>
         </div>

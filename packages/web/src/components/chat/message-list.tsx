@@ -160,10 +160,10 @@ function EmptyState() {
           {examplePrompts.map((prompt, index) => (
             <div
               key={index}
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-lg border border-basalt-border bg-basalt-card hover:bg-basalt-accent/50 hover:border-basalt-primary/30 transition-all text-left group"
+              className="flex w-full items-center gap-3 rounded-lg border border-basalt-border bg-basalt-card px-4 py-3 text-left"
               style={{ animationDelay: `${String(0.1 + index * 0.05)}s` }}
             >
-              <prompt.icon className="h-4 w-4 text-basalt-muted-foreground group-hover:text-basalt-primary transition-colors shrink-0" />
+              <prompt.icon className="h-4 w-4 shrink-0 text-basalt-muted-foreground" />
               <span className="text-sm text-basalt-foreground">{prompt.text}</span>
             </div>
           ))}

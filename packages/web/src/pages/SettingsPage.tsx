@@ -9,9 +9,11 @@ import { useEffect, useState, useMemo } from 'react'
 import { useSettingsStore } from '@/viewmodels/settings.viewmodel'
 import { useModelsStore, getModelDisplayInfo } from '@/viewmodels/models.viewmodel'
 import { Button } from '@nocoo/basalt/components/button'
+import { Field } from '@nocoo/basalt/components/field'
 import { Input } from '@nocoo/basalt/components/input'
 import { LayerCard } from '@nocoo/basalt/components/layer-card'
 import { Label } from '@nocoo/basalt/components/label'
+import { LoadingScreen } from '@nocoo/basalt/components/loading-screen'
 import { PageHeader } from '@nocoo/basalt/components/page-header'
 import {
   Select,
@@ -152,11 +154,7 @@ export function SettingsPage() {
   const canSave = isDirty && model && !baseUrlError
 
   if (isLoading && !settings) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <Loader2 className="h-8 w-8 animate-spin text-basalt-muted-foreground" />
-      </div>
-    )
+    return <LoadingScreen label="Loading settings" />
   }
 
   return (
@@ -164,7 +162,7 @@ export function SettingsPage() {
       <PageHeader title="Settings" description="Configure your Frogie instance" />
 
       {error && (
-        <div className="flex items-center gap-2 p-3 rounded-lg bg-basalt-destructive/10 text-basalt-destructive text-sm">
+        <div role="alert" className="flex items-center gap-2 p-3 rounded-lg bg-basalt-destructive/10 text-basalt-destructive text-sm">
           <AlertCircle className="h-4 w-4 shrink-0" />
           <span>{error}</span>
         </div>
@@ -181,26 +179,27 @@ export function SettingsPage() {
           </div>
         </LayerCard.Header>
         <LayerCard.Body className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="base-url">API Base URL</Label>
+          <Field
+            label="API Base URL"
+            htmlFor="base-url"
+            required={false}
+            hint="The base URL for the Anthropic API (without /v1)"
+            error={baseUrlError ?? ''}
+          >
             <Input
               id="base-url"
               value={baseUrl}
               onChange={(e) => { handleBaseUrlChange(e.target.value) }}
               placeholder="https://api.anthropic.com"
-              className={baseUrlError ? 'border-basalt-destructive' : ''}
             />
-            {baseUrlError ? (
-              <p className="text-xs text-basalt-destructive">{baseUrlError}</p>
-            ) : (
-              <p className="text-xs text-basalt-muted-foreground">
-                The base URL for the Anthropic API (without /v1)
-              </p>
-            )}
-          </div>
+          </Field>
 
-          <div className="space-y-2">
-            <Label htmlFor="api-key">API Key</Label>
+          <Field
+            label="API Key"
+            htmlFor="api-key"
+            required={false}
+            hint="Your Anthropic API key. Leave empty to keep the existing key."
+          >
             <Input
               id="api-key"
               type="password"
@@ -208,10 +207,7 @@ export function SettingsPage() {
               onChange={(e) => { handleApiKeyChange(e.target.value) }}
               placeholder={settings?.llmApiKey ? '••••••••' : 'sk-ant-...'}
             />
-            <p className="text-xs text-basalt-muted-foreground">
-              Your Anthropic API key. Leave empty to keep existing key.
-            </p>
-          </div>
+          </Field>
         </LayerCard.Body>
       </LayerCard>
 
@@ -250,7 +246,12 @@ export function SettingsPage() {
               }}
               disabled={availableModels.length === 0 && !model}
             >
-              <SelectTrigger id="model" className="h-auto min-h-10">
+              <SelectTrigger
+                id="model"
+                className="h-auto min-h-10"
+                aria-invalid={!model || !!modelsError}
+                aria-describedby={!model || modelsError ? 'model-error' : 'model-hint'}
+              >
                 <SelectValue placeholder={
                   isLoadingModels
                     ? 'Loading models...'
@@ -303,17 +304,17 @@ export function SettingsPage() {
             </Select>
 
             {modelsError && (
-              <p className="text-xs text-basalt-destructive">{modelsError}</p>
+              <p id="model-error" role="alert" className="text-xs text-basalt-destructive">{modelsError}</p>
             )}
 
             {!model && !modelsError && (
-              <p className="text-xs text-basalt-destructive">
+              <p id="model-error" role="alert" className="text-xs text-basalt-destructive">
                 Model is required. Select a model from the list.
               </p>
             )}
 
             {model && (
-              <p className="text-xs text-basalt-muted-foreground font-mono">
+              <p id="model-hint" className="text-xs text-basalt-muted-foreground font-mono">
                 ID: {model}
               </p>
             )}
@@ -339,8 +340,11 @@ export function SettingsPage() {
         </LayerCard.Header>
         <LayerCard.Body className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="max-turns">Max Turns per Query</Label>
+            <Field
+              label="Max Turns per Query"
+              htmlFor="max-turns"
+              hint="Maximum agentic loops (1-100)"
+            >
               <Input
                 id="max-turns"
                 type="number"
@@ -352,13 +356,13 @@ export function SettingsPage() {
                   markDirty()
                 }}
               />
-              <p className="text-xs text-basalt-muted-foreground">
-                Maximum agentic loops (1-100)
-              </p>
-            </div>
+            </Field>
 
-            <div className="space-y-2">
-              <Label htmlFor="max-budget">Max Budget (USD)</Label>
+            <Field
+              label="Max Budget (USD)"
+              htmlFor="max-budget"
+              hint="Maximum spend per query"
+            >
               <Input
                 id="max-budget"
                 type="number"
@@ -370,17 +374,14 @@ export function SettingsPage() {
                   markDirty()
                 }}
               />
-              <p className="text-xs text-basalt-muted-foreground">
-                Maximum spend per query
-              </p>
-            </div>
+            </Field>
           </div>
         </LayerCard.Body>
       </LayerCard>
 
       {/* Save Button */}
       <div className="flex items-center justify-between pt-4">
-        <div className="text-sm text-basalt-muted-foreground">
+        <div role="status" aria-live="polite" className="text-sm text-basalt-muted-foreground">
           {isDirty ? (
             <span className="text-amber-600 dark:text-amber-400">
               Unsaved changes
