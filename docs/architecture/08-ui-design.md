@@ -138,5 +138,5 @@ selection, prompt assembly, model selection, and chat streaming stay in viewmode
 
 UI changes must pass root typecheck, lint, build, and Vitest commands. Browser verification must
 cover the login badge in light and dark mode, authenticated desktop chrome, the three settings
-routes, and the 390px mobile header/sidebar flow. The repository's Playwright suite still needs
-an isolated authenticated fixture before it can run safely against arbitrary local data.
+routes, and the 390px mobile header/sidebar flow. The repository's Playwright suite uses an
+isolated authenticated in-memory fixture and never starts the data-bearing backend.

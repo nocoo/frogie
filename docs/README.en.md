@@ -100,7 +100,7 @@ Run these from the repository root:
 
 `test:l2` runs route tests in Vitest and does not require a live model service. The default Node-based suite skips startup tests that depend on Bun's native server.
 
-The existing browser runner starts or reuses ports 7033 / 7034 and the default `~/.frogie` data. Its tests create sessions, change settings and attempt to send messages; no login fixture or independent data directory is provided yet. Prepare an isolated test instance, login state, existing test directories and a mock model API before running it. This is not a side-effect-free check for your everyday instance.
+The browser suite starts only the frontend on port 7033 and uses an in-memory fixture for sign-in, business APIs and WebSocket traffic. Workspace, session, settings and chat operations do not start the real backend or read and modify the default `~/.frogie` data, so the suite is safe as an isolated routine regression check.
 
 ## Stack
 
