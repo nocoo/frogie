@@ -369,6 +369,11 @@ function AddWorkspaceCard() {
     }
   }
 
+  const handleDialogOpenChange = (nextOpen: boolean) => {
+    setDialogOpen(nextOpen)
+    if (!nextOpen) setCreateAttempted(false)
+  }
+
   return (
     <>
       <LayerCard outlined padding="none" className="h-full min-h-[200px] border-dashed">
@@ -389,7 +394,7 @@ function AddWorkspaceCard() {
         </Button>
       </LayerCard>
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <Dialog open={dialogOpen} onOpenChange={handleDialogOpenChange}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Create Workspace</DialogTitle>
@@ -502,7 +507,7 @@ function AddWorkspaceCard() {
             <Button
               variant="outline"
               onClick={() => {
-                setDialogOpen(false)
+                handleDialogOpenChange(false)
               }}
             >
               Cancel

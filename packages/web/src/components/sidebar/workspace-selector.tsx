@@ -6,6 +6,7 @@
  */
 
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router'
 import {
   Plus,
   Check,
@@ -46,6 +47,7 @@ interface WorkspaceSelectorProps {
 }
 
 export function WorkspaceSelector({ collapsed = false, onSelection }: WorkspaceSelectorProps) {
+  const navigate = useNavigate()
   const {
     workspaces,
     currentWorkspace,
@@ -95,6 +97,11 @@ export function WorkspaceSelector({ collapsed = false, onSelection }: WorkspaceS
     }
   }
 
+  const handleDialogOpenChange = (nextOpen: boolean) => {
+    setDialogOpen(nextOpen)
+    if (!nextOpen) setCreateAttempted(false)
+  }
+
   if (collapsed) {
     return (
       <Popover open={open} onOpenChange={setOpen}>
@@ -131,7 +138,8 @@ export function WorkspaceSelector({ collapsed = false, onSelection }: WorkspaceS
             onSelect={handleSelect}
             onAddClick={() => {
               setOpen(false)
-              setDialogOpen(true)
+              void navigate('/workspaces')
+              onSelection?.()
             }}
           />
         </PopoverContent>
@@ -183,7 +191,7 @@ export function WorkspaceSelector({ collapsed = false, onSelection }: WorkspaceS
       </div>
 
       {/* Create Workspace Dialog */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <Dialog open={dialogOpen} onOpenChange={handleDialogOpenChange}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Create Workspace</DialogTitle>
@@ -262,7 +270,7 @@ export function WorkspaceSelector({ collapsed = false, onSelection }: WorkspaceS
             <Button
               variant="outline"
               onClick={() => {
-                setDialogOpen(false)
+                handleDialogOpenChange(false)
               }}
             >
               Cancel
