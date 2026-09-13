@@ -2,6 +2,32 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.0] - 2026-09-13
+
+### Added
+
+- Adopt `@nocoo/basalt` 2.1.7 for application chrome, themes, page surfaces, overlays, and common controls
+- Add isolated in-memory browser fixtures for authenticated Workspace, Session, Settings, Prompt, and Chat flows
+- Expose the release version from `/api/live` for the web and server components
+
+### Security
+
+- Require a current authenticated user for business APIs and WebSocket upgrades
+- Validate WebSocket browser origins and fail closed when authentication is not configured
+- Validate and consume OAuth state during the Google callback flow
+
+### Changed
+
+- Replace copied UI primitives with Basalt `AppShell`, `Sidebar`, `AppHeader`, `ContentIsland`, `PageHeader`, `LayerCard`, and controls
+- Add the Frogie green accent through Basalt's theme providers and migrate styles to prefixed semantic tokens
+- Improve mobile navigation, narrow chat statistics, workspace validation, and streamed-response announcements
+- Update web build dependencies and preserve the latest upstream dependency upgrades
+
+### Testing
+
+- Cover Basalt login, desktop and mobile chrome, prompt lifecycle, workspace lifecycle, and repeated streamed responses in Playwright
+- Add API and WebSocket authentication regression coverage, including custom session cookie names
+
 ## [0.1.1] - 2026-06-11
 
 ### Security

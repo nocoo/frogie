@@ -7,6 +7,7 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { logger, ApiError, ErrorCodes } from './middleware'
+import packageJson from '../../../package.json'
 
 const DEFAULT_ORIGINS = [
   'http://localhost:5173',
@@ -63,6 +64,17 @@ export function createApp(): Hono {
   // Health check
   app.get('/health', (c) => {
     return c.json({ status: 'ok', timestamp: Date.now() })
+  })
+
+  app.get('/api/live', (c) => {
+    return c.json({
+      status: 'ok',
+      version: packageJson.version,
+      components: {
+        web: packageJson.version,
+        server: packageJson.version,
+      },
+    })
   })
 
   return app

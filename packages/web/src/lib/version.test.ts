@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { APP_VERSION } from './version'
-import packageJson from '../../package.json'
+import packageJson from '../../../../package.json'
 
 describe('lib/version', () => {
   it('exposes a semver-style version string', () => {

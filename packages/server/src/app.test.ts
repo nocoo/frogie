@@ -11,6 +11,20 @@ describe('app', () => {
       expect(body.status).toBe('ok')
       expect(body.timestamp).toBeDefined()
     })
+
+    it('should expose the release version', async () => {
+      const res = await app.request('/api/live')
+
+      expect(res.status).toBe(200)
+      const body = (await res.json()) as {
+        status: string
+        version: string
+        components: { web: string; server: string }
+      }
+      expect(body.status).toBe('ok')
+      expect(body.version).toBe('0.2.0')
+      expect(body.components).toEqual({ web: '0.2.0', server: '0.2.0' })
+    })
   })
 
   describe('CORS', () => {
