@@ -72,6 +72,7 @@ export function LoginPage() {
         <div className="flex flex-col items-center animate-[card-in_0.5s_cubic-bezier(0.16,1,0.3,1)]">
           {/* Badge card — bank card flipped vertical: 54/86 */}
           <div
+            data-basalt-surface-root=""
             className="relative aspect-[54/86] w-72 overflow-hidden rounded-2xl bg-basalt-card flex flex-col ring-1 ring-black/[0.08] dark:ring-white/[0.06]"
             style={{
               boxShadow: [
@@ -130,7 +131,7 @@ export function LoginPage() {
               </p>
 
               {error && (
-                <div className="mt-3 w-full rounded-lg bg-basalt-destructive/10 px-3 py-2 text-xs text-basalt-destructive text-center">
+                <div role="alert" className="mt-3 w-full rounded-lg bg-basalt-destructive/10 px-3 py-2 text-xs text-basalt-destructive text-center">
                   {ERROR_MESSAGES[error] ?? 'Login failed. Please try again.'}
                 </div>
               )}

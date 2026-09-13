@@ -79,7 +79,7 @@ export function AppSidebar({ collapsed, onToggle, onNavigate }: AppSidebarProps)
 
   return (
     <Sidebar collapsed={collapsed}>
-      <SidebarHeader className={collapsed ? 'justify-start px-3' : undefined}>
+      <SidebarHeader className={collapsed ? 'justify-center px-0' : undefined}>
         {collapsed ? (
           <img src="/logo-24.png" alt="Frogie" width={24} height={24} className="shrink-0" />
         ) : (

@@ -116,9 +116,9 @@ function PromptLayerCard({
           className="h-auto w-full justify-start whitespace-normal rounded-md border bg-basalt-muted/50 p-3 text-left font-mono text-xs text-basalt-muted-foreground hover:bg-basalt-muted"
           onClick={onEdit}
         >
-          <div className="line-clamp-3 whitespace-pre-wrap">
+          <span className="block line-clamp-3 whitespace-pre-wrap">
             {layer.content || '(empty)'}
-          </div>
+          </span>
         </Button>
         <div className="mt-3 flex items-center justify-end gap-2">
           {!isGlobal && onRevert && !layer.isGlobal && (
@@ -179,7 +179,7 @@ function EditModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[80vh]">
+      <DialogContent size="lg" className="max-h-[80vh]">
         <DialogHeader>
           <DialogTitle>
             Edit {info.title}
@@ -252,7 +252,7 @@ function PreviewModal({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[80vh]">
+      <DialogContent size="xl" className="max-h-[80vh]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Eye className="h-5 w-5" />
@@ -448,7 +448,7 @@ export function PromptsPage() {
 
       {/* Error */}
       {error && (
-        <div className="flex items-center gap-2 p-3 rounded-lg bg-basalt-destructive/10 text-basalt-destructive text-sm">
+        <div role="alert" className="flex items-center gap-2 p-3 rounded-lg bg-basalt-destructive/10 text-basalt-destructive text-sm">
           <AlertCircle className="h-4 w-4 shrink-0" />
           <span>{error}</span>
         </div>
@@ -482,7 +482,7 @@ export function PromptsPage() {
                 Customize prompts for this workspace. Overrides inherit from global defaults.
               </p>
               {isLoading ? (
-                <div className="flex justify-center py-8">
+                <div role="status" aria-label="Loading workspace prompts" className="flex justify-center py-8">
                   <Loader2 className="h-6 w-6 animate-spin text-basalt-muted-foreground" />
                 </div>
               ) : (
@@ -513,7 +513,7 @@ export function PromptsPage() {
             Edit global defaults that apply to all workspaces without overrides.
           </p>
           {isLoading ? (
-            <div className="flex justify-center py-8">
+            <div role="status" aria-label="Loading global prompts" className="flex justify-center py-8">
               <Loader2 className="h-6 w-6 animate-spin text-basalt-muted-foreground" />
             </div>
           ) : (

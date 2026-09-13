@@ -163,7 +163,7 @@ export function WorkspaceSelector({ collapsed = false, onSelection }: WorkspaceS
               <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
             </Button>
           </PopoverTrigger>
-          <PopoverContent align="start" className="w-[--radix-popover-trigger-width] p-0">
+          <PopoverContent align="start" className="w-[var(--radix-popover-trigger-width)] p-0">
             <WorkspaceList
               workspaces={workspaces}
               currentWorkspace={currentWorkspace}
