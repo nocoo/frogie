@@ -1,8 +1,9 @@
 /**
- * Error handling middleware
+ * Error handling helpers
+ *
+ * Handled by Hono app.onError in app.ts
  */
 
-import type { Context, Next } from 'hono'
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
 
 /**
@@ -35,47 +36,6 @@ export const ErrorCodes = {
 } as const
 
 /**
- * Error response format
- */
-interface ErrorResponse {
-  error: {
-    code: string
-    message: string
-  }
-}
-
-/**
- * Error handler middleware
- */
-export async function errorHandler(c: Context, next: Next): Promise<Response | undefined> {
-  try {
-    await next()
-    return undefined
-  } catch (err) {
-    if (err instanceof ApiError) {
-      const response: ErrorResponse = {
-        error: {
-          code: err.code,
-          message: err.message,
-        },
-      }
-      return c.json(response, err.status)
-    }
-
-    // Log unexpected errors
-    console.error('Unexpected error:', err)
-
-    const response: ErrorResponse = {
-      error: {
-        code: ErrorCodes.INTERNAL_ERROR,
-        message: err instanceof Error ? err.message : 'Internal server error',
-      },
-    }
-    return c.json(response, 500)
-  }
-}
-
-/**
  * Create a 404 not found error
  */
 export function notFound(code: string, message: string): ApiError {
@@ -87,22 +47,4 @@ export function notFound(code: string, message: string): ApiError {
  */
 export function validationError(message: string): ApiError {
   return new ApiError(ErrorCodes.VALIDATION_ERROR, message, 400)
-}
-
-/**
- * Create a 402 budget exceeded error
- */
-export function budgetExceeded(costUsd: number): ApiError {
-  return new ApiError(
-    ErrorCodes.BUDGET_EXCEEDED,
-    `Budget exceeded: $${costUsd.toFixed(2)}`,
-    402
-  )
-}
-
-/**
- * Create a 502 LLM API error
- */
-export function llmApiError(message: string): ApiError {
-  return new ApiError(ErrorCodes.LLM_API_ERROR, message, 502)
 }
