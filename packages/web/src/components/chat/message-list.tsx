@@ -73,8 +73,8 @@ function MessageItem({ message, index }: { message: Message; index: number }) {
         className={cn(
           'flex h-8 w-8 shrink-0 items-center justify-center rounded-full',
           isUser
-            ? 'bg-primary text-primary-foreground'
-            : 'bg-secondary text-muted-foreground border border-border'
+            ? 'bg-basalt-primary text-basalt-primary-foreground'
+            : 'bg-basalt-secondary text-basalt-muted-foreground border border-basalt-border'
         )}
       >
         {isUser ? (
@@ -95,8 +95,8 @@ function MessageItem({ message, index }: { message: Message; index: number }) {
           className={cn(
             'inline-block max-w-[85%]',
             isUser
-              ? 'rounded-2xl rounded-tr-md px-4 py-2.5 bg-primary text-primary-foreground'
-              : 'rounded-2xl rounded-tl-md px-4 py-2.5 bg-secondary/50 text-foreground border-l-2 border-primary/30'
+              ? 'rounded-2xl rounded-tr-md px-4 py-2.5 bg-basalt-primary text-basalt-primary-foreground'
+              : 'rounded-2xl rounded-tl-md px-4 py-2.5 bg-basalt-secondary/50 text-basalt-foreground border-l-2 border-basalt-primary/30'
           )}
         >
           {message.content.map((content, idx) => (
@@ -114,13 +114,13 @@ function MessageItem({ message, index }: { message: Message; index: number }) {
 function LoadingIndicator() {
   return (
     <div className="flex gap-3 py-4 animate-[message-in_0.3s_cubic-bezier(0.16,1,0.3,1)]">
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary text-muted-foreground border border-border">
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-basalt-secondary text-basalt-muted-foreground border border-basalt-border">
         <Bot className="h-4 w-4" />
       </div>
-      <div className="flex items-center gap-1.5 px-4 py-2.5 rounded-2xl rounded-tl-md bg-secondary/50 border-l-2 border-primary/30">
-        <div className="h-2 w-2 rounded-full bg-muted-foreground/60 animate-[loading-dot_1.4s_cubic-bezier(0.4,0,0.2,1)_infinite]" />
-        <div className="h-2 w-2 rounded-full bg-muted-foreground/60 animate-[loading-dot_1.4s_cubic-bezier(0.4,0,0.2,1)_infinite_0.2s]" />
-        <div className="h-2 w-2 rounded-full bg-muted-foreground/60 animate-[loading-dot_1.4s_cubic-bezier(0.4,0,0.2,1)_infinite_0.4s]" />
+      <div className="flex items-center gap-1.5 px-4 py-2.5 rounded-2xl rounded-tl-md bg-basalt-secondary/50 border-l-2 border-basalt-primary/30">
+        <div className="h-2 w-2 rounded-full bg-basalt-muted-foreground/60 animate-[loading-dot_1.4s_cubic-bezier(0.4,0,0.2,1)_infinite]" />
+        <div className="h-2 w-2 rounded-full bg-basalt-muted-foreground/60 animate-[loading-dot_1.4s_cubic-bezier(0.4,0,0.2,1)_infinite_0.2s]" />
+        <div className="h-2 w-2 rounded-full bg-basalt-muted-foreground/60 animate-[loading-dot_1.4s_cubic-bezier(0.4,0,0.2,1)_infinite_0.4s]" />
       </div>
     </div>
   )
@@ -141,37 +141,36 @@ function EmptyState() {
       <div className="max-w-md w-full">
         {/* Hero */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center h-16 w-16 rounded-2xl bg-primary/10 mb-4">
-            <Sparkles className="h-8 w-8 text-primary" />
+          <div className="inline-flex items-center justify-center h-16 w-16 rounded-2xl bg-basalt-primary/10 mb-4">
+            <Sparkles className="h-8 w-8 text-basalt-primary" />
           </div>
-          <h2 className="text-xl font-semibold text-foreground mb-2">
+          <h2 className="text-xl font-semibold text-basalt-foreground mb-2">
             What can I help you build?
           </h2>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-basalt-muted-foreground">
             I can read, write, and run code in your workspace.
           </p>
         </div>
 
         {/* Example prompts */}
         <div className="space-y-2">
-          <p className="text-xs font-medium text-muted-foreground/70 uppercase tracking-wider mb-3">
+          <p className="text-xs font-medium text-basalt-muted-foreground/70 uppercase tracking-wider mb-3">
             Try asking
           </p>
           {examplePrompts.map((prompt, index) => (
-            <button
+            <div
               key={index}
-              type="button"
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-lg border border-border bg-card hover:bg-accent/50 hover:border-primary/30 transition-all text-left group"
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-lg border border-basalt-border bg-basalt-card hover:bg-basalt-accent/50 hover:border-basalt-primary/30 transition-all text-left group"
               style={{ animationDelay: `${String(0.1 + index * 0.05)}s` }}
             >
-              <prompt.icon className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors shrink-0" />
-              <span className="text-sm text-foreground">{prompt.text}</span>
-            </button>
+              <prompt.icon className="h-4 w-4 text-basalt-muted-foreground group-hover:text-basalt-primary transition-colors shrink-0" />
+              <span className="text-sm text-basalt-foreground">{prompt.text}</span>
+            </div>
           ))}
         </div>
 
         {/* Keyboard hint */}
-        <p className="text-center text-xs text-muted-foreground/60 mt-6">
+        <p className="text-center text-xs text-basalt-muted-foreground/60 mt-6">
           Press <kbd>Enter</kbd> to send
         </p>
       </div>

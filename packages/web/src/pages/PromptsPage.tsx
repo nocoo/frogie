@@ -14,16 +14,13 @@ import {
   type MergedPromptLayer,
   type PromptLayerInfo,
 } from '@/models'
-import { Button } from '@/components/ui/button'
-import { Switch } from '@/components/ui/switch'
-import { Label } from '@/components/ui/label'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
+import { Button } from '@nocoo/basalt/components/button'
+import { Badge } from '@nocoo/basalt/components/badge'
+import { InputArea } from '@nocoo/basalt/components/input-area'
+import { LayerCard } from '@nocoo/basalt/components/layer-card'
+import { Switch } from '@nocoo/basalt/components/switch'
+import { Label } from '@nocoo/basalt/components/label'
+import { PageHeader } from '@nocoo/basalt/components/page-header'
 import {
   Dialog,
   DialogContent,
@@ -31,14 +28,14 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
+} from '@nocoo/basalt/components/dialog'
 import {
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
-} from '@/components/ui/tabs'
-import { ScrollArea } from '@/components/ui/scroll-area'
+} from '@nocoo/basalt/components/tabs'
+import { ScrollArea } from '@nocoo/basalt/components/scroll-area'
 import {
   Loader2,
   Save,
@@ -49,33 +46,7 @@ import {
   Globe,
   FolderOpen,
 } from 'lucide-react'
-import { toast } from 'sonner'
-
-/**
- * Simple Badge component (inline)
- */
-function Badge({
-  variant = 'default',
-  className = '',
-  children,
-}: {
-  variant?: 'default' | 'secondary' | 'outline'
-  className?: string
-  children: React.ReactNode
-}) {
-  const variantStyles = {
-    default: 'bg-primary text-primary-foreground',
-    secondary: 'bg-secondary text-secondary-foreground',
-    outline: 'border bg-background',
-  }
-  return (
-    <span
-      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${variantStyles[variant]} ${className}`}
-    >
-      {children}
-    </span>
-  )
-}
+import { toast } from '@nocoo/basalt'
 
 /**
  * Get layer info by name
@@ -103,12 +74,12 @@ function PromptLayerCard({
   isGlobal: boolean
 }) {
   return (
-    <Card className="group">
-      <CardHeader className="pb-3">
+    <LayerCard outlined className="group">
+      <LayerCard.Header className="pb-3">
         <div className="flex items-start justify-between">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <CardTitle className="text-base">{info.title}</CardTitle>
+              <h2 className="text-base font-semibold">{info.title}</h2>
               {layer.isTemplate && (
                 <Badge variant="outline" className="text-xs">
                   <Code2 className="mr-1 h-3 w-3" />
@@ -122,13 +93,13 @@ function PromptLayerCard({
                 </Badge>
               )}
               {layer.isGlobal && (
-                <Badge variant="outline" className="text-xs text-muted-foreground">
+                <Badge variant="outline" className="text-xs text-basalt-muted-foreground">
                   <Globe className="mr-1 h-3 w-3" />
                   Global
                 </Badge>
               )}
             </div>
-            <CardDescription>{info.description}</CardDescription>
+            <p className="text-sm text-basalt-muted-foreground">{info.description}</p>
           </div>
           <div className="flex items-center gap-2">
             <Switch
@@ -138,10 +109,10 @@ function PromptLayerCard({
             />
           </div>
         </div>
-      </CardHeader>
-      <CardContent>
+      </LayerCard.Header>
+      <LayerCard.Body>
         <div
-          className="cursor-pointer rounded-md border bg-muted/50 p-3 font-mono text-xs text-muted-foreground hover:bg-muted transition-colors"
+          className="cursor-pointer rounded-md border bg-basalt-muted/50 p-3 font-mono text-xs text-basalt-muted-foreground hover:bg-basalt-muted transition-colors"
           onClick={onEdit}
         >
           <div className="line-clamp-3 whitespace-pre-wrap">
@@ -159,8 +130,8 @@ function PromptLayerCard({
             Edit
           </Button>
         </div>
-      </CardContent>
-    </Card>
+      </LayerCard.Body>
+    </LayerCard>
   )
 }
 
@@ -228,16 +199,17 @@ function EditModal({
 
           <div className="space-y-2">
             <Label htmlFor="content">Content</Label>
-            <textarea
+            <InputArea
               id="content"
               value={editContent}
               onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => {
                 setEditContent(e.target.value)
               }}
-              className="flex min-h-[300px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 font-mono"
+              rows={14}
+              className="min-h-[300px] font-mono"
               placeholder="Enter prompt content..."
             />
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-basalt-muted-foreground">
               Available variables: {'{{cwd}}'}, {'{{date}}'}, {'{{git_status}}'}, {'{{tools}}'}
             </p>
           </div>
@@ -453,28 +425,29 @@ export function PromptsPage() {
 
   return (
     <div className="max-w-4xl space-y-4 md:space-y-6">
-      {/* Page Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-semibold font-display tracking-tight">System Prompts</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
+      <PageHeader
+        title="System Prompts"
+        description={
+          <>
             Configure AI behavior
             {currentWorkspace && activeTab === 'workspace' && (
-              <> for <span className="font-medium text-foreground">{currentWorkspace.name}</span></>
+              <> for <span className="font-medium text-basalt-foreground">{currentWorkspace.name}</span></>
             )}
-          </p>
-        </div>
-        {currentWorkspace && (
-          <Button onClick={() => { void handlePreview() }} disabled={isLoading}>
-            <Eye className="mr-2 h-4 w-4" />
-            Preview
-          </Button>
-        )}
-      </div>
+          </>
+        }
+        actions={
+          currentWorkspace ? (
+            <Button onClick={() => { void handlePreview() }} disabled={isLoading}>
+              <Eye className="mr-2 h-4 w-4" />
+              Preview
+            </Button>
+          ) : undefined
+        }
+      />
 
       {/* Error */}
       {error && (
-        <div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
+        <div className="flex items-center gap-2 p-3 rounded-lg bg-basalt-destructive/10 text-basalt-destructive text-sm">
           <AlertCircle className="h-4 w-4 shrink-0" />
           <span>{error}</span>
         </div>
@@ -498,18 +471,18 @@ export function PromptsPage() {
 
         <TabsContent value="workspace" className="mt-4">
           {!currentWorkspace ? (
-            <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+            <div className="flex flex-col items-center justify-center py-12 text-basalt-muted-foreground">
               <FolderOpen className="h-12 w-12 mb-4 opacity-50" />
               <p>Select a workspace to configure workspace-specific overrides</p>
             </div>
           ) : (
             <>
-              <p className="text-sm text-muted-foreground mb-4">
+              <p className="text-sm text-basalt-muted-foreground mb-4">
                 Customize prompts for this workspace. Overrides inherit from global defaults.
               </p>
               {isLoading ? (
                 <div className="flex justify-center py-8">
-                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  <Loader2 className="h-6 w-6 animate-spin text-basalt-muted-foreground" />
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -535,12 +508,12 @@ export function PromptsPage() {
         </TabsContent>
 
         <TabsContent value="global" className="mt-4">
-          <p className="text-sm text-muted-foreground mb-4">
+          <p className="text-sm text-basalt-muted-foreground mb-4">
             Edit global defaults that apply to all workspaces without overrides.
           </p>
           {isLoading ? (
             <div className="flex justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              <Loader2 className="h-6 w-6 animate-spin text-basalt-muted-foreground" />
             </div>
           ) : (
             <div className="space-y-4">

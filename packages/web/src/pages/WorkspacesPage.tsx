@@ -14,16 +14,11 @@ import { useSessionStore } from '@/viewmodels/session.viewmodel'
 import { WorkspaceIcon } from '@/components/workspace-icon'
 import { WORKSPACE_COLORS, DEFAULT_WORKSPACE_COLOR } from '@/constants/colors'
 import type { Workspace } from '@/models'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
+import { Button } from '@nocoo/basalt/components/button'
+import { Input } from '@nocoo/basalt/components/input'
+import { LayerCard } from '@nocoo/basalt/components/layer-card'
+import { Label } from '@nocoo/basalt/components/label'
+import { PageHeader } from '@nocoo/basalt/components/page-header'
 import {
   Dialog,
   DialogContent,
@@ -31,7 +26,7 @@ import {
   DialogTitle,
   DialogFooter,
   DialogDescription,
-} from '@/components/ui/dialog'
+} from '@nocoo/basalt/components/dialog'
 import {
   Loader2,
   Save,
@@ -41,7 +36,7 @@ import {
   Plus,
   Check,
 } from 'lucide-react'
-import { toast } from 'sonner'
+import { toast } from '@nocoo/basalt'
 import { cn } from '@/lib/utils'
 
 /**
@@ -129,25 +124,25 @@ function WorkspaceCard({ workspace }: { workspace: Workspace }) {
 
   return (
     <>
-      <Card className={cn(isSelected && 'ring-2 ring-primary')}>
-        <CardHeader className="pb-3">
+      <LayerCard outlined className={cn(isSelected && 'ring-2 ring-basalt-primary')}>
+        <LayerCard.Header className="pb-3">
           <div className="flex items-start gap-3">
             <WorkspaceIcon workspace={{ ...workspace, color }} size="lg" />
             <div className="flex-1 min-w-0">
-              <CardTitle className="text-lg truncate">{workspace.name}</CardTitle>
-              <CardDescription className="truncate font-mono text-xs">
+              <h2 className="truncate text-lg font-semibold">{workspace.name}</h2>
+              <p className="truncate font-mono text-xs">
                 {workspace.path}
-              </CardDescription>
+              </p>
             </div>
             {isSelected && (
-              <span className="shrink-0 text-xs bg-primary/10 text-primary px-2 py-1 rounded-full">
+              <span className="shrink-0 text-xs bg-basalt-primary/10 text-basalt-primary px-2 py-1 rounded-full">
                 Current
               </span>
             )}
           </div>
-        </CardHeader>
+        </LayerCard.Header>
 
-        <CardContent className="space-y-4">
+        <LayerCard.Body className="space-y-4">
           {/* Name */}
           <div className="space-y-2">
             <Label htmlFor={`name-${workspace.id}`}>Name</Label>
@@ -201,18 +196,20 @@ function WorkspaceCard({ workspace }: { workspace: Workspace }) {
             <Label>Color</Label>
             <div className="grid grid-cols-8 gap-2">
               {WORKSPACE_COLORS.map((c) => (
-                <button
+                <Button
                   key={c.value}
                   type="button"
+                  variant="ghost"
+                  size="icon"
                   onClick={() => {
                     setColor(c.value)
                     markDirty()
                   }}
                   className={cn(
-                    'h-9 w-9 rounded-lg border-2 transition-all hover:scale-105',
+                    'h-9 w-9 rounded-lg border-2 p-0 transition-all hover:scale-105',
                     color === c.value
-                      ? 'border-foreground ring-2 ring-foreground/20'
-                      : 'border-transparent hover:border-border'
+                      ? 'border-basalt-foreground ring-2 ring-basalt-foreground/20'
+                      : 'border-transparent hover:border-basalt-border'
                   )}
                   style={{ backgroundColor: c.value }}
                   title={c.name}
@@ -220,7 +217,7 @@ function WorkspaceCard({ workspace }: { workspace: Workspace }) {
                   {color === c.value && (
                     <Check className="h-4 w-4 mx-auto text-white drop-shadow-md" />
                   )}
-                </button>
+                </Button>
               ))}
             </div>
           </div>
@@ -249,7 +246,7 @@ function WorkspaceCard({ workspace }: { workspace: Workspace }) {
               <Button
                 variant="ghost"
                 size="sm"
-                className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                className="text-basalt-destructive hover:text-basalt-destructive hover:bg-basalt-destructive/10"
                 onClick={() => {
                   setDeleteDialogOpen(true)
                 }}
@@ -273,8 +270,8 @@ function WorkspaceCard({ workspace }: { workspace: Workspace }) {
               </Button>
             </div>
           </div>
-        </CardContent>
-      </Card>
+        </LayerCard.Body>
+      </LayerCard>
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
@@ -349,22 +346,23 @@ function AddWorkspaceCard() {
 
   return (
     <>
-      <Card
-        className="border-dashed cursor-pointer hover:border-primary/50 hover:bg-accent/50 transition-colors h-full min-h-[200px]"
-        onClick={() => {
-          setDialogOpen(true)
-        }}
-      >
-        <CardContent className="flex flex-col items-center justify-center h-full py-12">
-          <div className="h-12 w-12 rounded-xl bg-muted flex items-center justify-center mb-3">
-            <Plus className="h-6 w-6 text-muted-foreground" />
+      <LayerCard outlined padding="none" className="h-full min-h-[200px] border-dashed">
+        <Button
+          variant="ghost"
+          className="h-full min-h-[200px] w-full flex-col rounded-xl py-12 hover:bg-basalt-accent/50"
+          onClick={() => {
+            setDialogOpen(true)
+          }}
+        >
+          <div className="h-12 w-12 rounded-xl bg-basalt-muted flex items-center justify-center mb-3">
+            <Plus className="h-6 w-6 text-basalt-muted-foreground" />
           </div>
           <p className="text-sm font-medium">Add Workspace</p>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-basalt-muted-foreground">
             Create a new workspace for your project
           </p>
-        </CardContent>
-      </Card>
+        </Button>
+      </LayerCard>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
@@ -424,7 +422,7 @@ function AddWorkspaceCard() {
                   <FolderOpen className="h-4 w-4" />
                 </Button>
               </div>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-basalt-muted-foreground">
                 The local directory path for this workspace
               </p>
             </div>
@@ -433,17 +431,19 @@ function AddWorkspaceCard() {
               <Label>Color</Label>
               <div className="grid grid-cols-8 gap-2">
                 {WORKSPACE_COLORS.map((c) => (
-                  <button
+                  <Button
                     key={c.value}
                     type="button"
+                    variant="ghost"
+                    size="icon"
                     onClick={() => {
                       setColor(c.value)
                     }}
                     className={cn(
-                      'h-9 w-9 rounded-lg border-2 transition-all hover:scale-105',
+                      'h-9 w-9 rounded-lg border-2 p-0 transition-all hover:scale-105',
                       color === c.value
-                        ? 'border-foreground ring-2 ring-foreground/20'
-                        : 'border-transparent hover:border-border'
+                        ? 'border-basalt-foreground ring-2 ring-basalt-foreground/20'
+                        : 'border-transparent hover:border-basalt-border'
                     )}
                     style={{ backgroundColor: c.value }}
                     title={c.name}
@@ -451,7 +451,7 @@ function AddWorkspaceCard() {
                     {color === c.value && (
                       <Check className="h-4 w-4 mx-auto text-white drop-shadow-md" />
                     )}
-                  </button>
+                  </Button>
                 ))}
               </div>
             </div>
@@ -510,25 +510,17 @@ export function WorkspacesPage() {
   if (isLoading && workspaces.length === 0) {
     return (
       <div className="flex items-center justify-center h-full">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Loader2 className="h-8 w-8 animate-spin text-basalt-muted-foreground" />
       </div>
     )
   }
 
   return (
     <div className="max-w-4xl space-y-4 md:space-y-6">
-      {/* Page Header */}
-      <div>
-        <h1 className="text-2xl md:text-3xl font-semibold font-display tracking-tight">
-          Workspaces
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Manage your project workspaces
-        </p>
-      </div>
+      <PageHeader title="Workspaces" description="Manage your project workspaces" />
 
       {error && (
-        <div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
+        <div className="flex items-center gap-2 p-3 rounded-lg bg-basalt-destructive/10 text-basalt-destructive text-sm">
           <AlertCircle className="h-4 w-4 shrink-0" />
           <span>{error}</span>
         </div>

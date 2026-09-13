@@ -38,7 +38,7 @@ export function MarkdownContent({ content, className }: MarkdownContentProps) {
               return (
                 <code
                   {...props}
-                  className="rounded bg-muted px-1.5 py-0.5 font-mono text-sm"
+                  className="rounded bg-basalt-muted px-1.5 py-0.5 font-mono text-sm"
                 >
                   {children}
                 </code>
@@ -56,7 +56,7 @@ export function MarkdownContent({ content, className }: MarkdownContentProps) {
               href={href}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-primary hover:underline"
+              className="text-basalt-primary hover:underline"
             >
               {children}
             </a>
@@ -87,7 +87,7 @@ export function MarkdownContent({ content, className }: MarkdownContentProps) {
           blockquote: ({ children, ...props }) => (
             <blockquote
               {...props}
-              className="my-2 border-l-2 border-muted-foreground/30 pl-3 italic text-muted-foreground"
+              className="my-2 border-l-2 border-basalt-muted-foreground/30 pl-3 italic text-basalt-muted-foreground"
             >
               {children}
             </blockquote>
@@ -103,13 +103,13 @@ export function MarkdownContent({ content, className }: MarkdownContentProps) {
           th: ({ children, ...props }) => (
             <th
               {...props}
-              className="border border-border bg-muted px-3 py-1.5 text-left font-medium"
+              className="border border-basalt-border bg-basalt-muted px-3 py-1.5 text-left font-medium"
             >
               {children}
             </th>
           ),
           td: ({ children, ...props }) => (
-            <td {...props} className="border border-border px-3 py-1.5">
+            <td {...props} className="border border-basalt-border px-3 py-1.5">
               {children}
             </td>
           ),

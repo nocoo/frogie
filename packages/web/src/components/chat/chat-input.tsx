@@ -6,6 +6,8 @@
 
 import { useRef, useEffect, useState, type KeyboardEvent } from 'react'
 import { Send, Square } from 'lucide-react'
+import { Button } from '@nocoo/basalt/components/button'
+import { InputArea } from '@nocoo/basalt/components/input-area'
 import { cn } from '@/lib/utils'
 
 interface ChatInputProps {
@@ -100,15 +102,15 @@ export function ChatInput({
       {/* Unified input container */}
       <div
         className={cn(
-          'flex items-center gap-0 rounded-2xl border bg-background transition-colors',
+          'flex items-center gap-0 rounded-2xl border bg-basalt-background transition-colors',
           isFocused
-            ? 'border-ring ring-2 ring-ring/20'
-            : 'border-input hover:border-muted-foreground/30'
+            ? 'border-basalt-ring ring-2 ring-basalt-ring/20'
+            : 'border-basalt-input hover:border-basalt-muted-foreground/30'
         )}
       >
         {/* Textarea area */}
         <div className="relative flex-1 min-w-0 flex items-center">
-          <textarea
+          <InputArea
             ref={textareaRef}
             value={value}
             onChange={(e) => {
@@ -121,45 +123,42 @@ export function ChatInput({
             disabled={disabled || isLoading}
             rows={1}
             className={cn(
-              'w-full resize-none bg-transparent px-4 py-3 text-sm leading-6',
-              'placeholder:text-muted-foreground',
-              'focus:outline-none',
+              'max-h-[200px] min-h-0 w-full resize-none border-0 bg-transparent px-4 py-3 text-sm leading-6 shadow-none',
+              'placeholder:text-basalt-muted-foreground',
+              'focus-visible:ring-0',
               'disabled:cursor-not-allowed disabled:opacity-50',
-              'max-h-[200px]'
             )}
           />
           {/* Shortcut hint */}
           {!isFocused && !value && (
-            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground/40 border border-muted/60 rounded px-1.5 py-0.5">/</span>
+            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-basalt-muted-foreground/40 border border-basalt-muted/60 rounded px-1.5 py-0.5">/</span>
           )}
         </div>
 
         {/* Send button */}
         <div className="shrink-0 p-1.5">
           {isLoading ? (
-            <button
+            <Button
               type="button"
+              variant="destructive"
+              size="icon"
               onClick={handleStopClick}
-              className="flex h-9 w-9 items-center justify-center rounded-xl bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-colors"
+              className="h-9 w-9 rounded-xl"
               aria-label="Stop generation"
             >
               <Square className="h-4 w-4" />
-            </button>
+            </Button>
           ) : (
-            <button
+            <Button
               type="button"
+              size="icon"
               onClick={handleSendClick}
               disabled={disabled || !value.trim()}
-              className={cn(
-                'flex h-9 w-9 items-center justify-center rounded-xl transition-colors',
-                value.trim()
-                  ? 'bg-primary text-primary-foreground hover:bg-primary/90'
-                  : 'bg-muted text-muted-foreground cursor-not-allowed'
-              )}
+              className="h-9 w-9 rounded-xl"
               aria-label="Send message"
             >
               <Send className="h-4 w-4" />
-            </button>
+            </Button>
           )}
         </div>
       </div>

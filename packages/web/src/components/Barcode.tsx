@@ -12,7 +12,7 @@ export function Barcode() {
       {bars.map((w, i) => (
         <div
           key={`bar-${String(i)}`}
-          className="rounded-[0.5px] bg-primary-foreground"
+          className="rounded-[0.5px] bg-basalt-primary-foreground"
           style={{ width: `${String(w * 1.5)}px`, opacity: i % 3 === 0 ? 0.9 : 0.5 }}
         />
       ))}

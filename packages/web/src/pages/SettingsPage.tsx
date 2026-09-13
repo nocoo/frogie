@@ -8,28 +8,22 @@
 import { useEffect, useState, useMemo } from 'react'
 import { useSettingsStore } from '@/viewmodels/settings.viewmodel'
 import { useModelsStore, getModelDisplayInfo } from '@/viewmodels/models.viewmodel'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
+import { Button } from '@nocoo/basalt/components/button'
+import { Input } from '@nocoo/basalt/components/input'
+import { LayerCard } from '@nocoo/basalt/components/layer-card'
+import { Label } from '@nocoo/basalt/components/label'
+import { PageHeader } from '@nocoo/basalt/components/page-header'
 import {
   Select,
   SelectContent,
   SelectGroup,
   SelectItem,
   SelectLabel,
-  SelectSeparator,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
+} from '@nocoo/basalt/components/select'
 import { Loader2, Save, AlertCircle, CheckCircle2, RefreshCw } from 'lucide-react'
-import { toast } from 'sonner'
+import { toast } from '@nocoo/basalt'
 
 export function SettingsPage() {
   const { settings, isLoading, error, fetchSettings, updateSettings, clearError } =
@@ -160,37 +154,33 @@ export function SettingsPage() {
   if (isLoading && !settings) {
     return (
       <div className="flex items-center justify-center h-full">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Loader2 className="h-8 w-8 animate-spin text-basalt-muted-foreground" />
       </div>
     )
   }
 
   return (
     <div className="max-w-2xl space-y-4 md:space-y-6">
-      {/* B-4 页面 Header */}
-      <div>
-        <h1 className="text-2xl md:text-3xl font-semibold font-display tracking-tight">Settings</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Configure your Frogie instance
-        </p>
-      </div>
+      <PageHeader title="Settings" description="Configure your Frogie instance" />
 
       {error && (
-        <div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
+        <div className="flex items-center gap-2 p-3 rounded-lg bg-basalt-destructive/10 text-basalt-destructive text-sm">
           <AlertCircle className="h-4 w-4 shrink-0" />
           <span>{error}</span>
         </div>
       )}
 
       {/* API Configuration */}
-      <Card>
-        <CardHeader>
-          <CardTitle>API Configuration</CardTitle>
-          <CardDescription>
-            Configure your LLM API connection
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
+      <LayerCard outlined>
+        <LayerCard.Header>
+          <div>
+            <h2 className="font-semibold leading-none">API Configuration</h2>
+            <p className="mt-1 text-sm text-basalt-muted-foreground">
+              Configure your LLM API connection
+            </p>
+          </div>
+        </LayerCard.Header>
+        <LayerCard.Body className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="base-url">API Base URL</Label>
             <Input
@@ -198,12 +188,12 @@ export function SettingsPage() {
               value={baseUrl}
               onChange={(e) => { handleBaseUrlChange(e.target.value) }}
               placeholder="https://api.anthropic.com"
-              className={baseUrlError ? 'border-destructive' : ''}
+              className={baseUrlError ? 'border-basalt-destructive' : ''}
             />
             {baseUrlError ? (
-              <p className="text-xs text-destructive">{baseUrlError}</p>
+              <p className="text-xs text-basalt-destructive">{baseUrlError}</p>
             ) : (
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-basalt-muted-foreground">
                 The base URL for the Anthropic API (without /v1)
               </p>
             )}
@@ -218,22 +208,22 @@ export function SettingsPage() {
               onChange={(e) => { handleApiKeyChange(e.target.value) }}
               placeholder={settings?.llmApiKey ? '••••••••' : 'sk-ant-...'}
             />
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-basalt-muted-foreground">
               Your Anthropic API key. Leave empty to keep existing key.
             </p>
           </div>
-        </CardContent>
-      </Card>
+        </LayerCard.Body>
+      </LayerCard>
 
       {/* Model Configuration */}
-      <Card>
-        <CardHeader>
+      <LayerCard outlined>
+        <LayerCard.Header>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle>Model</CardTitle>
-              <CardDescription>
+              <h2 className="font-semibold leading-none">Model</h2>
+              <p className="text-sm text-basalt-muted-foreground">
                 Select the default AI model for new sessions
-              </CardDescription>
+              </p>
             </div>
             <Button
               variant="ghost"
@@ -245,12 +235,12 @@ export function SettingsPage() {
               Refresh
             </Button>
           </div>
-        </CardHeader>
-        <CardContent>
+        </LayerCard.Header>
+        <LayerCard.Body>
           <div className="space-y-2">
             <Label htmlFor="model">
               Default Model
-              <span className="text-destructive ml-1">*</span>
+              <span className="text-basalt-destructive ml-1">*</span>
             </Label>
             <Select
               value={model}
@@ -278,14 +268,14 @@ export function SettingsPage() {
               </SelectTrigger>
               <SelectContent className="max-h-80">
                 {modelGroups.length > 0 ? (
-                  modelGroups.map((group, groupIndex) => (
+                  modelGroups.map((group) => (
                     <div key={group.label}>
-                      {groupIndex > 0 && <SelectSeparator />}
+                      <div className="my-1 h-px bg-basalt-border" />
                       <SelectGroup>
                         <SelectLabel className="flex items-center gap-2 font-semibold">
                           <span>{group.icon}</span>
                           <span>{group.label}</span>
-                          <span className="text-xs font-normal text-muted-foreground">
+                          <span className="text-xs font-normal text-basalt-muted-foreground">
                             ({group.models.length})
                           </span>
                         </SelectLabel>
@@ -297,7 +287,7 @@ export function SettingsPage() {
                           >
                             <div className="flex flex-col">
                               <span>{m.name}</span>
-                              <span className="text-xs text-muted-foreground font-mono">
+                              <span className="text-xs text-basalt-muted-foreground font-mono">
                                 {m.id}
                               </span>
                             </div>
@@ -313,39 +303,41 @@ export function SettingsPage() {
             </Select>
 
             {modelsError && (
-              <p className="text-xs text-destructive">{modelsError}</p>
+              <p className="text-xs text-basalt-destructive">{modelsError}</p>
             )}
 
             {!model && !modelsError && (
-              <p className="text-xs text-destructive">
+              <p className="text-xs text-basalt-destructive">
                 Model is required. Select a model from the list.
               </p>
             )}
 
             {model && (
-              <p className="text-xs text-muted-foreground font-mono">
+              <p className="text-xs text-basalt-muted-foreground font-mono">
                 ID: {model}
               </p>
             )}
 
             {availableModels.length > 0 && (
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-basalt-muted-foreground">
                 {availableModels.length} models available
               </p>
             )}
           </div>
-        </CardContent>
-      </Card>
+        </LayerCard.Body>
+      </LayerCard>
 
       {/* Limits */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Limits</CardTitle>
-          <CardDescription>
-            Set safety limits for agent execution
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
+      <LayerCard outlined>
+        <LayerCard.Header>
+          <div>
+            <h2 className="font-semibold leading-none">Limits</h2>
+            <p className="mt-1 text-sm text-basalt-muted-foreground">
+              Set safety limits for agent execution
+            </p>
+          </div>
+        </LayerCard.Header>
+        <LayerCard.Body className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="max-turns">Max Turns per Query</Label>
@@ -360,7 +352,7 @@ export function SettingsPage() {
                   markDirty()
                 }}
               />
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-basalt-muted-foreground">
                 Maximum agentic loops (1-100)
               </p>
             </div>
@@ -378,17 +370,17 @@ export function SettingsPage() {
                   markDirty()
                 }}
               />
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-basalt-muted-foreground">
                 Maximum spend per query
               </p>
             </div>
           </div>
-        </CardContent>
-      </Card>
+        </LayerCard.Body>
+      </LayerCard>
 
       {/* Save Button */}
       <div className="flex items-center justify-between pt-4">
-        <div className="text-sm text-muted-foreground">
+        <div className="text-sm text-basalt-muted-foreground">
           {isDirty ? (
             <span className="text-amber-600 dark:text-amber-400">
               Unsaved changes

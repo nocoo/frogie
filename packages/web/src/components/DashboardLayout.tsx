@@ -1,188 +1,124 @@
-import { useState, useEffect } from 'react'
-import { Outlet, useLocation, Link } from 'react-router'
-import { AppSidebar } from '@/components/AppSidebar'
-import { ThemeToggle } from '@/components/ThemeToggle'
-import { GithubIcon } from '@/components/GithubIcon'
-import { useIsMobile } from '@/hooks/use-mobile'
-import { Menu, ChevronRight } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { useEffect, useState } from 'react'
+import { Outlet, useLocation } from 'react-router'
 import {
+  Button,
+  ContentIsland,
+  Sheet,
+  SheetContent,
+  SheetTitle,
+  ThemeToggle,
   Tooltip,
   TooltipContent,
   TooltipTrigger,
-  TooltipProvider,
-} from '@/components/ui/tooltip'
+} from '@nocoo/basalt'
+import { AppHeader } from '@nocoo/basalt/components/app-header'
+import { AppMain, AppShell, AppSkipLink } from '@nocoo/basalt/components/app-shell'
+import { Menu } from 'lucide-react'
+import { AppSidebar } from '@/components/AppSidebar'
+import { GithubIcon } from '@/components/GithubIcon'
+import { useIsMobile } from '@/hooks/use-mobile'
 
-// Route labels for breadcrumb generation
 const ROUTE_LABELS: Record<string, string> = {
   '/': 'Chat',
   '/settings': 'Settings',
   '/workspaces': 'Workspaces',
+  '/prompts': 'Prompts',
 }
 
-// GitHub repository URL
 const GITHUB_URL = 'https://github.com/nocoo/frogie'
-
-interface BreadcrumbItem {
-  label: string
-  href?: string
-}
-
-function Breadcrumbs({ items }: { items: BreadcrumbItem[] }) {
-  return (
-    <nav aria-label="Breadcrumb" className="flex items-center gap-1 text-sm text-muted-foreground">
-      {items.map((item, index) => (
-        <div key={item.label} className="flex items-center gap-1">
-          {index > 0 && <ChevronRight className="h-3 w-3" />}
-          {item.href && index < items.length - 1 ? (
-            <Link to={item.href} className="hover:text-foreground transition-colors">
-              {item.label}
-            </Link>
-          ) : (
-            <span
-              className={cn(index === items.length - 1 && 'text-foreground font-medium')}
-              aria-current={index === items.length - 1 ? 'page' : undefined}
-            >
-              {item.label}
-            </span>
-          )}
-        </div>
-      ))}
-    </nav>
-  )
-}
 
 export function DashboardLayout() {
   const [collapsed, setCollapsed] = useState(false)
   const isMobile = useIsMobile()
   const [mobileOpen, setMobileOpen] = useState(false)
   const location = useLocation()
+  const title = ROUTE_LABELS[location.pathname] ?? 'Frogie'
+  const breadcrumbs = location.pathname === '/' ? [] : [{ href: '/', label: 'Home' }]
 
-  // Generate breadcrumbs from pathname
-  const breadcrumbs: BreadcrumbItem[] = [
-    { label: 'Home', href: '/' },
-  ]
-
-  const currentLabel = ROUTE_LABELS[location.pathname]
-  if (location.pathname !== '/' && currentLabel) {
-    breadcrumbs.push({ label: currentLabel })
-  } else if (location.pathname === '/') {
-    breadcrumbs[0] = { label: 'Chat' }
-  }
-
-  // Close mobile sidebar on route change
   useEffect(() => {
     setMobileOpen(false)
   }, [location.pathname])
 
-  // Prevent body scroll when mobile sidebar is open
   useEffect(() => {
-    if (mobileOpen) {
-      document.body.style.overflow = 'hidden'
-    } else {
-      document.body.style.overflow = ''
-    }
+    document.body.style.overflow = mobileOpen ? 'hidden' : ''
     return () => {
       document.body.style.overflow = ''
     }
   }, [mobileOpen])
 
   return (
-    <TooltipProvider delayDuration={200}>
-      <div className="flex min-h-screen w-full bg-background">
-        <a
-          href="#main-content"
-          className="sr-only focus:not-sr-only focus:absolute focus:z-[100] focus:top-2 focus:left-2 focus:rounded-lg focus:bg-primary focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-primary-foreground"
-        >
-          Skip to main content
-        </a>
-        {/* Desktop sidebar */}
-        {!isMobile && (
-          <AppSidebar
-            collapsed={collapsed}
-            onToggle={() => {
-              setCollapsed(!collapsed)
-            }}
-          />
-        )}
-
-        {/* Mobile overlay */}
-        {isMobile && mobileOpen && (
-          <>
-            <div
-              className="fixed inset-0 z-40 bg-black/50 backdrop-blur-xs"
-              onClick={() => {
+    <AppShell>
+      <AppSkipLink>Skip to main content</AppSkipLink>
+      {!isMobile ? (
+        <AppSidebar
+          collapsed={collapsed}
+          onToggle={() => {
+            setCollapsed((current) => !current)
+          }}
+        />
+      ) : (
+        <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+          <SheetContent
+            side="left"
+            className="w-[260px] max-w-[260px] border-0 bg-basalt-background p-0"
+          >
+            <SheetTitle className="sr-only">Navigation</SheetTitle>
+            <AppSidebar
+              collapsed={false}
+              onToggle={() => {
                 setMobileOpen(false)
               }}
             />
-            <div className="fixed inset-y-0 left-0 z-50 w-[260px]">
-              <AppSidebar
-                collapsed={false}
-                onToggle={() => {
-                  setMobileOpen(false)
-                }}
-              />
-            </div>
-          </>
-        )}
+          </SheetContent>
+        </Sheet>
+      )}
 
-        <main
-          id="main-content"
-          className="flex-1 flex flex-col min-h-0 min-w-0 h-screen"
-        >
-          {/* B-2 顶栏规范 */}
-          <header className="flex h-14 shrink-0 items-center justify-between px-4 md:px-6">
-            <div className="flex items-center gap-3">
-              {isMobile && (
-                <button
-                  onClick={() => {
-                    setMobileOpen(true)
-                  }}
-                  aria-label="Open navigation"
-                  className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-                >
-                  <Menu
-                    className="h-5 w-5"
-                    aria-hidden="true"
-                    strokeWidth={1.5}
-                  />
-                </button>
-              )}
-              <Breadcrumbs items={breadcrumbs} />
-            </div>
+      <AppMain>
+        <AppHeader
+          leading={
+            isMobile ? (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => {
+                  setMobileOpen(true)
+                }}
+                aria-label="Open navigation"
+              >
+                <Menu className="h-5 w-5" aria-hidden="true" strokeWidth={1.5} />
+              </Button>
+            ) : null
+          }
+          breadcrumbs={breadcrumbs}
+          title={title}
+          actions={
             <div className="flex items-center gap-1">
-              {/* GitHub Link - 必选 */}
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <a
-                    href={GITHUB_URL}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-                    aria-label="View on GitHub"
-                  >
-                    <GithubIcon className="h-[18px] w-[18px]" />
-                  </a>
+                  <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
+                    <a
+                      href={GITHUB_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label="View on GitHub"
+                    >
+                      <GithubIcon className="h-[18px] w-[18px]" />
+                    </a>
+                  </Button>
                 </TooltipTrigger>
                 <TooltipContent>View on GitHub</TooltipContent>
               </Tooltip>
-              {/* ThemeToggle - 必选，始终排在最后 */}
-              <ThemeToggle />
+              <ThemeToggle aria-label="Change theme" />
             </div>
-          </header>
-          {/* B-2 内容区域（浮岛式） */}
-          <div className={cn('flex-1 min-h-0 px-2 pb-2 md:px-3 md:pb-3')}>
-            <div className={cn(
-              'h-full rounded-[16px] md:rounded-[20px] bg-card',
-              // Chat page (/) needs no padding for input to reach edges
-              // Non-chat pages need overflow-y-auto for internal scrolling
-              location.pathname === '/' ? '' : 'p-3 md:p-5 overflow-y-auto'
-            )}>
-              <Outlet />
-            </div>
-          </div>
-        </main>
-      </div>
-    </TooltipProvider>
+          }
+        />
+        <div className="flex min-h-0 flex-1 flex-col px-2 pb-2 md:px-3 md:pb-3">
+          <ContentIsland className={location.pathname === '/' ? 'p-0' : undefined}>
+            <Outlet />
+          </ContentIsland>
+        </div>
+      </AppMain>
+    </AppShell>
   )
 }

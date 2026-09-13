@@ -28,11 +28,9 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { Button } from '@/components/ui/button'
+} from '@nocoo/basalt/components/dropdown-menu'
+import { Button } from '@nocoo/basalt/components/button'
 
 /**
  * Stats sidebar component for wide screens
@@ -51,8 +49,8 @@ function StatsSidebar({
   if (!turnStats) {
     return (
       <div className="space-y-3">
-        <h3 className="text-sm font-medium text-muted-foreground">Session Stats</h3>
-        <p className="text-xs text-muted-foreground/70">
+        <h3 className="text-sm font-medium text-basalt-muted-foreground">Session Stats</h3>
+        <p className="text-xs text-basalt-muted-foreground/70">
           Stats will appear after your first message
         </p>
       </div>
@@ -85,19 +83,19 @@ function StatsSidebar({
 
   return (
     <div className="space-y-3">
-      <h3 className="text-sm font-medium text-muted-foreground">Session Stats</h3>
+      <h3 className="text-sm font-medium text-basalt-muted-foreground">Session Stats</h3>
       <div className="space-y-2">
         {stats.map((stat) => (
           <div
             key={stat.label}
-            className="flex items-center gap-3 rounded-lg bg-muted/50 px-3 py-2"
+            className="flex items-center gap-3 rounded-lg bg-basalt-muted/50 px-3 py-2"
           >
-            <stat.icon className="h-4 w-4 text-muted-foreground shrink-0" />
+            <stat.icon className="h-4 w-4 text-basalt-muted-foreground shrink-0" />
             <div className="flex-1 min-w-0">
-              <div className="text-xs text-muted-foreground">{stat.label}</div>
+              <div className="text-xs text-basalt-muted-foreground">{stat.label}</div>
               <div className="text-sm font-medium truncate">{stat.value}</div>
               {stat.detail && (
-                <div className="text-[10px] text-muted-foreground/70 truncate">
+                <div className="text-[10px] text-basalt-muted-foreground/70 truncate">
                   {stat.detail}
                 </div>
               )}
@@ -207,17 +205,17 @@ export function ChatPanel() {
               {status === 'connected' ? (
                 <>
                   <Wifi className="h-4 w-4 text-green-500" />
-                  <span className="text-muted-foreground">Connected</span>
+                  <span className="text-basalt-muted-foreground">Connected</span>
                 </>
               ) : status === 'connecting' ? (
                 <>
                   <Wifi className="h-4 w-4 text-yellow-500 animate-pulse" />
-                  <span className="text-muted-foreground">Connecting...</span>
+                  <span className="text-basalt-muted-foreground">Connecting...</span>
                 </>
               ) : (
                 <>
                   <WifiOff className="h-4 w-4 text-red-500" />
-                  <span className="text-muted-foreground">Disconnected</span>
+                  <span className="text-basalt-muted-foreground">Disconnected</span>
                 </>
               )}
             </div>
@@ -227,14 +225,14 @@ export function ChatPanel() {
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="sm" className="h-8 gap-2">
                   {isLoadingModels ? (
-                    <span className="text-muted-foreground">Loading models...</span>
+                    <span className="text-basalt-muted-foreground">Loading models...</span>
                   ) : selectedModel ? (
                     <>
                       <span>{selectedModelInfo.icon}</span>
                       <span className="max-w-[150px] truncate">{selectedModelInfo.name}</span>
                     </>
                   ) : (
-                    <span className="text-muted-foreground">Select model</span>
+                    <span className="text-basalt-muted-foreground">Select model</span>
                   )}
                   <ChevronDown className="h-3 w-3 opacity-50" />
                 </Button>
@@ -245,27 +243,26 @@ export function ChatPanel() {
                     Loading models...
                   </DropdownMenuItem>
                 ) : modelGroups.length > 0 ? (
-                  modelGroups.map((group, groupIndex) => (
+                  modelGroups.map((group) => (
                     <div key={group.label}>
-                      {groupIndex > 0 && <DropdownMenuSeparator />}
-                      <DropdownMenuLabel className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 px-2 py-1.5 text-xs font-semibold text-basalt-muted-foreground">
                         <span>{group.icon}</span>
                         <span>{group.label}</span>
-                        <span className="text-xs font-normal text-muted-foreground">
+                        <span className="text-xs font-normal text-basalt-muted-foreground">
                           ({group.models.length})
                         </span>
-                      </DropdownMenuLabel>
+                      </div>
                       {group.models.map((m) => (
                         <DropdownMenuItem
                           key={m.id}
                           onClick={() => { handleModelSelect(m.id) }}
                           className={cn(
                             'flex flex-col items-start gap-0.5 pl-6',
-                            selectedModel === m.id && 'bg-accent'
+                            selectedModel === m.id && 'bg-basalt-accent'
                           )}
                         >
                           <span>{m.name}</span>
-                          <span className="text-xs text-muted-foreground font-mono">
+                          <span className="text-xs text-basalt-muted-foreground font-mono">
                             {m.id}
                           </span>
                         </DropdownMenuItem>
@@ -283,7 +280,7 @@ export function ChatPanel() {
 
           {/* Mobile stats - only show on small screens */}
           {turnStats && (
-            <div className="flex items-center gap-4 text-xs text-muted-foreground lg:hidden">
+            <div className="flex items-center gap-4 text-xs text-basalt-muted-foreground lg:hidden">
               <span>{turnStats.turns} turns</span>
               <span>{turnStats.inputTokens + turnStats.outputTokens} tokens</span>
               <span>${turnStats.costUsd.toFixed(4)}</span>
@@ -296,17 +293,19 @@ export function ChatPanel() {
           <div
             className={cn(
               'flex items-center gap-2 px-4 py-2 text-sm shrink-0',
-              'bg-destructive/10 text-destructive border-b border-destructive/20'
+              'bg-basalt-destructive/10 text-basalt-destructive border-b border-basalt-destructive/20'
             )}
           >
             <WifiOff className="h-4 w-4 shrink-0" />
             <span className="flex-1">{connectionError}</span>
-            <button
+            <Button
+              variant="link"
+              size="sm"
               onClick={clearConnectionError}
-              className="text-xs underline hover:no-underline"
+              className="h-auto p-0 text-xs"
             >
               Dismiss
-            </button>
+            </Button>
           </div>
         )}
 
@@ -315,23 +314,25 @@ export function ChatPanel() {
           <div
             className={cn(
               'flex items-center gap-2 px-4 py-2 text-sm shrink-0',
-              'bg-destructive/10 text-destructive border-b border-destructive/20'
+              'bg-basalt-destructive/10 text-basalt-destructive border-b border-basalt-destructive/20'
             )}
           >
             <AlertCircle className="h-4 w-4 shrink-0" />
             <span className="flex-1">{error}</span>
-            <button
+            <Button
+              variant="link"
+              size="sm"
               onClick={() => { clearError(currentSession.id) }}
-              className="text-xs underline hover:no-underline"
+              className="h-auto p-0 text-xs"
             >
               Dismiss
-            </button>
+            </Button>
           </div>
         )}
 
         {/* No session selected */}
         {!currentSession && (
-          <div className="flex-1 flex items-center justify-center text-muted-foreground">
+          <div className="flex-1 flex items-center justify-center text-basalt-muted-foreground">
             <div className="text-center">
               <p className="text-lg font-medium">No session selected</p>
               <p className="text-sm">Select or create a session to start chatting</p>

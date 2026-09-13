@@ -14,6 +14,7 @@ import {
   Loader2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { Button } from '@nocoo/basalt/components/button'
 
 interface ToolResult {
   output: string
@@ -51,12 +52,13 @@ export function ToolUseCard({ name, input, result }: ToolUseCardProps) {
         isError && 'border-red-200/50 bg-red-50/50 dark:border-red-900/50 dark:bg-red-950/20'
       )}
     >
-      <button
+      <Button
+        variant="ghost"
         onClick={() => {
           setExpanded(!expanded)
         }}
         className={cn(
-          'flex w-full items-center gap-2 px-3 py-2 text-left text-sm rounded-lg transition-colors',
+          'h-auto w-full justify-start gap-2 whitespace-normal rounded-lg px-3 py-2 text-left text-sm',
           isPending && 'text-blue-700 dark:text-blue-400 hover:bg-blue-100/50 dark:hover:bg-blue-900/20',
           isSuccess && 'text-green-700 dark:text-green-400 hover:bg-green-100/50 dark:hover:bg-green-900/20',
           isError && 'text-red-700 dark:text-red-400 hover:bg-red-100/50 dark:hover:bg-red-900/20'
@@ -91,7 +93,7 @@ export function ToolUseCard({ name, input, result }: ToolUseCardProps) {
             {inputPreview}
           </span>
         )}
-      </button>
+      </Button>
 
       {/* Expandable content with grid animation */}
       <div

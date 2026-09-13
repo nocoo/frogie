@@ -14,8 +14,8 @@ import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
-} from '@/components/ui/tooltip'
-import { Button } from '@/components/ui/button'
+} from '@nocoo/basalt/components/tooltip'
+import { Button } from '@nocoo/basalt/components/button'
 
 interface SessionListProps {
   collapsed?: boolean
@@ -64,7 +64,7 @@ export function SessionList({ collapsed = false }: SessionListProps) {
 
   if (!currentWorkspace) {
     return collapsed ? null : (
-      <div className="px-4 py-3 text-sm text-muted-foreground">
+      <div className="px-4 py-3 text-sm text-basalt-muted-foreground">
         Select a workspace to view sessions
       </div>
     )
@@ -75,19 +75,21 @@ export function SessionList({ collapsed = false }: SessionListProps) {
       <div className="flex flex-col items-center gap-1 px-2 py-2">
         <Tooltip>
           <TooltipTrigger asChild>
-            <button
+            <Button
+              size="icon"
               onClick={() => {
                 void handleNewSession()
               }}
               disabled={isLoading}
-              className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+              className="h-10 w-10"
+              aria-label="New session"
             >
               {isLoading ? (
                 <Loader2 className="h-5 w-5 animate-spin" />
               ) : (
                 <Plus className="h-5 w-5" />
               )}
-            </button>
+            </Button>
           </TooltipTrigger>
           <TooltipContent side="right">New Session</TooltipContent>
         </Tooltip>
@@ -95,19 +97,22 @@ export function SessionList({ collapsed = false }: SessionListProps) {
         {sessions.slice(0, 5).map((session) => (
           <Tooltip key={session.id}>
             <TooltipTrigger asChild>
-              <button
+              <Button
+                variant="ghost"
+                size="icon"
                 onClick={() => {
                   handleSelectSession(session.id)
                 }}
                 className={cn(
                   'flex h-10 w-10 items-center justify-center rounded-lg transition-colors',
                   currentSession?.id === session.id
-                    ? 'bg-accent text-foreground'
-                    : 'text-muted-foreground hover:bg-accent hover:text-foreground'
-                )}
+                    ? 'bg-basalt-accent text-basalt-foreground'
+                    : 'text-basalt-muted-foreground hover:bg-basalt-accent hover:text-basalt-foreground'
+                  )}
+                aria-label={session.name ?? 'Session'}
               >
                 <MessageSquare className="h-5 w-5" strokeWidth={1.5} />
-              </button>
+              </Button>
             </TooltipTrigger>
             <TooltipContent side="right">{session.name}</TooltipContent>
           </Tooltip>
@@ -119,7 +124,7 @@ export function SessionList({ collapsed = false }: SessionListProps) {
   return (
     <div className="py-2">
       <div className="flex items-center justify-between px-4 mb-2">
-        <span className="text-sm font-medium text-muted-foreground">
+        <span className="text-sm font-medium text-basalt-muted-foreground">
           Sessions
         </span>
         <Button
@@ -142,46 +147,54 @@ export function SessionList({ collapsed = false }: SessionListProps) {
 
       <div className="space-y-0.5 px-3">
         {sessions.length === 0 ? (
-          <button
+          <Button
+            variant="outline"
             onClick={() => {
               void handleNewSession()
             }}
             disabled={isLoading}
-            className="w-full px-3 py-6 text-center rounded-lg border border-dashed border-border hover:border-primary/50 hover:bg-accent/30 transition-all group"
+            className="group h-auto w-full flex-col border-dashed px-3 py-6"
           >
-            <MessageSquare className="h-6 w-6 mx-auto mb-2 text-muted-foreground/50 group-hover:text-primary/70 transition-colors" />
-            <p className="text-sm font-medium text-muted-foreground group-hover:text-foreground transition-colors">
+            <MessageSquare className="h-6 w-6 mx-auto mb-2 text-basalt-muted-foreground/50 group-hover:text-basalt-primary/70 transition-colors" />
+            <p className="text-sm font-medium text-basalt-muted-foreground group-hover:text-basalt-foreground transition-colors">
               Start your first session
             </p>
-            <p className="text-xs text-muted-foreground/60 mt-1">
+            <p className="text-xs text-basalt-muted-foreground/60 mt-1">
               Click to create
             </p>
-          </button>
+          </Button>
         ) : (
           sessions.map((session) => (
             <div
               key={session.id}
-              onClick={() => {
-                handleSelectSession(session.id)
-              }}
               className={cn(
-                'group flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors cursor-pointer',
+                'group flex w-full items-center rounded-lg text-sm transition-colors',
                 currentSession?.id === session.id
-                  ? 'bg-accent text-foreground'
-                  : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+                  ? 'bg-basalt-accent text-basalt-foreground'
+                  : 'text-basalt-muted-foreground hover:bg-basalt-accent hover:text-basalt-foreground'
               )}
             >
-              <MessageSquare className="h-4 w-4 shrink-0" strokeWidth={1.5} />
-              <span className="flex-1 text-left truncate">{session.name}</span>
-              <button
+              <Button
+                variant="ghost"
+                className="min-w-0 flex-1 justify-start gap-3 bg-transparent px-3 py-2.5 hover:bg-transparent"
+                onClick={() => {
+                  handleSelectSession(session.id)
+                }}
+              >
+                <MessageSquare className="h-4 w-4 shrink-0" strokeWidth={1.5} />
+                <span className="truncate">{session.name}</span>
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
                 onClick={(e) => {
                   void handleDeleteSession(e, session.id)
                 }}
-                className="opacity-0 group-hover:opacity-100 h-6 w-6 flex items-center justify-center rounded hover:bg-destructive/10 hover:text-destructive transition-all"
+                className="h-7 w-7 shrink-0 opacity-0 hover:bg-basalt-destructive/10 hover:text-basalt-destructive group-hover:opacity-100"
                 aria-label="Delete session"
               >
                 <Trash2 className="h-3.5 w-3.5" />
-              </button>
+              </Button>
             </div>
           ))
         )}
