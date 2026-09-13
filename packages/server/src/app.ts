@@ -8,6 +8,18 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { logger, ApiError, ErrorCodes } from './middleware'
 
+const DEFAULT_ORIGINS = [
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'http://localhost:7033',
+  'https://frogie.dev.hexly.ai',
+]
+
+export function getAllowedOrigins(): string[] {
+  const envOrigins = process.env['CORS_ORIGINS']?.split(',').filter(Boolean) ?? []
+  return [...DEFAULT_ORIGINS, ...envOrigins]
+}
+
 /**
  * Create the Hono application
  */
@@ -16,19 +28,10 @@ export function createApp(): Hono {
 
   // CORS for web UI
   // Default origins + custom via CORS_ORIGINS env var (comma-separated)
-  const defaultOrigins = [
-    'http://localhost:5173',
-    'http://localhost:3000',
-    'http://localhost:7033',
-    'https://frogie.dev.hexly.ai',
-  ]
-  const envOrigins = process.env['CORS_ORIGINS']?.split(',').filter(Boolean) ?? []
-  const allowedOrigins = [...defaultOrigins, ...envOrigins]
-
   app.use(
     '*',
     cors({
-      origin: allowedOrigins,
+      origin: getAllowedOrigins(),
       credentials: true,
     })
   )

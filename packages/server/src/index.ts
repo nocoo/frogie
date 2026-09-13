@@ -8,8 +8,9 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { mkdirSync, existsSync } from 'node:fs'
 import type { Server } from 'bun'
+import type { Hono } from 'hono'
 
-import { createApp } from './app'
+import { createApp, getAllowedOrigins } from './app'
 import { initDb, runMigrations, closeDb } from './db'
 import { FileMessageStore } from './engine/session-sync'
 import { WorkspaceMCPManager } from './mcp'
@@ -19,7 +20,14 @@ import { createSessionsRouter } from './routes/sessions'
 import { createMCPRouter } from './routes/mcp'
 import { createPromptsRouter } from './routes/prompts'
 import { createWSHandler, type ConnectionState } from './routes/ws-chat'
-import { createAuthRouter, authMiddleware, type AuthConfig } from './auth'
+import {
+  AUTH_DEFAULTS,
+  createAuthRouter,
+  authMiddleware,
+  verifyToken,
+  type AuthConfig,
+} from './auth'
+import { getUserById } from './db/repositories/users'
 
 /**
  * Server configuration
@@ -65,6 +73,75 @@ function ensureDir(path: string): void {
   }
 }
 
+function readCookie(request: Request, name: string): string | null {
+  const header = request.headers.get('cookie')
+  if (!header) return null
+
+  for (const entry of header.split(';')) {
+    const separator = entry.indexOf('=')
+    if (separator < 0) continue
+    if (entry.slice(0, separator).trim() === name) {
+      return entry.slice(separator + 1).trim()
+    }
+  }
+  return null
+}
+
+export async function authorizeWebSocketRequest(
+  request: Request,
+  db: ReturnType<typeof initDb>,
+  auth: AuthConfig | undefined
+): Promise<Response | null> {
+  if (!auth) {
+    return new Response('Authentication is not configured', { status: 503 })
+  }
+
+  const origin = request.headers.get('origin')
+  if (origin && !getAllowedOrigins().includes(origin)) {
+    return new Response('Forbidden origin', { status: 403 })
+  }
+
+  const token = readCookie(request, auth.cookieName ?? AUTH_DEFAULTS.cookieName)
+  if (!token) {
+    return new Response('Unauthorized', { status: 401 })
+  }
+
+  const payload = await verifyToken(token, auth.jwtSecret)
+  if (!payload || !getUserById(db, payload.sub)) {
+    return new Response('Unauthorized', { status: 401 })
+  }
+
+  return null
+}
+
+export function configureAuthentication(
+  app: Hono,
+  db: ReturnType<typeof initDb>,
+  auth: AuthConfig | undefined
+): void {
+  if (!auth) {
+    app.use('/api/*', (ctx) => Promise.resolve(
+      ctx.json({ error: { message: 'Authentication is not configured' } }, 503)
+    ))
+    return
+  }
+
+  app.use('/api/auth/*', authMiddleware(auth.jwtSecret))
+  app.use('/api/*', async (ctx, next) => {
+    if (ctx.req.path.startsWith('/api/auth/')) {
+      await next()
+      return
+    }
+    const token = readCookie(ctx.req.raw, auth.cookieName ?? AUTH_DEFAULTS.cookieName)
+    const payload = token ? await verifyToken(token, auth.jwtSecret) : null
+    if (!payload || !getUserById(db, payload.sub)) {
+      return ctx.json({ error: { message: 'Unauthorized' } }, 401)
+    }
+    await next()
+  })
+  app.route('/api/auth', createAuthRouter(db, auth))
+}
+
 /**
  * Start the Frogie server
  */
@@ -90,10 +167,7 @@ export function startServer(config: ServerConfig = {}): FrogieServer {
   const app = createApp()
 
   // Add auth middleware if configured
-  if (config.auth) {
-    app.use('*', authMiddleware(config.auth.jwtSecret))
-    app.route('/api/auth', createAuthRouter(db, config.auth))
-  }
+  configureAuthentication(app, db, config.auth)
 
   app.route('/api/settings', createSettingsRouter(db))
   app.route('/api/workspaces', createWorkspacesRouter(db))
@@ -107,11 +181,15 @@ export function startServer(config: ServerConfig = {}): FrogieServer {
   // Start server with WebSocket support
   const server = Bun.serve<WSData>({
     port,
-    fetch(req, server) {
+    async fetch(req, server) {
       const url = new URL(req.url)
 
       // Handle WebSocket upgrade
       if (url.pathname === '/ws') {
+        const authError = await authorizeWebSocketRequest(req, db, config.auth)
+        if (authError) {
+          return authError
+        }
         const upgraded = server.upgrade(req, {
           data: { state: null },
         })
