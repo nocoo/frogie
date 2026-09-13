@@ -33,6 +33,8 @@ interface SessionChatState {
     costUsd: number
     durationMs: number
   } | null
+  completionId: number
+  completedResponse: string
 }
 
 /**
@@ -113,6 +115,8 @@ function createDefaultSessionState(): SessionChatState {
     isProcessing: false,
     error: null,
     turnStats: null,
+    completionId: 0,
+    completedResponse: '',
   }
 }
 
@@ -229,6 +233,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       messages: [...sessionState.messages, userMessage],
       isProcessing: true,
       error: null, // Clear any previous error
+      completedResponse: '',
     })
 
     set({ sessions: newSessions })
@@ -418,6 +423,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
       case 'turn_complete': {
         if (!sessionId) return
         const sessionState = sessions.get(sessionId) ?? createDefaultSessionState()
+        const latestAssistant = [...sessionState.messages]
+          .reverse()
+          .find((message) => message.role === 'assistant')
+        const completedResponse = latestAssistant?.content
+          .filter((content) => content.type === 'text')
+          .map((content) => content.text)
+          .join('') ?? ''
 
         const newSessions = new Map(sessions)
         newSessions.set(sessionId, {
@@ -430,6 +442,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
             costUsd: event.costUsd,
             durationMs: event.durationMs,
           },
+          completionId: sessionState.completionId + 1,
+          completedResponse,
         })
         set({ sessions: newSessions })
         break

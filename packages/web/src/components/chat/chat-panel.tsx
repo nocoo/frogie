@@ -144,6 +144,8 @@ export function ChatPanel() {
   const isProcessing = sessionState?.isProcessing ?? false
   const error = sessionState?.error ?? null
   const turnStats = sessionState?.turnStats ?? null
+  const completionId = sessionState?.completionId ?? 0
+  const completedResponse = sessionState?.completedResponse ?? ''
 
   // Connect to WebSocket on mount
   useEffect(() => {
@@ -345,7 +347,13 @@ export function ChatPanel() {
         {/* Messages */}
         {currentSession && (
           <>
-            <MessageList messages={messages} isLoading={isProcessing} />
+            <MessageList
+              sessionId={currentSession.id}
+              messages={messages}
+              isLoading={isProcessing}
+              completionId={completionId}
+              completedResponse={completedResponse}
+            />
 
             <ChatInput
               value={inputValue}

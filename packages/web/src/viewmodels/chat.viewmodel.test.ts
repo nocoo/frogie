@@ -259,6 +259,11 @@ describe('chat.viewmodel', () => {
       useChatStore.getState().connect()
       MockWebSocket.instances[0]?.simulateOpen()
       useChatStore.getState().sendMessage('ws-1', sessionId, 'Hello')
+      useChatStore.getState().handleEvent({
+        type: 'text',
+        sessionId,
+        text: 'Complete response',
+      })
 
       useChatStore.getState().handleEvent({
         type: 'turn_complete',
@@ -279,6 +284,8 @@ describe('chat.viewmodel', () => {
         costUsd: 0.05,
         durationMs: 2000,
       })
+      expect(sessionState.completionId).toBe(1)
+      expect(sessionState.completedResponse).toBe('Complete response')
     })
 
     it('should handle error event', () => {
@@ -296,6 +303,7 @@ describe('chat.viewmodel', () => {
       const sessionState = useChatStore.getState().getSessionState(sessionId)
       expect(sessionState.isProcessing).toBe(false)
       expect(sessionState.error).toBe('Something went wrong')
+      expect(sessionState.completionId).toBe(0)
     })
 
     it('should handle interrupted event', () => {
@@ -311,6 +319,7 @@ describe('chat.viewmodel', () => {
 
       const sessionState = useChatStore.getState().getSessionState(sessionId)
       expect(sessionState.isProcessing).toBe(false)
+      expect(sessionState.completionId).toBe(0)
     })
 
     it('should handle budget_exceeded event', () => {
@@ -328,6 +337,7 @@ describe('chat.viewmodel', () => {
       const sessionState = useChatStore.getState().getSessionState(sessionId)
       expect(sessionState.isProcessing).toBe(false)
       expect(sessionState.error).toBe('Budget exceeded: $10.50')
+      expect(sessionState.completionId).toBe(0)
     })
   })
 

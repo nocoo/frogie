@@ -4,7 +4,7 @@
  * Renders the list of chat messages with auto-scroll.
  */
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { User, Bot, Sparkles, Terminal, FileCode, Zap } from 'lucide-react'
 import type { Message, MessageContent } from '@/models/events'
 import { ThinkingBlock } from './thinking-block'
@@ -13,8 +13,11 @@ import { MarkdownContent } from './markdown-content'
 import { cn } from '@/lib/utils'
 
 interface MessageListProps {
+  sessionId: string
   messages: Message[]
   isLoading?: boolean
+  completionId: number
+  completedResponse: string
 }
 
 /**
@@ -178,16 +181,27 @@ function EmptyState() {
   )
 }
 
-export function MessageList({ messages, isLoading = false }: MessageListProps) {
+export function MessageList({
+  sessionId,
+  messages,
+  isLoading = false,
+  completionId,
+  completedResponse,
+}: MessageListProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
-  const latestAssistant = [...messages].reverse().find((message) => message.role === 'assistant')
-  const completedResponse = isLoading
-    ? ''
-    : latestAssistant?.content
-        .filter((content) => content.type === 'text')
-        .map((content) => content.text)
-        .join('') ?? ''
+  const previousCompletion = useRef({ sessionId, completionId })
+  const [announcement, setAnnouncement] = useState('')
+
+  useEffect(() => {
+    const previous = previousCompletion.current
+    previousCompletion.current = { sessionId, completionId }
+    if (previous.sessionId !== sessionId) {
+      setAnnouncement('')
+    } else if (previous.completionId !== completionId) {
+      setAnnouncement(completedResponse)
+    }
+  }, [sessionId, completionId, completedResponse])
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -207,7 +221,7 @@ export function MessageList({ messages, isLoading = false }: MessageListProps) {
       className="flex-1 min-h-0 overflow-y-auto px-4"
     >
       <div className="sr-only" aria-live="polite" aria-atomic="true">
-        {completedResponse}
+        {announcement}
       </div>
       <div className="max-w-4xl">
         {messages.map((message, index) => (
