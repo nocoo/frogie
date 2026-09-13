@@ -30,6 +30,7 @@ import {
   DialogFooter,
 } from '@nocoo/basalt/components/dialog'
 import { Input } from '@nocoo/basalt/components/input'
+import { Field } from '@nocoo/basalt/components/field'
 import { Label } from '@nocoo/basalt/components/label'
 import {
   Tooltip,
@@ -60,6 +61,7 @@ export function WorkspaceSelector({ collapsed = false, onSelection }: WorkspaceS
   const [dialogOpen, setDialogOpen] = useState(false)
   const [newName, setNewName] = useState('')
   const [newPath, setNewPath] = useState('')
+  const [createAttempted, setCreateAttempted] = useState(false)
 
   // Fetch workspaces on mount
   useEffect(() => {
@@ -74,6 +76,7 @@ export function WorkspaceSelector({ collapsed = false, onSelection }: WorkspaceS
   }
 
   const handleCreate = async () => {
+    setCreateAttempted(true)
     if (!newName.trim() || !newPath.trim()) return
 
     const workspace = await createWorkspace({
@@ -82,9 +85,11 @@ export function WorkspaceSelector({ collapsed = false, onSelection }: WorkspaceS
     })
 
     if (workspace) {
+      selectWorkspace(workspace.id)
       setDialogOpen(false)
       setNewName('')
       setNewPath('')
+      setCreateAttempted(false)
       clearSessions()
       onSelection?.()
     }
@@ -110,7 +115,7 @@ export function WorkspaceSelector({ collapsed = false, onSelection }: WorkspaceS
                 {currentWorkspace ? (
                   <WorkspaceIcon workspace={currentWorkspace} size="sm" />
                 ) : (
-                  <div className="h-5 w-5 rounded bg-basalt-muted" />
+                  <span className="h-5 w-5 rounded bg-basalt-muted" />
                 )}
               </Button>
             </PopoverTrigger>
@@ -148,18 +153,18 @@ export function WorkspaceSelector({ collapsed = false, onSelection }: WorkspaceS
               disabled={isLoading}
               aria-label="Select workspace"
             >
-              <div className="flex items-center gap-2 min-w-0">
+              <span className="flex min-w-0 items-center gap-2">
                 {isLoading ? (
                   <Loader2 className="h-4 w-4 animate-spin shrink-0" />
                 ) : currentWorkspace ? (
                   <WorkspaceIcon workspace={currentWorkspace} size="sm" />
                 ) : (
-                  <div className="h-5 w-5 rounded bg-basalt-muted shrink-0" />
+                  <span className="h-5 w-5 shrink-0 rounded bg-basalt-muted" />
                 )}
                 <span className="truncate">
                   {currentWorkspace?.name ?? 'Select workspace...'}
                 </span>
-              </div>
+              </span>
               <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
             </Button>
           </PopoverTrigger>
@@ -185,8 +190,11 @@ export function WorkspaceSelector({ collapsed = false, onSelection }: WorkspaceS
           </DialogHeader>
 
           <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="workspace-name">Name</Label>
+            <Field
+              label="Name"
+              htmlFor="workspace-name"
+              error={createAttempted && !newName.trim() ? 'Name is required' : ''}
+            >
               <Input
                 id="workspace-name"
                 value={newName}
@@ -194,8 +202,9 @@ export function WorkspaceSelector({ collapsed = false, onSelection }: WorkspaceS
                   setNewName(e.target.value)
                 }}
                 placeholder="My Project"
+                required
               />
-            </div>
+            </Field>
 
             <div className="space-y-2">
               <Label htmlFor="workspace-path">Path</Label>
@@ -208,6 +217,11 @@ export function WorkspaceSelector({ collapsed = false, onSelection }: WorkspaceS
                   }}
                   placeholder="/path/to/project"
                   className="flex-1"
+                  required
+                  aria-invalid={createAttempted && !newPath.trim()}
+                  aria-describedby={createAttempted && !newPath.trim()
+                    ? 'workspace-path-hint workspace-path-error'
+                    : 'workspace-path-hint'}
                 />
                 <Button
                   type="button"
@@ -233,9 +247,14 @@ export function WorkspaceSelector({ collapsed = false, onSelection }: WorkspaceS
                   <FolderOpen className="h-4 w-4" />
                 </Button>
               </div>
-              <p className="text-xs text-basalt-muted-foreground">
+              <p id="workspace-path-hint" className="text-xs text-basalt-muted-foreground">
                 The local directory path for this workspace
               </p>
+              {createAttempted && !newPath.trim() && (
+                <p id="workspace-path-error" role="alert" className="text-xs text-basalt-destructive">
+                  Path is required
+                </p>
+              )}
             </div>
           </div>
 
@@ -301,6 +320,7 @@ function WorkspaceList({
                 'w-full justify-start gap-2',
                 currentWorkspace?.id === workspace.id && 'bg-basalt-accent'
               )}
+              aria-pressed={currentWorkspace?.id === workspace.id}
             >
               <Check
                 className={cn(

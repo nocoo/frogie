@@ -5,7 +5,7 @@
  * Includes smooth state transitions for pending/success/error.
  */
 
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import {
   ChevronRight,
   Wrench,
@@ -29,6 +29,7 @@ interface ToolUseCardProps {
 
 export function ToolUseCard({ name, input, result }: ToolUseCardProps) {
   const [expanded, setExpanded] = useState(false)
+  const contentId = useId()
 
   const isPending = !result
   const isError = result?.isError ?? false
@@ -64,6 +65,7 @@ export function ToolUseCard({ name, input, result }: ToolUseCardProps) {
           isError && 'text-red-700 dark:text-red-400 hover:bg-red-100/50 dark:hover:bg-red-900/20'
         )}
         aria-expanded={expanded}
+        aria-controls={contentId}
       >
         <ChevronRight
           className={cn(
@@ -97,6 +99,8 @@ export function ToolUseCard({ name, input, result }: ToolUseCardProps) {
 
       {/* Expandable content with grid animation */}
       <div
+        id={contentId}
+        hidden={!expanded}
         className="grid transition-[grid-template-rows] duration-200 ease-out"
         style={{ gridTemplateRows: expanded ? '1fr' : '0fr' }}
       >

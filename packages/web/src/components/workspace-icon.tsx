@@ -70,7 +70,7 @@ export function WorkspaceIcon({
 
   // Colored fallback with initial
   return (
-    <div
+    <span
       className={cn(
         sizeClasses[size],
         borderRadiusClasses[size],
@@ -84,6 +84,6 @@ export function WorkspaceIcon({
       }}
     >
       {initial}
-    </div>
+    </span>
   )
 }

@@ -15,6 +15,7 @@ import { WorkspaceIcon } from '@/components/workspace-icon'
 import { WORKSPACE_COLORS, DEFAULT_WORKSPACE_COLOR } from '@/constants/colors'
 import type { Workspace } from '@/models'
 import { Button } from '@nocoo/basalt/components/button'
+import { Field } from '@nocoo/basalt/components/field'
 import { Input } from '@nocoo/basalt/components/input'
 import { LayerCard } from '@nocoo/basalt/components/layer-card'
 import { Label } from '@nocoo/basalt/components/label'
@@ -55,6 +56,7 @@ function WorkspaceCard({ workspace }: { workspace: Workspace }) {
   const [isSaving, setIsSaving] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [saveAttempted, setSaveAttempted] = useState(false)
 
   const isSelected = currentWorkspace?.id === workspace.id
 
@@ -67,6 +69,7 @@ function WorkspaceCard({ workspace }: { workspace: Workspace }) {
   }, [workspace])
 
   const handleSave = async () => {
+    setSaveAttempted(true)
     if (!name.trim()) {
       toast.error('Workspace name is required')
       return
@@ -87,6 +90,7 @@ function WorkspaceCard({ workspace }: { workspace: Workspace }) {
       if (result) {
         toast.success('Workspace saved')
         setIsDirty(false)
+        setSaveAttempted(false)
       }
     } finally {
       setIsSaving(false)
@@ -145,8 +149,11 @@ function WorkspaceCard({ workspace }: { workspace: Workspace }) {
 
         <LayerCard.Body className="space-y-4">
           {/* Name */}
-          <div className="space-y-2">
-            <Label htmlFor={`name-${workspace.id}`}>Name</Label>
+          <Field
+            label="Name"
+            htmlFor={`name-${workspace.id}`}
+            error={saveAttempted && !name.trim() ? 'Name is required' : ''}
+          >
             <Input
               id={`name-${workspace.id}`}
               value={name}
@@ -155,8 +162,9 @@ function WorkspaceCard({ workspace }: { workspace: Workspace }) {
                 markDirty()
               }}
               placeholder="Workspace name"
+              required
             />
-          </div>
+          </Field>
 
           {/* Path */}
           <div className="space-y-2">
@@ -171,6 +179,11 @@ function WorkspaceCard({ workspace }: { workspace: Workspace }) {
                 }}
                 placeholder="/path/to/workspace"
                 className="font-mono text-sm flex-1"
+                required
+                aria-invalid={saveAttempted && !path.trim()}
+                aria-describedby={saveAttempted && !path.trim()
+                  ? `path-${workspace.id}-error`
+                  : undefined}
               />
               <Button
                 type="button"
@@ -190,6 +203,11 @@ function WorkspaceCard({ workspace }: { workspace: Workspace }) {
                 <FolderOpen className="h-4 w-4" />
               </Button>
             </div>
+            {saveAttempted && !path.trim() && (
+              <p id={`path-${workspace.id}-error`} role="alert" className="text-xs text-basalt-destructive">
+                Path is required
+              </p>
+            )}
           </div>
 
           {/* Color Selector */}
@@ -328,8 +346,10 @@ function AddWorkspaceCard() {
   const [name, setName] = useState('')
   const [path, setPath] = useState('')
   const [color, setColor] = useState(DEFAULT_WORKSPACE_COLOR)
+  const [createAttempted, setCreateAttempted] = useState(false)
 
   const handleCreate = async () => {
+    setCreateAttempted(true)
     if (!name.trim() || !path.trim()) return
 
     const workspace = await createWorkspace({
@@ -344,6 +364,7 @@ function AddWorkspaceCard() {
       setName('')
       setPath('')
       setColor(DEFAULT_WORKSPACE_COLOR)
+      setCreateAttempted(false)
       clearSessions()
     }
   }
@@ -378,8 +399,11 @@ function AddWorkspaceCard() {
           </DialogHeader>
 
           <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="new-workspace-name">Name</Label>
+            <Field
+              label="Name"
+              htmlFor="new-workspace-name"
+              error={createAttempted && !name.trim() ? 'Name is required' : ''}
+            >
               <Input
                 id="new-workspace-name"
                 value={name}
@@ -387,8 +411,9 @@ function AddWorkspaceCard() {
                   setName(e.target.value)
                 }}
                 placeholder="My Project"
+                required
               />
-            </div>
+            </Field>
 
             <div className="space-y-2">
               <Label htmlFor="new-workspace-path">Path</Label>
@@ -401,6 +426,11 @@ function AddWorkspaceCard() {
                   }}
                   placeholder="/path/to/project"
                   className="font-mono text-sm flex-1"
+                  required
+                  aria-invalid={createAttempted && !path.trim()}
+                  aria-describedby={createAttempted && !path.trim()
+                    ? 'new-workspace-path-hint new-workspace-path-error'
+                    : 'new-workspace-path-hint'}
                 />
                 <Button
                   type="button"
@@ -426,9 +456,14 @@ function AddWorkspaceCard() {
                   <FolderOpen className="h-4 w-4" />
                 </Button>
               </div>
-              <p className="text-xs text-basalt-muted-foreground">
+              <p id="new-workspace-path-hint" className="text-xs text-basalt-muted-foreground">
                 The local directory path for this workspace
               </p>
+              {createAttempted && !path.trim() && (
+                <p id="new-workspace-path-error" role="alert" className="text-xs text-basalt-destructive">
+                  Path is required
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">

@@ -16,6 +16,7 @@ import {
 } from '@/models'
 import { Button } from '@nocoo/basalt/components/button'
 import { Badge } from '@nocoo/basalt/components/badge'
+import { Field } from '@nocoo/basalt/components/field'
 import { InputArea } from '@nocoo/basalt/components/input-area'
 import { LayerCard } from '@nocoo/basalt/components/layer-card'
 import { Switch } from '@nocoo/basalt/components/switch'
@@ -198,8 +199,11 @@ function EditModal({
             />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="content">Content</Label>
+          <Field
+            label="Content"
+            htmlFor="content"
+            hint={<>Available variables: {'{{cwd}}'}, {'{{date}}'}, {'{{git_status}}'}, {'{{tools}}'}</>}
+          >
             <InputArea
               id="content"
               value={editContent}
@@ -210,10 +214,7 @@ function EditModal({
               className="min-h-[300px] font-mono"
               placeholder="Enter prompt content..."
             />
-            <p className="text-xs text-basalt-muted-foreground">
-              Available variables: {'{{cwd}}'}, {'{{date}}'}, {'{{git_status}}'}, {'{{tools}}'}
-            </p>
-          </div>
+          </Field>
         </div>
 
         <DialogFooter>

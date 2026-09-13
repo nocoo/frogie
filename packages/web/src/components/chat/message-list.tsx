@@ -113,7 +113,7 @@ function MessageItem({ message, index }: { message: Message; index: number }) {
  */
 function LoadingIndicator() {
   return (
-    <div className="flex gap-3 py-4 animate-[message-in_0.3s_cubic-bezier(0.16,1,0.3,1)]">
+    <div role="status" aria-label="Generating response" className="flex gap-3 py-4 animate-[message-in_0.3s_cubic-bezier(0.16,1,0.3,1)]">
       <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-basalt-secondary text-basalt-muted-foreground border border-basalt-border">
         <Bot className="h-4 w-4" />
       </div>
@@ -194,6 +194,9 @@ export function MessageList({ messages, isLoading = false }: MessageListProps) {
   return (
     <div
       ref={containerRef}
+      role="log"
+      aria-live="polite"
+      aria-relevant="additions text"
       className="flex-1 min-h-0 overflow-y-auto px-4"
     >
       <div className="max-w-4xl">

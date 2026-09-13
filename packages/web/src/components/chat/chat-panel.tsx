@@ -198,8 +198,8 @@ export function ChatPanel() {
       {/* Main chat area */}
       <div className="flex flex-1 min-h-0 min-w-0 flex-col">
         {/* Header: Connection status & Model selector */}
-        <div className="flex items-center justify-between px-4 py-2 border-b shrink-0">
-          <div className="flex items-center gap-4">
+        <div className="flex shrink-0 flex-col items-stretch gap-2 border-b px-4 py-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 items-center gap-2 sm:gap-4">
             {/* Connection status */}
             <div role="status" aria-live="polite" className="flex items-center gap-2 text-sm">
               {status === 'connected' ? (
@@ -280,7 +280,7 @@ export function ChatPanel() {
 
           {/* Mobile stats - only show on small screens */}
           {turnStats && (
-            <div className="flex items-center gap-4 text-xs text-basalt-muted-foreground lg:hidden">
+            <div className="hidden items-center gap-4 text-xs text-basalt-muted-foreground sm:flex lg:hidden">
               <span>{turnStats.turns} turns</span>
               <span>{turnStats.inputTokens + turnStats.outputTokens} tokens</span>
               <span>${turnStats.costUsd.toFixed(4)}</span>

@@ -196,7 +196,7 @@ export function SessionList({ collapsed = false, onSelection }: SessionListProps
                   void handleDeleteSession(e, session.id)
                 }}
                 className="h-7 w-7 shrink-0 opacity-0 hover:bg-basalt-destructive/10 hover:text-basalt-destructive focus-visible:opacity-100 group-focus-within:opacity-100 group-hover:opacity-100"
-                aria-label="Delete session"
+                aria-label={`Delete ${session.name ?? 'session'}`}
               >
                 <Trash2 className="h-3.5 w-3.5" />
               </Button>

@@ -5,7 +5,7 @@
  * Uses grid-template-rows for smooth height animation.
  */
 
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { ChevronRight, Brain } from 'lucide-react'
 import { Button } from '@nocoo/basalt/components/button'
 import { cn } from '@/lib/utils'
@@ -20,6 +20,7 @@ export function ThinkingBlock({
   defaultExpanded = false,
 }: ThinkingBlockProps) {
   const [expanded, setExpanded] = useState(defaultExpanded)
+  const contentId = useId()
 
   // Truncate preview to first 100 chars
   const preview =
@@ -34,6 +35,7 @@ export function ThinkingBlock({
         }}
         className="h-auto w-full justify-start gap-2 whitespace-normal rounded-lg px-3 py-2 text-left text-sm text-amber-700 hover:bg-amber-100/50 dark:text-amber-400 dark:hover:bg-amber-900/20"
         aria-expanded={expanded}
+        aria-controls={contentId}
       >
         <ChevronRight
           className={cn(
@@ -52,6 +54,8 @@ export function ThinkingBlock({
 
       {/* Expandable content with grid animation */}
       <div
+        id={contentId}
+        hidden={!expanded}
         className="grid transition-[grid-template-rows] duration-200 ease-out"
         style={{ gridTemplateRows: expanded ? '1fr' : '0fr' }}
       >
