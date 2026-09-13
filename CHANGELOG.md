@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.1] - 2026-09-13
+
+### Changed
+
+- Update Node.js type definitions from 26.5.0 to 26.5.1 across the workspace lockfile
+
+### Security
+
+- Audit all direct runtime and development dependencies across the root, server, and web workspaces
+- Verify the resolved dependency graph with Bun audit and OSV Scanner
+
 ## [0.2.0] - 2026-09-13
 
 ### Added

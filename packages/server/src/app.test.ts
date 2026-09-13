@@ -22,8 +22,8 @@ describe('app', () => {
         components: { web: string; server: string }
       }
       expect(body.status).toBe('ok')
-      expect(body.version).toBe('0.2.0')
-      expect(body.components).toEqual({ web: '0.2.0', server: '0.2.0' })
+      expect(body.version).toBe('0.2.1')
+      expect(body.components).toEqual({ web: '0.2.1', server: '0.2.1' })
     })
   })
 

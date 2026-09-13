@@ -30,7 +30,7 @@
     },
     "packages/server": {
       "name": "@frogie/server",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "dependencies": {
         "@anthropic-ai/sdk": "0.125.0",
         "@hono/zod-validator": "0.9.1",
@@ -47,7 +47,7 @@
     },
     "packages/web": {
       "name": "@frogie/web",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "dependencies": {
         "@nocoo/basalt": "2.1.7",
         "clsx": "^2.1.1",
