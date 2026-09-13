@@ -28,12 +28,6 @@ export default defineConfig({
   /* Run local dev servers before starting tests */
   webServer: [
     {
-      command: 'bun run dev:server',
-      url: 'http://localhost:7034/health',
-      reuseExistingServer: !process.env['CI'],
-      timeout: 30000,
-    },
-    {
       command: 'bun run dev:web',
       url: 'http://localhost:7033',
       reuseExistingServer: !process.env['CI'],

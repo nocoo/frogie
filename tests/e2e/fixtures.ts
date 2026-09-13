@@ -41,6 +41,14 @@ export const test = base.extend<{ mockBackend: undefined }>({
   mockBackend: [async ({ page }, use) => {
     const workspaces: MockWorkspace[] = []
     const sessions = new Map<string, MockSession[]>()
+    const workspaceOverrides = new Map<string, boolean>()
+    let globalPrompts = [{
+      layer: 'date_context',
+      content: "Today's date is {{date}}.",
+      enabled: true,
+      isTemplate: true,
+      updatedAt: Date.now(),
+    }]
     let settings = {
       llmBaseUrl: 'https://api.anthropic.com',
       llmApiKey: '••••••••',
@@ -163,6 +171,7 @@ export const test = base.extend<{ mockBackend: undefined }>({
           }
           workspaces.push(workspace)
           sessions.set(workspace.id, [])
+          workspaceOverrides.set(workspace.id, true)
           await json(route, workspace, 201)
           return
         }
@@ -170,19 +179,81 @@ export const test = base.extend<{ mockBackend: undefined }>({
         return
       }
 
-      if (/^\/api\/workspaces\/[^/]+\/icon$/.test(path)) {
-        await route.fulfill({ status: 404 })
+      const workspaceDetail = /^\/api\/workspaces\/([^/]+)(?:\/(open|icon))?$/.exec(path)
+      if (workspaceDetail) {
+        const workspaceId = workspaceDetail[1] ?? ''
+        const action = workspaceDetail[2]
+        const index = workspaces.findIndex((workspace) => workspace.id === workspaceId)
+        if (action === 'icon') {
+          await route.fulfill({ status: 404 })
+          return
+        }
+        if (action === 'open') {
+          await json(route, { success: true })
+          return
+        }
+        if (method === 'PATCH' && index >= 0) {
+          const update = request.postDataJSON() as Partial<MockWorkspace>
+          const updated = { ...workspaces[index], ...update } as MockWorkspace
+          workspaces[index] = updated
+          await json(route, updated)
+          return
+        }
+        if (method === 'DELETE' && index >= 0) {
+          workspaces.splice(index, 1)
+          sessions.delete(workspaceId)
+          workspaceOverrides.delete(workspaceId)
+          await json(route, { success: true })
+          return
+        }
+      }
+
+      if (path === '/api/prompts/preview') {
+        await json(route, {
+          assembledPrompt: 'Preview prompt',
+          tokenEstimate: 3,
+          builtinToolsOnly: true,
+          layers: [],
+        })
         return
       }
 
       if (path === '/api/prompts/global') {
-        await json(route, { layers: [] })
+        await json(route, { layers: globalPrompts })
+        return
+      }
+
+      const globalPrompt = /^\/api\/prompts\/global\/([^/]+)$/.exec(path)
+      if (globalPrompt && method === 'PUT') {
+        const update = request.postDataJSON() as { content?: string; enabled?: boolean }
+        globalPrompts = globalPrompts.map((prompt) => prompt.layer === globalPrompt[1]
+          ? { ...prompt, ...update, updatedAt: Date.now() }
+          : prompt)
+        await json(route, globalPrompts.find((prompt) => prompt.layer === globalPrompt[1]))
         return
       }
 
       const promptWorkspace = /^\/api\/prompts\/([^/]+)$/.exec(path)
       if (promptWorkspace) {
-        await json(route, { workspaceId: promptWorkspace[1], layers: [] })
+        const workspaceId = promptWorkspace[1] ?? ''
+        const overridden = workspaceOverrides.get(workspaceId) ?? false
+        await json(route, {
+          workspaceId,
+          layers: [{
+            layer: 'date_context',
+            content: overridden ? 'Workspace date: {{date}}.' : globalPrompts[0]?.content ?? '',
+            enabled: true,
+            isTemplate: true,
+            isGlobal: !overridden,
+          }],
+        })
+        return
+      }
+
+      const workspacePrompt = /^\/api\/prompts\/([^/]+)\/([^/]+)$/.exec(path)
+      if (workspacePrompt && (method === 'PUT' || method === 'DELETE')) {
+        workspaceOverrides.set(workspacePrompt[1] ?? '', method === 'PUT')
+        await json(route, { success: true })
         return
       }
 
