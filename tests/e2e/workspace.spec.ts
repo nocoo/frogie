@@ -67,6 +67,6 @@ test.describe('Workspace Management', () => {
     await page.getByText('Select Test').click()
 
     // Verify it's selected (shown in button)
-    await expect(page.getByRole('button', { name: /Select Test/ })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Select workspace' })).toContainText('Select Test')
   })
 })

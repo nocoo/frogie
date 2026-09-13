@@ -29,7 +29,7 @@ export default defineConfig({
   webServer: [
     {
       command: 'bun run dev:server',
-      url: 'http://localhost:7034/api/settings',
+      url: 'http://localhost:7034/health',
       reuseExistingServer: !process.env['CI'],
       timeout: 30000,
     },

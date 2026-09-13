@@ -19,7 +19,7 @@ test.describe('Chat Interface', () => {
     await page.getByRole('button', { name: 'Create' }).click()
 
     // Create a session
-    await page.getByRole('button', { name: /\+/ }).first().click()
+    await page.getByRole('button', { name: 'New session' }).click()
     await page.getByText('Session 1').click()
   })
 
@@ -35,13 +35,14 @@ test.describe('Chat Interface', () => {
   })
 
   test('should show empty state when no messages', async ({ page }) => {
-    await expect(page.getByText('Start a conversation')).toBeVisible()
-    await expect(page.getByText('Send a message to begin')).toBeVisible()
+    await expect(page.getByText('What can I help you build?')).toBeVisible()
+    await expect(page.getByText('I can read, write, and run code in your workspace.')).toBeVisible()
   })
 
   test('should have keyboard shortcut hint', async ({ page }) => {
     // Should show keyboard shortcut for sending
-    await expect(page.getByText(/⌘\+Enter|Ctrl\+Enter/)).toBeVisible()
+    await expect(page.getByText('Press')).toBeVisible()
+    await expect(page.getByText('Enter')).toBeVisible()
     await expect(page.getByText('to send')).toBeVisible()
   })
 

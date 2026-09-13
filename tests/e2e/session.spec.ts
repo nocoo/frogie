@@ -21,12 +21,12 @@ test.describe('Session Management', () => {
 
   test('should display session list in sidebar', async ({ page }) => {
     await expect(page.getByText('Sessions')).toBeVisible()
-    await expect(page.getByText('No sessions yet')).toBeVisible()
+    await expect(page.getByText('Start your first session')).toBeVisible()
   })
 
   test('should create a new session', async ({ page }) => {
     // Click the plus button to create a session
-    await page.getByRole('button', { name: /\+/ }).first().click()
+    await page.getByRole('button', { name: 'New session' }).click()
 
     // Wait for session to be created
     await expect(page.getByText('Session 1')).toBeVisible()
@@ -34,7 +34,7 @@ test.describe('Session Management', () => {
 
   test('should select a session', async ({ page }) => {
     // Create a session
-    await page.getByRole('button', { name: /\+/ }).first().click()
+    await page.getByRole('button', { name: 'New session' }).click()
 
     // Click on the session
     await page.getByText('Session 1').click()
@@ -45,7 +45,7 @@ test.describe('Session Management', () => {
 
   test('should delete a session', async ({ page }) => {
     // Create a session
-    await page.getByRole('button', { name: /\+/ }).first().click()
+    await page.getByRole('button', { name: 'New session' }).click()
     await expect(page.getByText('Session 1')).toBeVisible()
 
     // Hover over session to reveal delete button
@@ -56,16 +56,16 @@ test.describe('Session Management', () => {
 
     // Verify session is removed
     await expect(page.getByText('Session 1')).not.toBeVisible()
-    await expect(page.getByText('No sessions yet')).toBeVisible()
+    await expect(page.getByText('Start your first session')).toBeVisible()
   })
 
   test('should create multiple sessions', async ({ page }) => {
     // Create first session
-    await page.getByRole('button', { name: /\+/ }).first().click()
+    await page.getByRole('button', { name: 'New session' }).click()
     await expect(page.getByText('Session 1')).toBeVisible()
 
     // Create second session
-    await page.getByRole('button', { name: /\+/ }).first().click()
+    await page.getByRole('button', { name: 'New session' }).click()
     await expect(page.getByText('Session 2')).toBeVisible()
 
     // Both should be visible
