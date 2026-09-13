@@ -227,13 +227,12 @@ export function MessageList({
       className="flex-1 min-h-0 overflow-y-auto px-4"
     >
       <div
-        key={announcement.id}
         className="sr-only"
         aria-live="polite"
         aria-atomic="true"
         data-completion-id={announcement.id}
       >
-        {announcement.text}
+        <span key={announcement.id}>{announcement.text}</span>
       </div>
       <div className="max-w-4xl">
         {messages.map((message, index) => (
