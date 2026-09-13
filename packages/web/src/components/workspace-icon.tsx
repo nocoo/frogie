@@ -56,7 +56,7 @@ export function WorkspaceIcon({
     return (
       <img
         src={iconUrl}
-        alt={workspace.name}
+        alt=""
         onError={handleIconError}
         className={cn(
           sizeClasses[size],
@@ -71,6 +71,7 @@ export function WorkspaceIcon({
   // Colored fallback with initial
   return (
     <span
+      aria-hidden="true"
       className={cn(
         sizeClasses[size],
         borderRadiusClasses[size],

@@ -271,7 +271,7 @@ export function WorkspaceSelector({ collapsed = false, onSelection }: WorkspaceS
               onClick={() => {
                 void handleCreate()
               }}
-              disabled={!newName.trim() || !newPath.trim() || isLoading}
+              disabled={isLoading}
             >
               {isLoading ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />

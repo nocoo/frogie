@@ -511,7 +511,7 @@ function AddWorkspaceCard() {
               onClick={() => {
                 void handleCreate()
               }}
-              disabled={!name.trim() || !path.trim() || isLoading}
+              disabled={isLoading}
             >
               {isLoading ? (
                 <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
