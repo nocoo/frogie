@@ -41,7 +41,7 @@ export const test = base.extend<{ mockBackend: undefined }>({
   mockBackend: [async ({ page }, use) => {
     const workspaces: MockWorkspace[] = []
     const sessions = new Map<string, MockSession[]>()
-    const workspaceOverrides = new Map<string, boolean>()
+    const workspaceOverrides = new Map<string, { content: string; enabled: boolean }>()
     let globalPrompts = [{
       layer: 'date_context',
       content: "Today's date is {{date}}.",
@@ -60,9 +60,21 @@ export const test = base.extend<{ mockBackend: undefined }>({
     await page.routeWebSocket(/\/ws$/, (socket) => {
       socket.onMessage((message) => {
         if (typeof message !== 'string') return
-        const parsed = JSON.parse(message) as { type?: string }
+        const parsed = JSON.parse(message) as { type?: string; sessionId?: string }
         if (parsed.type === 'ping') {
           socket.send(JSON.stringify({ type: 'pong' }))
+        } else if (parsed.type === 'chat' && parsed.sessionId) {
+          socket.send(JSON.stringify({ type: 'text', sessionId: parsed.sessionId, text: 'Mock response ' }))
+          socket.send(JSON.stringify({ type: 'text', sessionId: parsed.sessionId, text: 'complete' }))
+          socket.send(JSON.stringify({
+            type: 'turn_complete',
+            sessionId: parsed.sessionId,
+            turns: 1,
+            inputTokens: 2,
+            outputTokens: 3,
+            costUsd: 0.001,
+            durationMs: 10,
+          }))
         }
       })
     })
@@ -117,7 +129,7 @@ export const test = base.extend<{ mockBackend: undefined }>({
       }
 
       if (path === '/api/workspaces/browse') {
-        await json(route, { cancelled: true })
+        await json(route, { path: '/tmp/browsed-workspace' })
         return
       }
 
@@ -171,7 +183,10 @@ export const test = base.extend<{ mockBackend: undefined }>({
           }
           workspaces.push(workspace)
           sessions.set(workspace.id, [])
-          workspaceOverrides.set(workspace.id, true)
+          workspaceOverrides.set(workspace.id, {
+            content: 'Workspace date: {{date}}.',
+            enabled: true,
+          })
           await json(route, workspace, 201)
           return
         }
@@ -236,15 +251,15 @@ export const test = base.extend<{ mockBackend: undefined }>({
       const promptWorkspace = /^\/api\/prompts\/([^/]+)$/.exec(path)
       if (promptWorkspace) {
         const workspaceId = promptWorkspace[1] ?? ''
-        const overridden = workspaceOverrides.get(workspaceId) ?? false
+        const override = workspaceOverrides.get(workspaceId)
         await json(route, {
           workspaceId,
           layers: [{
             layer: 'date_context',
-            content: overridden ? 'Workspace date: {{date}}.' : globalPrompts[0]?.content ?? '',
-            enabled: true,
+            content: override?.content ?? globalPrompts[0]?.content ?? '',
+            enabled: override?.enabled ?? globalPrompts[0]?.enabled ?? true,
             isTemplate: true,
-            isGlobal: !overridden,
+            isGlobal: !override,
           }],
         })
         return
@@ -252,7 +267,17 @@ export const test = base.extend<{ mockBackend: undefined }>({
 
       const workspacePrompt = /^\/api\/prompts\/([^/]+)\/([^/]+)$/.exec(path)
       if (workspacePrompt && (method === 'PUT' || method === 'DELETE')) {
-        workspaceOverrides.set(workspacePrompt[1] ?? '', method === 'PUT')
+        const workspaceId = workspacePrompt[1] ?? ''
+        if (method === 'DELETE') {
+          workspaceOverrides.delete(workspaceId)
+        } else {
+          const update = request.postDataJSON() as { content?: string; enabled?: boolean }
+          const current = workspaceOverrides.get(workspaceId) ?? {
+            content: globalPrompts[0]?.content ?? '',
+            enabled: globalPrompts[0]?.enabled ?? true,
+          }
+          workspaceOverrides.set(workspaceId, { ...current, ...update })
+        }
         await json(route, { success: true })
         return
       }

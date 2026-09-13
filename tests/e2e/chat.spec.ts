@@ -81,6 +81,15 @@ test.describe('Chat Interface', () => {
     await expect(page.getByText('Hello Frogie!')).toBeVisible()
   })
 
+  test('should announce a complete streamed response once the turn finishes', async ({ page }) => {
+    const input = page.getByPlaceholder('Type a message...')
+    await input.fill('Stream a response')
+    await page.getByRole('button', { name: 'Send message' }).click()
+
+    await expect(page.locator('[aria-live="polite"][aria-atomic="true"]'))
+      .toHaveText('Mock response complete')
+  })
+
   test('should show connection status', async ({ page }) => {
     // Should show connected status after WebSocket connects
     await expect(page.getByText('Connected')).toBeVisible({ timeout: 10000 })
