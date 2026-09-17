@@ -61,7 +61,7 @@ bun run test:l3             # playwright (baseURL http://localhost:7033)
 ## Verification
 
 Status: `enforced` | `planned` | `manual` | `N/A`.
-6DQ = L1/L2/L3 + G1/G2 + D1. Required L1 bar is four metrics each ≥ 95%. Do not treat the current 50/44/37/50 thresholds as that bar.
+6DQ = L1/L2/L3 + G1/G2 + D1. Required L1 bar is statements/branches/functions/lines each ≥95%; no skipped or focused tests. Do not treat the current 50/44/37/50 thresholds as that bar.
 
 | Change | Proof | Status | Evidence |
 |---|---|---|---|
