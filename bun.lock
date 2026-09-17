@@ -8,7 +8,7 @@
         "@anthropic-ai/sdk": "0.126.0",
         "@modelcontextprotocol/sdk": "^1.30.0",
         "express-rate-limit": "8.7.0",
-        "hono": "4.13.7",
+        "hono": "4.13.8",
         "ip-address": "10.7.0",
       },
       "devDependencies": {
@@ -36,7 +36,7 @@
         "@hono/zod-validator": "0.9.1",
         "@modelcontextprotocol/sdk": "^1.30.0",
         "better-sqlite3": "13.0.3",
-        "hono": "4.13.7",
+        "hono": "4.13.8",
         "jose": "6.2.12",
         "ulid": "^3.0.2",
         "zod": "4.6.5",
@@ -79,7 +79,7 @@
     "body-parser": ">=2.3.0",
     "brace-expansion": ">=5.0.9",
     "fast-uri": "^3.1.6",
-    "hono": "4.13.7",
+    "hono": "4.13.8",
     "ip-address": "10.7.0",
     "nanoid": "3.3.18",
     "postcss": ">=8.5.25",
@@ -677,7 +677,7 @@
 
     "highlight.js": ["highlight.js@11.12.0", "", {}, "sha512-nbfWpyRMcMrPMmDwJB+dhX/eiaPKtc2RB+0QZskqJ3WjRA/FDS0e9hZrx8EC/lbEv8gXy98FcDbNa/dspAaJMg=="],
 
-    "hono": ["hono@4.13.7", "", {}, "sha512-c8/gF9ac8Y78/agExVocyLevgR+JlpNB444Py0FSX8pJoPdYUfUzRcXtYEYGwt6l19qIlVZPN5Mfsw9jFShmQQ=="],
+    "hono": ["hono@4.13.8", "", {}, "sha512-/Gng7NfoykZl2pjukW5Z6+8Yxm3BPRf86GTbQnt0SbySkvax4fyL4H3HhY1cCpBGmiW9XDRFzRV+CXK2W8QudQ=="],
 
     "hookified": ["hookified@1.15.1", "", {}, "sha512-MvG/clsADq1GPM2KGo2nyfaWVyn9naPiXrqIe4jYjXNZQt238kWyOGrsyc/DmRAQ+Re6yeo6yX/yoNCG5KAEVg=="],
 
