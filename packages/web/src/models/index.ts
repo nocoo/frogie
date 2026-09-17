@@ -80,53 +80,6 @@ export interface CreateSession {
   model: string
 }
 
-/**
- * MCP server configuration
- */
-export interface MCPConfig {
-  id: string
-  workspaceId: string
-  name: string
-  type: 'stdio' | 'sse' | 'http'
-  config: MCPServerConfig
-  enabled: boolean
-  createdAt: number
-  updatedAt: number
-}
-
-/**
- * MCP server transport configuration
- */
-export interface MCPServerConfig {
-  // stdio transport
-  command?: string
-  args?: string[]
-  env?: Record<string, string>
-  // SSE/HTTP transport
-  url?: string
-  headers?: Record<string, string>
-}
-
-/**
- * Create MCP config input
- */
-export interface CreateMCPConfig {
-  name: string
-  type: 'stdio' | 'sse' | 'http'
-  config: MCPServerConfig
-  enabled?: boolean
-}
-
-/**
- * API error response
- */
-export interface ApiError {
-  error: {
-    code: string
-    message: string
-  }
-}
-
 // =============================================================================
 // Prompt Types
 // =============================================================================
@@ -201,20 +154,6 @@ export interface GlobalPrompt {
   content: string
   enabled: boolean
   isTemplate: boolean
-  updatedAt: number
-}
-
-/**
- * Workspace prompt override data
- */
-export interface WorkspacePrompt {
-  id: string
-  workspaceId: string
-  layer: PromptLayerName
-  content: string
-  enabled: boolean
-  isTemplate: boolean
-  createdAt: number
   updatedAt: number
 }
 
