@@ -16,6 +16,7 @@ import { AppMain, AppShell, AppSkipLink } from '@nocoo/basalt/components/app-she
 import { Menu } from 'lucide-react'
 import { AppSidebar } from '@/components/AppSidebar'
 import { GithubIcon } from '@/components/GithubIcon'
+import { HexlyLink } from '@/components/HexlyLink'
 import { useIsMobile } from '@/hooks/use-mobile'
 
 const ROUTE_LABELS: Record<string, string> = {
@@ -112,6 +113,7 @@ export function DashboardLayout() {
                 </TooltipTrigger>
                 <TooltipContent>View on GitHub</TooltipContent>
               </Tooltip>
+              <HexlyLink />
               <ThemeToggle aria-label="Change theme" />
             </div>
           }

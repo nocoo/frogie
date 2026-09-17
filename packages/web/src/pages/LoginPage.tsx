@@ -10,6 +10,7 @@ import { Button, ThemeToggle } from '@nocoo/basalt'
 import { Barcode } from '@/components/Barcode'
 import { GoogleIcon } from '@/components/GoogleIcon'
 import { GithubIcon } from '@/components/GithubIcon'
+import { HexlyLink } from '@/components/HexlyLink'
 
 /**
  * Error messages for OAuth errors
@@ -65,6 +66,7 @@ export function LoginPage() {
             <GithubIcon className="h-[18px] w-[18px]" />
           </a>
         </Button>
+        <HexlyLink />
         <ThemeToggle aria-label="Change theme" />
       </div>
 
