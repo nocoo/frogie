@@ -6,19 +6,8 @@ export interface ThemeToggleProps {
   'aria-label'?: string
 }
 
-function useSafeTheme() {
-  try {
-    return useTheme()
-  } catch {
-    return {
-      theme: 'system' as const,
-      setTheme: () => {},
-    }
-  }
-}
-
 export function ThemeToggle({ 'aria-label': ariaLabel = 'Change theme' }: ThemeToggleProps = {}) {
-  const { theme, setTheme } = useSafeTheme()
+  const { theme, setTheme } = useTheme()
   const nextTheme = theme === 'system' ? 'light' : theme === 'light' ? 'dark' : 'system'
   const Icon = theme === 'system' ? Monitor : theme === 'dark' ? Moon : Sun
   const label =

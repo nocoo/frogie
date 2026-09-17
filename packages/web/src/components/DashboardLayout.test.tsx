@@ -15,6 +15,10 @@ vi.mock('@/components/AppSidebar', () => ({
   ),
 }))
 
+vi.mock('@/components/ThemeToggle', () => ({
+  ThemeToggle: () => <button type="button">Theme</button>,
+}))
+
 vi.mock('@nocoo/basalt', () => ({
   Button: ({ children, ...props }: ButtonHTMLAttributes<HTMLButtonElement>) => (
     <button {...props}>{children}</button>
