@@ -77,10 +77,10 @@ Status: `enforced` | `planned` | `manual` | `N/A`.
 
 | Hook | Verifies | Budget | Runs |
 |---|---|---|---|
-| pre-commit | typecheck, lint, `test:coverage` | <30s target | G1 + L1 at **current** thresholds |
-| pre-push | osv/gitleaks **warnings only**; L2 commented | <3min | not a failing G2/L2 gate |
+| pre-commit | working-tree typecheck, lint, `test:coverage` (unsets `GIT_*`; not index snapshot) | target <30s (unmeasured) | G1 + L1 at **current** thresholds |
+| pre-push | working-tree osv/gitleaks **warnings only**; L2 commented (not stdin refs) | target <3min (unmeasured) | not a failing G2/L2 gate |
 
-Hooks check-only. `--no-verify` forbidden.
+Target: index-snapshot G1+L1; stdin-ref L2+G2. Check-only; `--no-verify` forbidden.
 
 ## Resources / Isolation
 
