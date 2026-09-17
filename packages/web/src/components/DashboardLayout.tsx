@@ -6,7 +6,6 @@ import {
   Sheet,
   SheetContent,
   SheetTitle,
-  ThemeToggle,
   Tooltip,
   TooltipContent,
   TooltipTrigger,
@@ -17,6 +16,7 @@ import { Menu } from 'lucide-react'
 import { AppSidebar } from '@/components/AppSidebar'
 import { GithubIcon } from '@/components/GithubIcon'
 import { HexlyLink } from '@/components/HexlyLink'
+import { ThemeToggle } from '@/components/ThemeToggle'
 import { useIsMobile } from '@/hooks/use-mobile'
 
 const ROUTE_LABELS: Record<string, string> = {
@@ -111,7 +111,7 @@ export function DashboardLayout() {
                     </a>
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>View on GitHub</TooltipContent>
+                <TooltipContent side="bottom">View on GitHub</TooltipContent>
               </Tooltip>
               <HexlyLink />
               <ThemeToggle aria-label="Change theme" />

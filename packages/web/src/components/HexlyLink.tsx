@@ -24,7 +24,12 @@ export function HexlyLink() {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Button variant="ghost" size="icon" className="h-8 w-8 cursor-pointer relative before:absolute before:inset-0" asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8"
+          asChild
+        >
           <a
             href="https://hexly.ai/projects/frogie"
             target="_blank"
@@ -36,7 +41,7 @@ export function HexlyLink() {
           </a>
         </Button>
       </TooltipTrigger>
-      <TooltipContent>Frogie on hexly.ai</TooltipContent>
+      <TooltipContent side="bottom">Frogie on hexly.ai</TooltipContent>
     </Tooltip>
   )
 }

@@ -6,11 +6,12 @@
 
 import { useSearchParams } from 'react-router'
 import { Bug } from 'lucide-react'
-import { Button, ThemeToggle } from '@nocoo/basalt'
+import { Button, Tooltip, TooltipContent, TooltipTrigger } from '@nocoo/basalt'
 import { Barcode } from '@/components/Barcode'
 import { GoogleIcon } from '@/components/GoogleIcon'
 import { GithubIcon } from '@/components/GithubIcon'
 import { HexlyLink } from '@/components/HexlyLink'
+import { ThemeToggle } from '@/components/ThemeToggle'
 
 /**
  * Error messages for OAuth errors
@@ -56,16 +57,21 @@ export function LoginPage() {
 
       {/* Top-right controls */}
       <div className="absolute top-4 right-4 z-10 flex items-center gap-1">
-        <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
-          <a
-            href="https://github.com/nocoo/frogie"
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label="GitHub repository"
-          >
-            <GithubIcon className="h-[18px] w-[18px]" />
-          </a>
-        </Button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
+              <a
+                href="https://github.com/nocoo/frogie"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="GitHub repository"
+              >
+                <GithubIcon className="h-[18px] w-[18px]" />
+              </a>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">GitHub repository</TooltipContent>
+        </Tooltip>
         <HexlyLink />
         <ThemeToggle aria-label="Change theme" />
       </div>
