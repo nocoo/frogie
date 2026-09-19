@@ -6,7 +6,7 @@ import { LoginPage } from '@/pages/LoginPage'
 import { SettingsPage } from '@/pages/SettingsPage'
 import { WorkspacesPage } from '@/pages/WorkspacesPage'
 import { PromptsPage } from '@/pages/PromptsPage'
-import { ChatPanel } from '@/components/chat'
+import { ChatPanel } from '@/components/chat/chat-panel'
 import { Toaster } from '@/components/ui/sonner'
 
 // Pages
