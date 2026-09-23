@@ -2,7 +2,7 @@
 
 Local web coding assistant: chat, tools, MCP, and session history on the developer machine.
 Profile: ts-worker-web
-Direction: [docs/architecture/01-overview.md](docs/architecture/01-overview.md). Frameworks must not rewrite this file.
+Human overview: [README.md](README.md). Direction: [docs/architecture/01-overview.md](docs/architecture/01-overview.md). Frameworks must not rewrite this file. Maintain this root `AGENTS.md` as the only project handbook; do not create a `CLAUDE.md` alias, copy or import.
 
 ## Sources of Truth
 
@@ -61,14 +61,13 @@ bun run test:l3             # playwright (baseURL http://localhost:7033)
 ## Verification
 
 Status: `enforced` | `planned` | `manual` | `N/A`.
-6DQ = L1/L2/L3 + G1/G2 + D1. Required L1 bar is statements/branches/functions/lines each ≥95%; no skipped or focused tests. Do not treat the current 50/44/37/50 thresholds as that bar.
+6DQ = L1/L2/L3 + G2 + D1; the former G1 dimension was merged into L1 on 2026-09-21. Required L1 bar is statements/branches/functions/lines each ≥95%; no skipped or focused tests; plus check-only types/lint with zero errors and warnings. Do not treat the current 50/44/37/50 thresholds as that bar.
 
 | Change | Proof | Status | Evidence |
 |---|---|---|---|
-| Logic | L1 Vitest ≥ 95% four metrics | planned | `vitest.config.ts` thresholds lines 50 / functions 44 / branches 37 / statements 50; pre-commit and CI run `test:coverage` at that weaker gate |
+| Logic (incl. former G1 static) | L1 Vitest ≥ 95% four metrics; types/lint 0 error, 0 warning | planned | Static lane runs today: pre-commit typecheck+lint, CI same. `vitest.config.ts` thresholds are lines 50 / functions 44 / branches 37 / statements 50; pre-commit and CI run `test:coverage` at that weaker gate; no index-snapshot/timing/rejection proof |
 | API / schema | L2 real HTTP 100% routes | planned | `test:l2` exists; CI `l2-command`; **commented out** in pre-push. Route tests are in-process, not a local listen harness |
 | UI path | L3 Playwright | planned | `playwright.config.ts` + `test:l3`; not in CI quality.yml |
-| Types / lint | G1 0 error, 0 warning | enforced | pre-commit typecheck+lint; CI same |
 | Deps / secrets | G2 osv-scanner + gitleaks fail on miss | planned | pre-push runs both with `\|\| echo` non-blocking; CI quality.yml default security + `osv-scanner.toml` |
 | Test isolation | D1 per-run SQLite ≠ `~/.frogie/frogie.db` | planned | no persist-to/`_test_marker`; do not point tests at the default home DB |
 | Bundler output | `bun run build` | planned | not in hooks |
@@ -77,10 +76,10 @@ Status: `enforced` | `planned` | `manual` | `N/A`.
 
 | Hook | Verifies | Budget | Runs |
 |---|---|---|---|
-| pre-commit | working-tree typecheck, lint, `test:coverage` (unsets `GIT_*`; not index snapshot) | target <30s (unmeasured) | G1 + L1 at **current** thresholds |
+| pre-commit | working-tree typecheck, lint, `test:coverage` (unsets `GIT_*`; not index snapshot) | target <30s (unmeasured) | unified L1 static + L1 at **current** thresholds |
 | pre-push | working-tree osv/gitleaks **warnings only**; L2 commented (not stdin refs) | target <3min (unmeasured) | not a failing G2/L2 gate |
 
-Target: index-snapshot G1+L1; stdin-ref L2+G2. Check-only; `--no-verify` forbidden.
+Target: index-snapshot unified L1 (types, check-only lint, coverage); stdin-ref L2+G2. Check-only; `--no-verify` forbidden.
 
 ## Resources / Isolation
 
