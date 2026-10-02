@@ -113,12 +113,7 @@ describe.skipIf(!isBun)('server entry point', () => {
       server = null
 
       // Server should not respond after stop
-      try {
-        await fetch(`http://localhost:${String(port)}/health`)
-        expect.fail('Server should not respond after stop')
-      } catch {
-        // Expected - connection refused
-      }
+      await expect(fetch(`http://localhost:${String(port)}/health`)).rejects.toBeDefined()
     })
   })
 })

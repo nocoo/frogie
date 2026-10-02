@@ -1,18 +1,7 @@
-# L2 + G2: pre-push hook
-# Target: <3min execution time
+set -eu
 
-echo "🚀 Running pre-push checks..."
+command -v osv-scanner >/dev/null
+command -v gitleaks >/dev/null
 
-# G2: Security scan - check for vulnerabilities in dependencies
-echo "🔒 Scanning dependencies for vulnerabilities..."
-bunx osv-scanner --lockfile=bun.lock || echo "⚠️ OSV scanner warning (non-blocking for now)"
-
-# G2: Check for secrets
-echo "🔑 Checking for leaked secrets..."
-bunx gitleaks detect --source . --verbose --no-git || echo "⚠️ Gitleaks warning (non-blocking for now)"
-
-# L2: Integration tests (placeholder - will be added later)
-# echo "🧪 Running L2 integration tests..."
-# bun run test:l2 || exit 1
-
-echo "✅ Pre-push checks passed!"
+osv-scanner scan --lockfile=bun.lock
+gitleaks detect --source . --verbose --no-git --redact

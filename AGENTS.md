@@ -35,7 +35,7 @@ This file is the **contract**. Hooks, CI, and config are **enforcement**. If the
 | Package manager | Bun (workspace `packages/*`) |
 | Runtime | Vite web :7033 + Hono/Bun server default :7034 (`FROGIE_PORT`) |
 | Lint | ESLint `--max-warnings 0` |
-| Tests | Vitest projects server+web; Playwright `test:l3` |
+| Tests | Vitest projects server+web plus the separate Bun server-entry suite; Playwright `test:l3` |
 | Data | SQLite `FROGIE_DB_PATH` (default `~/.frogie/frogie.db`) |
 
 ```
@@ -66,9 +66,9 @@ Status: `enforced` | `planned` | `manual` | `N/A`.
 | Change | Proof | Status | Evidence |
 |---|---|---|---|
 | Logic (incl. former G1 static) | L1 Vitest ≥ 95% four metrics; types/lint 0 error, 0 warning | planned | Static lane runs today: pre-commit typecheck+lint, CI same. `vitest.config.ts` thresholds are lines 50 / functions 44 / branches 37 / statements 50; pre-commit and CI run `test:coverage` at that weaker gate; no index-snapshot/timing/rejection proof |
-| API / schema | L2 real HTTP 100% routes | planned | `test:l2` exists; CI `l2-command`; **commented out** in pre-push. Route tests are in-process, not a local listen harness |
+| API / schema | L2 real HTTP 100% routes | planned | `test:l2` exists; CI `l2-command`; not run by pre-push. Route tests are in-process, not a local listen harness |
 | UI path | L3 Playwright | planned | `playwright.config.ts` + `test:l3`; not in CI quality.yml |
-| Deps / secrets | G2 osv-scanner + gitleaks fail on miss | planned | pre-push runs both with `\|\| echo` non-blocking; CI quality.yml default security + `osv-scanner.toml` |
+| Deps / secrets | G2 osv-scanner + gitleaks fail on miss | planned | pre-push requires installed scanners and fails on OSV/Gitleaks errors; CI quality.yml default security + `osv-scanner.toml` |
 | Test isolation | D1 per-run SQLite ≠ `~/.frogie/frogie.db` | planned | no persist-to/`_test_marker`; do not point tests at the default home DB |
 | Bundler output | `bun run build` | planned | not in hooks |
 | Docs | architecture/features if behavior changed | manual | human review |
@@ -77,7 +77,7 @@ Status: `enforced` | `planned` | `manual` | `N/A`.
 | Hook | Verifies | Budget | Runs |
 |---|---|---|---|
 | pre-commit | working-tree typecheck, lint, `test:coverage` (unsets `GIT_*`; not index snapshot) | target <30s (unmeasured) | unified L1 static + L1 at **current** thresholds |
-| pre-push | working-tree osv/gitleaks **warnings only**; L2 commented (not stdin refs) | target <3min (unmeasured) | not a failing G2/L2 gate |
+| pre-push | working-tree OSV/Gitleaks fail closed; L2 remains absent (not stdin refs) | target <3min (unmeasured) | G2 failure gate; no L2 gate |
 
 Target: index-snapshot unified L1 (types, check-only lint, coverage); stdin-ref L2+G2. Check-only; `--no-verify` forbidden.
 
@@ -106,3 +106,5 @@ No production deploy. Local personal assistant only.
 
 - Unset `GIT_DIR` / `GIT_INDEX_FILE` / related vars before tests inside commit hooks.
 - Do not treat non-blocking osv/gitleaks warnings as a passing G2 gate.
+
+The root test and coverage commands also run the four Bun-only entry tests after Vitest. Their conditional Node skips are not passing tests; the separate Bun execution supplies their real results. The current coverage thresholds remain below the95% contract, and no full L1 certification is implied.

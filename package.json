@@ -17,8 +17,8 @@
     "typecheck:server": "node_modules/@typescript/native/bin/tsc --noEmit -p packages/server/tsconfig.json",
     "typecheck:web": "node_modules/@typescript/native/bin/tsc --noEmit -p packages/web/tsconfig.json",
     "lint": "eslint . --max-warnings 0",
-    "test": "vitest run",
-    "test:coverage": "vitest run --coverage",
+    "test": "vitest run && bun test packages/server/src/index.test.ts",
+    "test:coverage": "vitest run --coverage && bun test packages/server/src/index.test.ts",
     "test:l2": "vitest run packages/server/src/routes/",
     "test:l3": "playwright test",
     "prepare": "husky"
