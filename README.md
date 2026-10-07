@@ -65,6 +65,7 @@ The two applications are reference implementations, not existing Frogie consumer
 
 Project documentation lives under [docs/](docs/). New design documents use numbered filenames; the preserved logo reference remains unnumbered.
 
+- [01 - Project positioning](docs/01-project-positioning.md): purpose, boundaries, and reference projects.
 - [Logo identity](docs/logo.md): original artwork, provenance, and derivative generation.
 
 ## License
