@@ -7,7 +7,7 @@
 <p align="center">集中设计 Agent 定义，由各业务项目在本地独立运行。</p>
 
 <p align="center">
-  <a href="docs/">文档</a>
+  <a href="docs/README.md">文档</a>
 </p>
 
 <p align="center">
@@ -46,11 +46,7 @@ Frogie 面向使用 [Pi Durable](https://github.com/earendil-works/pi/tree/main/
 
 ## 文档
 
-本项目文档统一使用中文。设计文档放在 [docs/](docs/) 下，新增文档使用编号文件名；保留的 logo 说明维持原文件名。
-
-- [01 - 项目定位](docs/01-project-positioning.md)：项目目的、定义方式和职责划分。
-- [02 - 仓库结构与开发约定](docs/02-repository-and-workflow.md)：monorepo 目录、测试布局与 Git 检查规则。
-- [Logo 说明](docs/logo.md)：原始图稿、来源记录和衍生文件生成方式。
+本项目文档统一使用中文，完整目录见 [文档索引](docs/README.md)。设计文档按编号持续补充，索引随文档更新。
 
 ## 许可证
 

@@ -8,9 +8,9 @@
 ## 文档结构
 
 - 项目规范维护在根目录 `AGENTS.md`，项目概述放在 `README.md`，定位和设计文档放在 `docs/`。
-- 新增设计文档放在 `docs/`，按 `01-project-positioning.md` 的形式连续编号。已有的 `docs/logo.md` 保留原文件名。
-- 定位和设计以 [01 - 项目定位](docs/01-project-positioning.md) 为依据。
-- 目录职责、测试布局与提交检查遵循 [02 - 仓库结构与开发约定](docs/02-repository-and-workflow.md)。
+- [文档索引](docs/README.md) 是设计文档的统一入口。开始任务时先读索引，并核对 `docs/` 的实际文件，主动发现新增文档，再按任务范围阅读相关设计及其引用。
+- 新增设计文档放在 `docs/`，文件名采用 `NN-topic.md` 并连续编号。已有的 `docs/logo.md` 保留原文件名。
+- 新增、调整或移动文档时，同步维护索引中的链接和内容说明。
 
 ## 写作原则
 
