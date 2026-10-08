@@ -12,8 +12,8 @@
 
 | 位置 | 职责 |
 | --- | --- |
-| `src/models/` | 定义、绑定、会话、产物和评估数据；公共协议客户端与文件服务 |
-| `src/viewmodels/` | 文件与图编辑草稿、选择项、校验结果、异步动作、投递重试、观察连接和页面状态 |
+| `src/models/` | 定义、环境与绑定、会话、产物和评估数据；固定上下文的协议客户端与文件服务 |
+| `src/viewmodels/` | 全局 Squad／Harness 选择、环境切换、文件与图草稿、校验、投递重试和观察连接 |
 | `src/views/` | Basalt 组件组合、React Flow 画布、布局、焦点、滚动和键盘交互 |
 | `src/server/` | 本地认证、受控文件编辑、HTTP 与状态推送、运行端管理 |
 | `src/runtime/` | 引用 Core 的 Harness 宿主、SQLite、产物、脚本沙箱和预检 |
@@ -23,7 +23,7 @@ ViewModel 接收服务依赖，以普通 TypeScript 状态转换和 React 绑定
 
 ## 启动与访问
 
-规划的用户入口为 `frogie dashboard --workspace <path>`。CLI 选择工作区，输出 `127.0.0.1` 本地 URL；端口冲突时返回明确错误或使用用户指定端口。服务只绑定 loopback 地址。
+规划的用户入口为 `frogie dashboard --workspace <path> --mode local|e2e|prod`。模式参数可省略，CLI 选择工作区，输出 `127.0.0.1` 本地 URL；端口冲突时返回明确错误或使用用户指定端口。服务只绑定 loopback 地址。
 
 首次打开通过一次性启动凭据建立会话，凭据放在 URL fragment，浏览器交换后清除；服务端颁发短期 HttpOnly、SameSite 会话 Cookie。模型凭据只由宿主配置读取，界面显示已配置的连接名称与可用状态。
 
@@ -47,7 +47,7 @@ Workflow 专业画布采用已核实的稳定版 `@xyflow/react@12.12.0`，其 R
 
 组合顺序采用 Basalt 的 `AppShell`、`Sidebar`、`AppMain`、`AppSkipLink`、`AppHeader` 和一个 `ContentIsland`。内容页以 `PageHeader` 开始，分区使用 `SectionRule`，成组内容使用 `LayerCard`。
 
-侧栏显示现有 Frogie 标志、名称、构建版本、项目切换和主导航。Header 显示真实上级路径、当前页面、连接状态、GitHub 入口和末位主题切换。页面操作位于内容标题行。
+侧栏顶部显示现有 Frogie 标志、名称与构建版本，紧接全局 Squad／Harness 切换器和 Local／E2E／Prod 选择，下方导航围绕当前 Squad 展开。Header 显示真实上级路径、当前页面、环境标识、连接状态、GitHub 入口和末位主题切换。页面操作位于内容标题行。
 
 使用 `ThemeProvider`、`AccentProvider`、`LinkProvider`、`TooltipProvider` 和单个全局 `Toaster`。默认强调色采用 Basalt 的 `green`，保留 Frogie 现有图稿，使用合适尺寸的衍生资产。
 
@@ -58,6 +58,7 @@ Workflow 专业画布采用已核实的稳定版 `@xyflow/react@12.12.0`，其 R
 | 场景 | 发布版组件与入口 |
 | --- | --- |
 | 应用框架 | `components/app-shell`、`components/app-header`、`components/sidebar` |
+| 全局上下文 | `components/combobox` 的可搜索选择，`components/segment-control` 的环境模式选择，配合 `Popover` 与 `Badge` |
 | 标题与内容层次 | `components/page-header`、`components/section-rule`、`LayerCard` |
 | 表单与动作 | `Field`、`Input`、`Button`、`Checkbox`，`components/input-area`、`components/select`、`components/multi-select` |
 | 目录导航与主从布局 | `components/editable-nav-item` 的 `EditableNavItem`、`FolderNavItem`，`components/responsive-master-detail` |
@@ -69,7 +70,7 @@ Workflow 专业画布采用已核实的稳定版 `@xyflow/react@12.12.0`，其 R
 
 层级导航由应用数据驱动 `FolderNavItem` 和 `EditableNavItem`；展开、选择和角色归属由 ViewModel 管理。工作流画布呈现 MD 中的设计，实际进展来自独立的运行观察。
 
-React Flow 使用 `dist/base.css` 提供必要布局，画布背景、节点表面、端口、连线与焦点样式映射 Basalt Tokens，主题跟随应用。编辑面板和工具条继续组合 Basalt 控件，复用画布库的交互与无障碍能力。
+React Flow 使用 `@xyflow/react/dist/base.css` 提供必要布局，画布背景、节点表面、端口、连线与焦点样式映射 Basalt Tokens，主题跟随应用。编辑面板和工具条继续组合 Basalt 控件，复用画布库的交互与无障碍能力。
 
 聊天输入使用受控 `InputArea`、`Button` 和模式选择控件组合，让 ViewModel 持有每个会话的草稿、失败重试和输入法状态。`2.2.0` 的 `ChatComposer` 使用内部草稿及同步 `onSend`，本应用采用基础控件组合管理跨会话草稿。
 
@@ -77,7 +78,45 @@ Markdown 展示使用成熟的 `react-markdown` 与 GFM 解析，复用 Basalt �
 
 ## 页面与导航
 
-主导航包括项目、定义、调试、评估和本地设置。项目与环境选择保留在路由或可恢复的页面状态中，刷新后可以回到选中的对象。
+进入 Squad 后，主导航包括概览、角色与技能、Workflows、调试和评估。跨项目总览与本地设置由侧栏的全局入口访问；画布与 Chat 保持当前 Squad 的完整上下文。
+
+### 全局 Squad／Harness 上下文
+
+侧栏上方的切换器像工作区选择器一样显示当前 Squad 名称、所属项目、环境与 Harness 简称。展开后可搜索 Squad，查看该模式内已绑定的环境、定义摘要与连接状态，并进入对应 Harness。未绑定的 Squad 也可以进入定义管理，运行入口提供创建绑定动作。
+
+全局上下文由模式、环境、Squad 和可选 Harness 组成。更换任一项后，定义导航、Workflow、会话、产物、评估与客户端缓存统一切换；路由记录稳定身份，刷新时由服务端重新校验选择。侧栏收起时仍显示当前 Squad 的可访问名称，窄屏在同一导航 Sheet 中完成切换。
+
+用户进入某个 Squad 后持续看到其角色、工作流与运行内容，通过顶部切换器返回其他 Squad。工具条与属性面板可以收起，让画布或对话占据主要空间。环境标识在收起侧栏、全屏画布与发送输入时仍然可见。
+
+切换前处理当前未保存的文件和画布草稿，提供保存后切换、放弃草稿或留在当前上下文。已经接纳的 Local／Prod 工作继续在原 Harness 运行，切换只改变观察目标；停止工作使用独立的取消动作。临时 E2E 的退出按下文生命周期执行。
+
+### Local、E2E 与 Prod
+
+三种模式使用相同的应用、认证、Core 接入、Pi SQLite 与沙箱实现，分别绑定本机数据和模型配置。
+
+| 模式 | 定义与存储 | 生命周期 |
+| --- | --- | --- |
+| Local | 工作区的 `squads/` 与 `data/local/` 下的独立 Harness 数据库 | 日常设计与调试，重启保留编辑和运行状态 |
+| E2E | `data/e2e/<run-id>/` 下的隔离定义工作区与数据库 | 每次进入创建新范围，默认空白，按归属释放 |
+| Prod | 工作区的定义源、明确选定的不可变快照与 `data/prod/` 下的独立数据库 | 本机正式使用，单独授权模型与工具，重启保留状态 |
+
+Local 与 Prod 的定义编辑都作用于获准工作区的 MD；各 Harness 始终读取自己绑定的快照。正式使用新定义时明确选择版本并创建新环境。界面同时显示正在编辑的来源和已加载摘要，切换模式只选择目标数据，版本采用通过绑定操作完成。
+
+环境列表展示已登记的 SQLite 保存位置与 Harness 身份，用户可以直接选择已存在的绑定，也可以创建新的环境。浏览器提交服务端枚举的身份，由服务端解析本地路径与授权。Prod 首次启动运行需确认其数据库、定义、模型连接和权限范围。
+
+模式选择顺序为：自动 E2E 启动器锁定值、显式 CLI 参数、当前工作区保存的有效交互选择、Local。只有服务端接受的交互选择写入本地偏好；自动测试使用自己的参数和目录。
+
+手动进入 E2E 时允许切换到 Local 或 Prod，退出前提示并结束该临时环境的活跃工作，关闭存储并清理自己拥有的状态；用户可先显式导出定义或证据。自动 E2E 的 `locked` 与 `automated` 由受信启动器设置，服务端将模式和资源根固定到本次测试。测试仍可在该范围内新建和切换 Squad／Harness。
+
+### 切换与请求隔离
+
+React 挂载前通过本地服务取得包含 `mode`、`instanceId`、`locked`、`automated` 与 CSRF 信息的上下文描述；选定对象时附上 `environmentId`、`squadId` 与 `harnessId`。`instanceId` 是本次界面选择的临时身份，Core 的 `RuntimeScope` 是存储的持久身份，运行操作要求完整作用域。
+
+所有文件、运行、产物与观察请求使用固定的 `/__local/instances/<instanceId>/...` 路径。服务端把实例绑定到确定的工作区和存储，在接纳请求时完成归属检查；Core 操作继续携带 `RuntimeScope`。
+
+客户端完成草稿处理后，切换请求携带当前实例和目标身份，服务端验证会话、Host、Origin、CSRF 及测试锁定范围。目标预检通过后，服务端颁发新实例，旧实例的新请求返回 `409`。预检失败则保持原上下文可用。
+
+客户端接受新实例后释放旧订阅和请求控制器，重新挂载对应 ViewModel、缓存与页面，再从目标 Harness 读取快照。异步结果和推送同时核对实例与作用域，迟到结果只属于原上下文。已接纳的操作继续使用接纳时的存储引用，刷新和切换都保持这个归属。
 
 ### 项目总览
 
@@ -104,7 +143,7 @@ Markdown 展示使用成熟的 `react-markdown` 与 GFM 解析，复用 Basalt �
 
 稳定 ID 与目录名保持一致，显示名可以独立修改。角色移动通过工作区内目录重命名改变层级，原 ID 和引用保持稳定；删除前列出引用并要求先处理依赖。多文件创建在完整候选目录校验后提交到工作区。
 
-保存后展示 Git 工作区差异与新的内容摘要；Git 提交仍由用户或开发工作流完成。运行环境继续使用自己的已绑定快照。
+保存后展示文件差异与新的内容摘要；在 Git 工作区内同时展示 Git 差异，提交仍由用户或开发工作流完成。E2E 编辑展示隔离文件的差异，运行环境继续使用自己的已绑定快照。
 
 ### Workflow 画布
 
@@ -129,7 +168,7 @@ ViewModel 持有受控图数据与草稿历史，使用库提供的节点、边�
 
 ### 绑定与启动
 
-用户选择 Squad、不可变定义快照和本地环境，查看以下预检结果：
+用户在当前全局上下文中选择不可变定义快照，创建环境绑定或打开已有 Harness，查看以下预检结果：
 
 - 各角色最终模型与思考等级，模型服务可用的能力。
 - 定义要求、宿主授权和工具入口共同形成的实际能力。
@@ -138,7 +177,7 @@ ViewModel 持有受控图数据与草稿历史，使用库提供的节点、边�
 
 预检通过后启用“启动”。错误显示到具体角色、工具或配置项。模型、授权和预算的微调形成当前环境配置，并与定义摘要一起保存。
 
-定义存在未提交改动时仍可调试，界面标识其内容摘要。每次验证新的定义快照建立独立环境，旧环境可继续观察与恢复。
+定义存在未提交改动时仍可调试，界面标识其内容摘要。每次验证新的定义快照在当前模式下建立独立环境，旧环境可继续观察与恢复。全局切换器列出这些绑定；同一环境内继续保持 Squad 与 Harness 的一一对应。
 
 ### 调试工作台
 
@@ -174,26 +213,64 @@ ViewModel 持有受控图数据与草稿历史，使用库提供的节点、边�
 
 ### 进程与数据
 
-Dashboard 服务监督独立 Harness 子进程，每个环境一个存储所有者。UI 服务、评估控制器和 Harness 生命周期分开，便于观察进程中断和重新打开原数据库。
+Dashboard 服务监督独立 Harness 子进程，每份 Harness 数据库由一个进程持有。UI 服务、评估控制器和 Harness 生命周期分开，便于切换观察目标、处理中断和重新打开原数据库。
 
-运行数据默认放在 `~/.local/share/frogie/`，可由 CLI 指定独立目录：
+运行数据统一放在所选工作区的 `data/`，由根 `.gitignore` 忽略。全部模式的数据库都存放在本机，CLI 和测试启动器在打开存储前创建并验证目录：
 
 ```text
-runtime-root/
-  environments/<environment-id>/
-    binding.json
-    definition/
-    session.sqlite
-    artifacts/
-    receipts/
-  evals/<evaluation-id>/
-    report.json
-    evidence/
+data/
+  local/
+    environments/<environment-id>/
+      environment.json
+      harnesses/<harness-id>/
+        binding.json
+        definition/
+        session.sqlite
+        artifacts/
+        receipts/
+        evals/<evaluation-id>/
+          report.json
+          evidence/
+  prod/
+    environments/<environment-id>/
+      ...
+  e2e/<run-id>/
+    owner.json
+    workspace/squads/
+    environments/<environment-id>/
+      ...
+    reports/
 ```
 
-`binding.json` 保存定义摘要、运行版本、无凭据配置和模型连接名称，并与 Pi 的绑定 Document 核对。`definition/` 保存不可变定义文件；SQLite 及其 WAL 文件归当前环境所有。产物与回执分别用于用户输出和可重放工具的幂等处理。
+Prod 和 E2E 的 `environments/` 使用与 Local 相同的内部结构。`environment.json` 保存模式、环境身份与目录归属，`binding.json` 保存 `RuntimeScope`、定义摘要、运行版本、无凭据配置和模型连接名称，并与 Pi 的绑定 Document 核对。`definition/` 是 Harness 已加载的不可变快照，E2E 的 `workspace/squads/` 则是独立可编辑源。
 
-产物写入采用环境与 Tool Task 组成的稳定操作键、内容摘要和原子落盘，成功后返回不可变引用。脚本回执还核对定义、入口和输入摘要；重启后相同操作可读取已保存回执，内容冲突返回诊断。用户通过页面查看保存位置，清理操作核对环境身份并仅作用于选定的非活跃环境。
+SQLite、WAL 和 SHM 文件归同一 Harness，打开前取得独占权。创建、seed、重置与清理核对规范化路径、归属标记、模式和活跃所有者，目录组件必须为归属范围内的真实目录。模型凭据留在本机私有配置，按环境显式提供；E2E 子进程仅获得虚构连接配置和本次认证材料。
+
+Local／Prod 正常重启重新打开原数据库。用户选择另一绑定就是切换到另一份本地数据库，旧绑定保留自己的状态。显式清理先关闭选定 Harness，确认路径和身份后释放对应数据；自动测试的清理只处理 `owner.json` 标记的本次进程、文件和容器。
+
+产物写入采用 `RuntimeScope` 与 Tool Task 组成的稳定操作键、内容摘要和原子落盘，成功后返回不可变引用。脚本回执还核对定义、入口和输入摘要；重启后相同操作可读取已保存回执，内容冲突返回诊断。用户通过页面查看数据与证据的保存位置。
+
+### 可追踪的 seed
+
+seed 的生成逻辑、配置与输入纳入 Git，生成结果进入 `data/`：
+
+```text
+seeds/
+  seed.ts
+  profiles.ts
+  model-scenarios.ts
+```
+
+`seed.ts` 提供统一初始化入口，`profiles.ts` 定义 `empty` 与 `sample` 两种选择并引用 `squads/` 的定义和 `evals/` 的输入，`model-scenarios.ts` 提供确定性模型边界数据。目录中的源码可导出构建测试所需的输入，定义和业务简报各自保留一份来源。
+
+| 配置 | 初始化结果 | 用途 |
+| --- | --- | --- |
+| `empty` | 只有目录归属、应用初始化与本次认证条件，Squad、Harness 绑定和运行历史均为空 | 从零搭建的 E2E 与空状态验证 |
+| `sample` | 在新建范围内登记或复制样例定义，通过公共入口创建绑定，运行从正常会话入口开始 | 手动体验、聚焦交互测试和界面截图 |
+
+E2E 默认使用 `empty`。从零搭建测试可以读取已追踪的文本和脚本作为填写内容，创建与保存通过真实 UI 完成。`sample` 显式选择：Local 登记已有的样例源并建立新绑定，E2E 将样例复制到本次定义工作区。Prod 通过用户选择的定义与真实配置建立绑定。
+
+初始化使用正式的解析、文件与 Pi 接入代码，模型替身仅安装在 `Models` 边界。种子输入的版本与摘要记录在归属元数据中。seed 完成后，正常重启保持已有文件、会话和编辑；再次初始化已使用的目标返回清晰诊断。seed 重置入口面向用户确认的 Local 样例运行数据与当前临时 E2E，保留 Git 管理的定义源；Prod 通过新建绑定采用选定定义。
 
 ### 脚本沙箱
 

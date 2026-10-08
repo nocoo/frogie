@@ -39,7 +39,9 @@ CLI 规划入口为 `frogie eval <squad-id> --case <case-id> --allow-real-model`
   -> 确定性断言与 Dashboard 报告
 ```
 
-每次执行使用新的环境和数据库。恢复执行项在中断后重新打开本次数据库；普通案例之间保持独立。定义快照、原始输入、预期断言与实际输出分别保存并关联。
+每次真实评估在 Local 模式下新建独立环境、Harness 和数据库，由 Dashboard 全局切换器选中并观察。数据位于 `data/local/environments/<environment-id>/harnesses/<harness-id>/`，恢复执行项重新打开本次数据库；普通案例之间保持独立。定义快照、原始输入、预期断言与实际输出分别保存并关联。
+
+E2E 使用确定性模型与自己的隔离目录；真实评估使用用户明确选择的模型连接。评估入口从 `squads/` 或用户指定的定义导出加载快照，沿用相同解析与绑定规则。
 
 ## 授权与预算
 
@@ -166,6 +168,7 @@ CLI 规划入口为 `frogie eval <squad-id> --case <case-id> --allow-real-model`
 | 报告内容 | 用途 |
 | --- | --- |
 | 代码、Pi 版本、定义摘要、用例摘要和环境配置摘要 | 定位实际被评估的组合 |
+| Local 模式与 `RuntimeScope` | 定位本次独立环境、Harness 与本地数据库 |
 | 各角色的 provider、modelId、thinkingLevel | 确认运行采用的 Agent 配置 |
 | Conversation、Submission、Task 与 answer entry | 追踪实际执行和父子关系 |
 | 工具参数、回执、脚本输入输出摘要与产物引用 | 校验计算、权限范围和结果来源 |
@@ -178,7 +181,7 @@ Markdown frontmatter 的解析复用定义解析工具，业务字段由案例�
 
 人工验收只补充自动断言难以判断的部分：综合方案是否解释冲突，照护与生活安排是否可理解，Dashboard 能否从结论追到相关证据。人工意见随本次报告记录。
 
-报告和必要证据存入运行目录的 `evals/<evaluation-id>/`，展示于 Dashboard，按关联 ID 读取原运行数据。导出前过滤凭据与无关路径，测试简报、定义和断言源码随 Git 管理。
+报告和必要证据存入对应 Harness 目录的 `evals/<evaluation-id>/`，随 `data/` 忽略，展示于 Dashboard，按 `RuntimeScope` 与关联 ID 读取原运行数据。导出前过滤凭据与无关路径，测试简报、定义、seed 与断言源码随 Git 管理。
 
 ## 完整 MVP 闭环
 

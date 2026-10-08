@@ -56,18 +56,21 @@ Core 的图结构属于可移植定义格式；React Flow 的组件、选中状�
 | 数据 | 核心内容 |
 | --- | --- |
 | `DefinitionBundle` | `schemaVersion`、`squadId`、`projectId`、角色树、技能、工作流、文件清单、`contentHash`、可用时的 `gitCommit` |
-| `ProjectBinding` | `projectId`、`environmentId`、`squadId`、定义引用、环境微调、授权范围 |
-| `RuntimeDescription` | `protocolVersion`、运行端身份、绑定摘要、Pi 与宿主版本、模型目录、工具与扩展能力、可用操作 |
+| `RuntimeScope` | `environmentId`、`squadId`、`harnessId`，共同定位一份已绑定的运行存储 |
+| `ProjectBinding` | `projectId`、`RuntimeScope`、定义引用、环境微调、授权范围 |
+| `RuntimeDescription` | `protocolVersion`、运行端身份、`RuntimeScope`、绑定摘要、Pi 与宿主版本、模型目录、工具与扩展能力、可用操作 |
 | `ConversationBinding` | `roleId`、定义摘要、实际配置摘要、可选 `workflowId`、用户可读标题 |
-| `ArtifactRef` | 不透明 `id`、名称、媒体类型、字节数、内容摘要，以及可选的来源会话与任务 |
+| `ArtifactRef` | `RuntimeScope`、不透明 `id`、名称、媒体类型、字节数、内容摘要，以及可选的来源会话与任务 |
 
 `schemaVersion` 描述定义格式，`protocolVersion` 描述接入协议，`contentHash` 标识定义内容。三者分别演进。首期均只接受各自明确支持的版本。
 
 内容摘要覆盖排序后的相对路径、文件字节和必要的文件模式，包括脚本及其资源。Git commit 表示来源；未提交的编辑通过内容摘要精确标识。运行端保存这份不可变文件快照，恢复时使用同一份内容。
 
+`environmentId` 由宿主标识独立配置范围，`harnessId` 由宿主在创建存储时分配并保存，重启保持原值。这两个字段是 Frogie 的绑定身份；Conversation、Submission 与 Task 继续使用 Pi 原始 ID。Dashboard 的 Local／E2E／Prod 是宿主对环境的分类，集成项目按自己的方式组织环境。
+
 ### 生效方式
 
-同一环境中的 Squad 与 Harness 一一对应。每个 Harness 绑定一份定义快照和一份环境配置；各会话记录采用的角色与实际配置。
+同一环境中的 Squad 与 Harness 一一对应。一个环境可以登记多个 Squad，每个 Squad 使用自己的 Harness 和存储。每个 Harness 绑定一份定义快照和一份环境配置；各会话记录采用的角色与实际配置。
 
 Dashboard 保存文件后重新校验，用户再选择快照进行调试。定义编辑与已启动运行相互独立。首期验证新定义时建立新的调试环境，原环境保留原定义和运行数据，便于继续、恢复与比较。
 
@@ -134,7 +137,7 @@ Dashboard 保存文件后重新校验，用户再选择快照进行调试。定�
 | 检查 Harness | 返回活跃任务图、`inspect()` 诊断与用量 |
 | 读取产物 | 在运行端授权范围内按 `ArtifactRef.id` 读取内容 |
 
-接口外层携带环境和会话身份，运行端验证其归属。错误统一携带稳定 `code`、可读原因、关联对象和可否重试，底层 Pi 的状态与原因保留在诊断中。
+操作、响应和观察事件携带 `RuntimeScope`，会话、输入、任务与产物按该范围验证归属。运行端在接纳请求时固定存储目标；界面切换后，已经接纳的工作仍属于原 Harness，新上下文重新读取自己的快照。错误统一携带稳定 `code`、可读原因、关联对象和可否重试，底层 Pi 的状态与原因保留在诊断中。
 
 协议与传输分开：本地 Dashboard 使用同源 HTTP 请求和服务端推送，集成方可以将同样的操作映射到自己的接口与认证体系。公共包提供数据和处理能力，业务项目负责网络服务。
 
@@ -173,7 +176,7 @@ Pi 的 `replay` 是 Tool 注册属性。首期 `run_script` 登记为 `replay: "
 
 ### 保存位置
 
-Pi 保存会话、输入、历史、Task 检查点和原生 Documents。Core 增加接入所需的少量 Pi Documents：Session 范围的 `frogie.binding` 保存环境和定义版本，`frogie.budget` 保存已授权额度、计数与截止点；Conversation 范围的 `frogie.role` 保存角色、工作流与配置关联。
+Pi 保存会话、输入、历史、Task 检查点和原生 Documents。Core 增加接入所需的少量 Pi Documents：Session 范围的 `frogie.binding` 保存 `RuntimeScope` 和定义版本，`frogie.budget` 保存已授权额度、计数与截止点；Conversation 范围的 `frogie.role` 保存角色、工作流与配置关联。
 
 这些记录与对应配置通过 Pi commit 一起写入；定义文件快照、产物和业务副作用回执保存在宿主的运行目录。会话历史以 Pi 存储为准，Dashboard 按需读取。
 
@@ -201,7 +204,7 @@ Registry 中的函数、凭据和外部环境由宿主重新提供。缺少定�
 
 每次运行可追溯到环境、定义摘要、角色、实际模型与思考等级、Conversation、Submission、Task 和产物。Pi 提供的 token、费用和耗时按原值展示，缺失价格或计量信息标为未知。
 
-宿主统一限制模型请求并发、请求次数、运行期限、工具超时和产物大小。首期按运行环境分配预算，覆盖该 Harness 的全部会话与派发，发起调用前持久预扣次数，恢复沿用已消耗预算和原截止点。追加额度由宿主授权并记录，已有消耗保留；每次评估使用独立环境与预算。
+宿主统一限制模型请求并发、请求次数、运行期限、工具超时和产物大小。首期按 Harness 绑定分配预算，覆盖其中的全部会话与派发，发起调用前持久预扣次数，恢复沿用已消耗预算和原截止点。追加额度由宿主授权并记录，已有消耗保留；每次评估使用独立环境与预算。
 
 模型请求计数在 `Models` 接入处执行，包含子会话、压缩和重试；提供方内部自动重试关闭，重试由 Pi 的持久化机制驱动。工具计数包含恢复进入，回执单独记录实际外部执行次数。预算耗尽由宿主控制器发起 Pi 取消并返回诊断。
 
