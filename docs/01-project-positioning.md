@@ -1,194 +1,194 @@
-# 01 - Project Positioning
+# 01 - 项目定位
 
-Status: Draft for review
+状态：草案，待审阅
 
-Date: 2026-10-08
+日期：2026-10-08
 
-This document captures Frogie's product direction and boundaries. It is not an implementation plan, a definition-file specification, or a claim that the described capabilities already exist. The previous application has been removed; implementation has not started.
+本文记录 Frogie 的产品方向和职责边界，不是实施计划或定义文件规范，也不表示文中能力已经实现。旧应用已移除，新方向尚未开始实现。
 
-## Purpose
+## 项目目的
 
-Frogie gives projects a common way to define, understand, and integrate local agents built on Pi Durable, without requiring those projects to share the same business or execution strategy.
+Frogie 为使用 Pi Durable 的项目提供统一的本地 Agent 定义与接入方式，让用户能够理解和维护这些 Agent，同时允许各项目保留不同的业务和执行策略。
 
-Its central principle is:
+基本原则是：
 
-> Centralize the understanding and maintenance of agent definitions. Keep execution, authority, and runtime state with the projects those agents serve.
+> 集中管理 Agent 定义，让用户从一个入口理解整个体系；执行、权限和运行状态仍归各业务项目所有。
 
-Frogie combines a user-facing authoring workspace with reusable integration code. These are complementary responsibilities, not a requirement for one central service to run every project's agents.
+Frogie 同时提供面向用户的设计台和可复用的接入代码。两者相互配合，但不要求建立一个替所有项目运行 Agent 的中央服务。
 
-## The Problem
+## 要解决的问题
 
-Adding an agent to one project often requires more than prompts: role configuration, conversation selection, tool registration, input delivery, result handling, and recovery integration. Repeating that work across many projects creates independently evolving implementations of the same mechanisms.
+给一个项目接入 Agent，通常需要处理角色配置、会话选择、工具注册、输入投递、结果交回和恢复接入，不只是编写提示词。每个项目独立完成这些工作，就会逐渐形成多套解决相同问题的实现。
 
-At two projects, the differences can be remembered. At ten or twenty, users and developers must learn a different vocabulary and operating model for each project. Shared fixes become repeated work, definitions become difficult to compare, and it becomes unclear which capabilities a project actually exposes.
+只有两个项目时，人还能记住它们的差异。扩展到十个、二十个之后，用户和开发者需要分别学习各项目的概念和运行方式。公共问题需要逐个修复，定义难以比较，也很难看清每个项目实际开放了哪些能力。
 
-Not every difference is a defect. An interactive editorial assistant and a scheduled repository-maintenance process should make different business decisions. Frogie must reduce accidental divergence in their foundations without removing intentional differences in their behavior.
+这些差异并非都要消除。交互式内容助手和定时仓库维护程序，本来就应该采用不同的业务决策方式。Frogie 要减少的是基础机制上的重复和无意分叉，而不是业务为了自身需求做出的选择。
 
-The goal is not a universal agent that understands every business. It is a common foundation that makes different agents understandable and maintainable.
+项目目标是让不同 Agent 易于理解和维护，不是创造一个能替所有业务做决定的通用 Agent。
 
-## Product Identity
+## 产品定位
 
-### A central authoring workspace
+### 集中的定义设计台
 
-Users should be able to organize agent definitions across projects through one interface. For each definition, they should be able to understand:
+用户应能通过一个界面整理多个项目的 Agent 定义。打开任意定义，都能回答以下问题：
 
-- The roles involved and the responsibilities assigned to each role.
-- The prompts, skills, scripts, models, and thinking levels those roles use.
-- The permitted collaboration relationships and declared tool requirements or restrictions.
-- The intended inputs, outputs, and optional workflow guidance.
-- The identity and revision of the definition a project is expected to consume.
+- 有哪些角色，各自负责什么？
+- 使用哪些提示词、技能、脚本、模型和思考等级？
+- 允许怎样协作，需要哪些工具，又有哪些限制？
+- 预期输入、输出是什么，是否需要遵循一份流程说明？
+- 定义的标识和版本是什么，项目准备使用哪一版？
 
-The durable output of authoring is a portable collection of structured Markdown files and referenced source assets. The interface must not be the only place where definitions can be read or maintained. Scripts remain executable source files associated with skills, rather than being treated as prose alone.
+设计结果保存为可移植的结构化 Markdown 文件和配套源文件。用户不应只能通过界面阅读和维护这些定义。技能可以包含脚本，脚本仍然是实际的源文件，不应只被当作一段说明文字。
 
-The authoring workspace stores definitions, not project conversations, execution histories, or recovery checkpoints. A user-managed definition workspace is distinct from Frogie's own source repository; private project definitions do not need to become part of Frogie's codebase.
+设计台保存定义，不保存业务项目的会话、执行历史或恢复检查点。用户的定义工作区与 Frogie 的源码仓库是两回事：私有项目的定义不必提交到 Frogie 自身的代码库。
 
-### A shared integration foundation
+### 公共接入能力
 
-Consuming projects should reuse the code that loads definitions and connects them to Pi Durable. They should not each rebuild the same conversation, submission, tool-selection, and recovery wiring.
+使用方应复用定义加载和 Pi Durable 接入代码，不必各自重写会话管理、输入提交、工具选择和恢复接入逻辑。
 
-That code executes in the consuming project's local runtime. Shared code ownership does not imply shared process ownership, shared SQLite storage, or a shared account with access to every project.
+这些公共代码在使用方项目的本地运行端执行。共用代码，不意味着共用进程、SQLite 数据库，或一个拥有所有项目权限的账号。
 
-Projects continue to provide their business capabilities and enforce their own authority. A project may use a model coordinator, a host-directed process, or both. Adding a conversational coordinator must not require replacing an existing deterministic business process.
+各项目继续提供自己的业务能力并执行权限检查。项目可以由模型主控调度，也可以由宿主代码组织流程，或同时采用两种方式。新增聊天主控，不应迫使项目替换已有的确定性业务流程。
 
-## Relationship to Pi Durable
+## 与 Pi Durable 的关系
 
-Pi Durable is the execution foundation, not a backend hidden behind a competing agent framework.
+Pi Durable 是执行基础。Frogie 应沿用它的概念和设计，不在外面再包一套与之竞争的 Agent 框架。
 
-Frogie must work with its existing concepts: Harness, conversations, per-conversation Agent configuration, submissions, durable tasks, extensions, documents, and storage. It should translate authoring definitions into those mechanisms rather than introduce a second scheduler, transcript store, or recovery engine.
+应直接使用的概念包括 Harness、会话（Conversation）、会话级 Agent 配置、提交（Submission）、持久化任务（Task）、扩展（Extension）、文档状态（Document）和存储。Frogie 负责把用户定义装配到这些机制中，不另造调度器、对话存储或恢复引擎。
 
-A role is a reusable definition, not a Pi conversation. One role may be applied to multiple conversations. A submission admits input; a run may involve multiple generation and tool tasks. Saving a role's prompt does not save the execution state of its instances.
+角色是一份可复用的定义，不是一个 Pi 会话。同一角色可以用于多个会话。一次提交代表接收了一份输入；一段执行过程（Run）可能包含多次模型生成和工具调用任务。保存角色提示词，不等于保存角色实例的执行进度。
 
-Frogie's integration surface should remain compatible with project-supplied Pi tools, extensions, hooks, and documents. A project-specific capability should not require abandoning the shared foundation simply because it cannot be described entirely in Markdown.
+接入层应继续允许业务项目使用 Pi 原生的工具、扩展、钩子（Hook）和文档状态。某项能力不能完全用 Markdown 描述，不应成为项目绕过 Frogie、另写一套运行接入的理由。
 
-## The Definition Vocabulary
+## 定义层的概念
 
-These terms describe the intended authoring model. They do not introduce new Pi runtime primitives or prescribe a file schema.
+以下概念描述预期的设计模型，不是新增的 Pi 运行原语，也不规定具体文件格式。
 
-| Term | Meaning | Boundary |
+| 概念 | 含义 | 边界 |
 | --- | --- | --- |
-| Role | A reusable responsibility, instructions, skills, model preferences, and capability requirements | Not a live process or conversation; can have multiple instances |
-| Skill | Reusable instructions and related resources, including optional scripts | Does not grant permissions merely by being loaded |
-| Workflow | Guidance describing intended steps, roles, inputs, outputs, and handoffs | Not a guaranteed execution graph or deterministic state machine |
-| Squad | A composition of roles and their intended collaboration relationships | Does not require a model coordinator or replace task ownership |
-| Agent service | A consuming project's local runtime that loads definitions and handles project work | Owns its execution state and authenticates to its project independently |
+| 角色（Role） | 可复用的职责、指令、技能、模型偏好和能力要求 | 不是运行中的进程或会话，可以有多个实例 |
+| 技能（Skill） | 可复用的操作说明和相关资源，可包含脚本 | 加载技能不会自动授予权限 |
+| 工作流（Workflow） | 描述预期步骤、角色分工、输入输出和交接方式的指导内容 | 不保证严格执行，也不是确定性状态机 |
+| 协作组（Squad） | 一组角色及其预期协作关系 | 不强制设置模型主控，不替代 Pi 的任务所有权 |
+| Agent 服务 | 使用方项目中加载定义、处理业务工作的本地运行端 | 自己持有执行状态，独立完成项目认证 |
 
-Prompt and skill content describe how an agent should act. Tool implementations, runtime permissions, and business rules determine what it can actually do. Neither is a substitute for the other.
+提示词和技能说明 Agent 应该怎样行动。工具实现、运行权限和业务规则决定它实际上能做什么。这两部分不能互相替代。
 
-## Guidance Modes
+## 执行指导模式
 
-Frogie should support two modes on the same Pi execution foundation:
+Frogie 应在同一套 Pi 执行基础上支持两种模式：
 
-| Mode | Definition provides | Execution expectation |
+| 模式 | 定义提供的内容 | 执行预期 |
 | --- | --- | --- |
-| Free-form | Goals, role responsibilities, skills, and allowed capabilities | The agent chooses how to approach the work |
-| Flow-guided | The same foundation plus documented steps and expected inputs, outputs, and handoffs | The agent is instructed to follow the flow |
+| 自由发挥 | 目标、角色职责、技能和允许使用的能力 | Agent 自行安排完成方式 |
+| 流程指导 | 在上述内容上增加步骤说明，以及预期输入、输出和交接要求 | 通过指令要求 Agent 按流程执行 |
 
-A flow is expressed as instructions, not a promise. Frogie does not guarantee that an agent follows every step, nor is detecting and correcting semantic workflow drift part of this positioning. Definition validity and reference checks are different from proving execution compliance.
+流程说明是一份指令，不是执行保证。Frogie 不保证 Agent 遵循每一步，也不负责判断和纠正业务流程上的发散。检查定义格式和引用是否有效，与证明执行过程符合流程要求，是不同的事情。
 
-Markdown may describe input/output contracts and serve as a format for working documents. Actual inputs, generated outputs, and progress belong to the consuming project's execution context, not to the definition source.
+Markdown 可以描述输入输出约定，也可以作为工作文档的格式。但实际任务输入、生成结果和执行进度属于使用方项目的运行数据，不属于定义源文件。
 
-This flexibility does not weaken security or mandatory business rules. An agent may deviate from suggested steps, but may not acquire extra tools, bypass the sandbox, or authorize publication simply because its prompt asks for it. A business that requires a hard gate must enforce that gate in code.
+这种灵活性不影响安全限制和强制业务规则。Agent 可以偏离建议步骤，但不能因此获得额外工具、绕过沙箱或自行批准发布。业务若有必须满足的条件，应由代码强制执行。
 
-## Responsibility Boundaries
+## 职责划分
 
-| Owner | Responsibility |
+| 归属 | 职责 |
 | --- | --- |
-| Frogie authoring workspace | Edit, organize, inspect, and export role, skill, squad, and workflow definitions |
-| Frogie integration code | Resolve definitions, connect them to Pi, and provide reusable runtime and capability-enforcement wiring |
-| Pi Durable | Supply the durable execution, conversation, task, document, and observation primitives |
-| Consuming project | Supply business tools, authentication, triggers, input/output delivery, UI integration, and mandatory business rules |
-| Project's local runtime | Own runtime configuration, SQLite state, execution artifacts, process lifecycle, and the authorized execution environment |
+| Frogie 设计台 | 编辑、整理、查看和导出角色、技能、协作组与工作流定义 |
+| Frogie 接入代码 | 解析定义、接入 Pi，提供可复用的运行接入与权限约束机制 |
+| Pi Durable | 提供持久化执行、会话、任务、文档状态和观察机制 |
+| 使用方项目 | 提供业务工具、认证、触发入口、输入输出投递、界面接入和强制业务规则 |
+| 项目本地运行端 | 管理运行配置、SQLite 状态、执行产物、进程生命周期和授权的执行环境 |
 
-Tool identifiers in a definition are references, not implementations or credentials. The consumer must supply or explicitly register the relevant capabilities. Definition restrictions and consumer authorization both apply; a definition cannot widen what the consumer permits.
+定义中的工具标识是引用，不是工具实现或凭据。相关能力必须由使用方提供或显式注册。定义中的限制与使用方授权同时生效；定义不能扩大使用方实际允许的权限。
 
-Common integration should reduce repetitive code, not claim that a new business can always be implemented without code. Authentication scope, domain validation, and external effects remain real responsibilities even when most agent behavior is authored as text.
+公共接入的目的是减少重复代码，不是保证所有新业务都能零代码实现。即使大部分 Agent 行为通过文字定义，认证范围、业务校验和外部操作仍需要明确实现。
 
-## Local Execution and Trust
+## 本地执行与信任边界
 
-Local execution is a product requirement: project agents should use local files, tools, compute, and working environments rather than depend on a centrally hosted execution service.
+本地执行是产品要求。项目 Agent 应能使用本机文件、工具、算力和工作环境，而不是依赖一个集中托管的执行服务。
 
-Agent-invoked project code and skill scripts must run through an actual local sandbox boundary. Separate conversations or working directories are not OS isolation. Pi's execution-environment abstraction provides an integration point, but does not make the default Node environment a sandbox.
+Agent 调用的项目代码和技能脚本必须经过真正的本地沙箱。不同会话或工作目录不等于操作系统隔离。Pi 的执行环境抽象提供了接入位置，但默认的 Node 执行环境本身不是沙箱。
 
-Custom tools require the same scrutiny. Sandboxing a shell tool does not isolate another tool that directly launches an unrestricted host process. Trusted host-side business adapters must enforce their own resource and API scopes.
+自定义工具也受这个要求约束。将 Shell 工具放入沙箱，并不能限制另一个直接在宿主机启动进程的工具。可信的宿主侧业务适配器，则必须检查自己允许访问的资源和 API 范围。
 
-Local agents connect to their project's services through explicit authentication and authorization. The design workspace is not a shared credential authority, and definition files must not contain model or project secrets. Machine-specific credentials and authorized resources are supplied at runtime.
+本地 Agent 通过明确的认证和授权连接业务项目。设计台不统一持有所有项目的凭据，定义文件也不能包含模型密钥或业务凭据。机器相关的配置、凭据和资源授权在运行时提供。
 
-Local execution also does not imply local model inference. A project may use remote inference or a compatible local model service. The sandbox mechanism, supported platforms, and authentication protocols are subsequent design decisions, not capabilities already delivered by this repository.
+本地执行不必使用本地模型推理。项目可以调用远程模型，也可以接入兼容的本地模型服务。沙箱技术、支持的平台和认证协议将在后续设计中确定，不能把它们写成当前仓库已经提供的能力。
 
-## Ownership of Definitions and State
+## 定义与状态的归属
 
-The following boundaries must remain visible regardless of the eventual directory layout or distribution mechanism:
+无论最终采用什么目录结构或分发方式，都应保持以下区分：
 
-- **Definition source**: versioned Markdown and script assets with a clear authoritative editing location. This may be a shared definition workspace or a project-owned directory managed through Frogie.
-- **Consumer binding**: the project selects the definition revision and supplies tool implementations, model connections, and local permissions. Editing a definition must not silently change the meaning or authority of already-running work.
-- **Runtime state**: conversations, submissions, task progress, results, receipts, and recovery data remain with the consuming project through Pi and any necessary business storage.
-- **Private machine configuration**: credentials and machine-specific settings remain outside portable definitions and their version history.
+- **定义源**：带版本的 Markdown 和脚本文件，有明确的权威编辑位置。可以位于共享定义工作区，也可以位于由 Frogie 管理的项目目录。
+- **使用方绑定**：项目选择定义版本，提供工具实现、模型连接和本地权限。修改定义不能悄悄改变正在执行的工作的含义或权限。
+- **运行状态**：会话、提交、任务进度、结果、回执和恢复数据由使用方项目通过 Pi 及必要的业务存储持有。
+- **本机私有配置**：凭据和机器相关设置不进入可移植定义及其版本历史。
 
-Recovery needs the relevant definition and executable implementations as well as saved state. Definitions alone cannot reconstruct completed side effects or in-flight work. Pi's replay mechanisms do not eliminate a business tool's responsibility for idempotency and reconciliation.
+恢复执行既需要已保存的状态，也需要相应的定义和可执行实现。仅凭定义无法还原已发生的外部操作或进行中的工作。Pi 的重放机制也不能替业务工具完成幂等处理和结果核对。
 
-Closing Frogie's authoring interface must not stop a consumer that has already loaded its definitions. The interface must not become a required participant in each model turn or tool call.
+关闭 Frogie 设计界面，不应中断已加载定义的使用方。每轮模型调用和工具执行都不应依赖设计台在线。
 
-## A Central View Without Central Execution
+## 中央视图不等于中央托管
 
-The central channel should make many different projects understandable through the same questions and vocabulary. It need not understand every internal business operation. An opaque project-owned capability can still expose its purpose, inputs, outputs, and authority boundaries without becoming a Frogie-specific workflow graph.
+中央入口应让用户用同一套问题和概念理解不同项目，不必理解每个业务操作的内部实现。项目自己的能力只要能说明用途、输入、输出和权限边界，就可以保留内部实现，而不必全部转换为 Frogie 专有的流程图。
 
-Three views must not be confused:
+需要区分三种视图：
 
-1. **Designed structure**: what a definition says should exist. This is the authoring workspace's primary responsibility.
-2. **Loaded configuration**: what a project has actually loaded. This requires evidence from the consumer, not inference from the latest definition file.
-3. **Current execution**: what a runtime is doing now. This requires connecting to that runtime and is not part of definition storage.
+1. **设计结构**：定义描述了什么。这是设计台的主要职责。
+2. **已加载配置**：项目实际加载了什么。需要使用方反馈，不能根据最新定义文件直接推断。
+3. **当前执行**：运行端此刻在做什么。需要连接运行端查看，不属于定义存储。
 
-If runtime inspection or a generic chat entrypoint is later exposed in the central interface, the consumer remains authoritative for authentication, permitted entrypoints, conversations, and history. Such access must not silently turn the authoring workspace into a second execution database or bypass project permissions. This document does not commit to a runtime-monitoring feature or protocol.
+如果中央界面后续提供运行查看或通用聊天入口，认证、允许访问的入口、会话和历史仍由使用方管理。这类访问不能让设计台变成第二份执行数据库，也不能绕过项目权限。本文不确定运行监控功能或协议。
 
-## Reference Projects
+## 参考项目
 
-These references establish the problem and useful capability boundaries. They are not existing Frogie consumers, and neither application's current implementation is a specification to copy wholesale.
+这些项目用于理解问题和能力边界，目前都不是 Frogie 的使用方。现有实现提供参考，不应整套照搬。
 
-### Pi Durable: execution foundation
+### Pi Durable：执行基础
 
-[Pi Durable](https://github.com/earendil-works/pi/tree/main/packages/durable) is a durable agent harness built on Pi's model access and committed document state. Its conversations, tasks, tool execution, and recovery mechanisms provide the foundation Frogie intends to reuse.
+[Pi Durable](https://github.com/earendil-works/pi/tree/main/packages/durable) 是基于 Pi 模型访问能力和持久化文档状态构建的 Agent 运行时。它提供的会话、任务、工具执行和恢复机制，是 Frogie 准备复用的基础。
 
-The initial investigation examined version `1.0.0`, pinned by both reference applications. That evidence does not establish compatibility with every later release. Pi's documentation and public types, rather than assumptions borrowed from a CLI product, define the integration boundary.
+初步调查针对两个参考应用固定使用的 `1.0.0` 版本，不代表已经验证后续所有版本的兼容性。接入边界应以 Pi 的文档和公开类型为准，不能从某个 CLI 产品的行为推测。
 
-### his.fm: interactive, model-directed coordination
+### his.fm：交互式模型主控
 
-[his.fm](https://github.com/nocoo/his.fm) connects a local resident agent runtime to an editorial application. A coordinator conversation receives user intent and dynamically delegates to writer, reviewer, and speech conversations. The host controls available tools, persists assignments, and validates completion evidence and application receipts.
+[his.fm](https://github.com/nocoo/his.fm) 将本地常驻 Agent 运行端连接到内容编辑应用。主控会话接收用户意图，动态派发任务给写作、审校和语音会话。宿主代码控制可用工具、持久化任务分配，并检查完成证据和应用回执。
 
-Its editable prompt catalogue demonstrates that behavior definitions can be separated from the execution machinery. Its runtime demonstrates that dynamic delegation still needs durable identities, explicit capability selection, and host-owned business checks.
+它的可编辑提示词目录说明，行为定义可以与执行机制分开维护。它的运行实现也说明，动态派发仍然需要持久化身份、明确的能力选择和宿主侧业务检查。
 
-Reference revision: `36d1d3b0e86d828508b11826964d40cc566789f1`.
+参考提交：`36d1d3b0e86d828508b11826964d40cc566789f1`。
 
-- [Prompt catalogue and code-owned boundaries](https://github.com/nocoo/his.fm/blob/36d1d3b0e86d828508b11826964d40cc566789f1/docs/prompts.md).
-- [Local coordinator, delegation, and result handling](https://github.com/nocoo/his.fm/blob/36d1d3b0e86d828508b11826964d40cc566789f1/packages/agent/src/runtime.ts).
+- [提示词目录与代码负责的边界](https://github.com/nocoo/his.fm/blob/36d1d3b0e86d828508b11826964d40cc566789f1/docs/prompts.md)。
+- [本地主控、任务派发和结果处理](https://github.com/nocoo/his.fm/blob/36d1d3b0e86d828508b11826964d40cc566789f1/packages/agent/src/runtime.ts)。
 
-### Giraffe: host-directed work with model participants
+### Giraffe：宿主组织流程，模型参与工作
 
-[Giraffe](https://github.com/nocoo/giraffe) runs a local scheduled repository-maintenance process. Model conversations contribute analysis, planning, implementation, and independent review, while host code controls the legal execution sequence, checks, publication authority, and recovery checkpoints.
+[Giraffe](https://github.com/nocoo/giraffe) 在本地定时执行仓库维护。模型会话参与分析、规划、实现和独立审查；宿主代码控制合法执行顺序、检查、发布权限和恢复检查点。
 
-It does have coordination: a host coordinator and a model planning conversation. It does not use the same continuously interactive model coordinator as his.fm. That difference should remain valid after shared integration is introduced.
+Giraffe 并不是没有主控：它有宿主协调逻辑，也有模型规划会话。它没有采用 his.fm 那种持续交互的模型主控。引入公共接入能力后，这种差异应继续保留。
 
-Its implementation demonstrates that common conversation configuration, structured results, and durable state can support a business process whose important ordering and approval rules remain in code. Converting those rules into advisory Markdown would change its guarantees, not merely extract reusable definitions.
+它的实现说明，会话配置、结构化结果和持久化状态可以复用，而重要的业务顺序与审批规则仍由代码掌握。若将这些规则改成建议性的 Markdown，会改变执行保证，不能当作单纯的定义提取。
 
-Reference revision: `ed06d4a774e43f17e2510b06c849f2bcac2b6843`.
+参考提交：`ed06d4a774e43f17e2510b06c849f2bcac2b6843`。
 
-- [Conversation configuration and validated results](https://github.com/nocoo/giraffe/blob/ed06d4a774e43f17e2510b06c849f2bcac2b6843/packages/agent/src/work-conversations.ts).
-- [Host-directed coordination](https://github.com/nocoo/giraffe/blob/ed06d4a774e43f17e2510b06c849f2bcac2b6843/packages/agent/src/work-coordinator.ts).
+- [会话配置与结果校验](https://github.com/nocoo/giraffe/blob/ed06d4a774e43f17e2510b06c849f2bcac2b6843/packages/agent/src/work-conversations.ts)。
+- [宿主侧流程协调](https://github.com/nocoo/giraffe/blob/ed06d4a774e43f17e2510b06c849f2bcac2b6843/packages/agent/src/work-coordinator.ts)。
 
-Both applications currently execute native tools as the local user without an OS sandbox. They demonstrate local integration patterns, not fulfillment of Frogie's sandbox requirement. Neither currently provides the complete portable role/skill/workflow definition system described here.
+在调查的版本中，两个应用都以本机用户身份执行原生工具，没有操作系统沙箱。它们验证了本地接入方式，但不满足 Frogie 的沙箱目标，也没有提供本文描述的完整、可移植的角色／技能／工作流定义体系。
 
-## Non-Goals
+## 不做什么
 
-- Replacing Pi Durable with a new scheduler, agent loop, or durable execution model.
-- Running every project's agents in one mandatory central process or storing their execution histories in the authoring workspace.
-- Requiring every project to use a model coordinator or the same business workflow.
-- Guaranteeing that an agent follows prose instructions, or turning advisory workflows into a deterministic orchestration language.
-- Treating prompts as permissions, definitions as credentials, or local execution as automatic isolation.
-- Requiring domain-specific behavior to fit a universal no-code schema before it can use the shared runtime integration.
+- 不使用新调度器、Agent 循环或持久化执行模型替代 Pi Durable。
+- 不要求所有项目共用一个中央运行进程，也不在设计台保存它们的执行历史。
+- 不要求每个项目都有模型主控，或采用同一种业务流程。
+- 不保证 Agent 严格遵循文字指令，也不把指导性工作流做成确定性编排语言。
+- 不把提示词当作权限、定义当作凭据，或把本地执行当作天然隔离。
+- 不要求业务先适配一套通用的无代码描述格式，才能使用公共接入能力。
 
-## Success Criteria
+## 成功标准
 
-Frogie succeeds when a twentieth project can add agents without introducing a twentieth vocabulary or reimplementing the same Pi integration, while still delivering behavior the first nineteen projects never needed.
+接入第二十个项目时，用户不必学习第二十套 Agent 概念，开发者不必重写同样的 Pi 接入机制，但仍然能实现前十九个项目都没有的新业务。
 
-Users should be able to understand definitions and capability boundaries centrally. Developers should be able to reuse common mechanisms and retain direct access to Pi's extension points. Consumers should continue to execute independently with their own authority and durable state.
+用户能够集中理解定义和能力边界；开发者能够复用公共机制，并继续使用 Pi 原生扩展点；各使用方拥有自己的权限与持久状态，独立运行。
 
-File schemas, package boundaries, UI layout, distribution/version selection, sandbox technology, and migration of the reference projects remain for subsequent numbered documents. This positioning fixes the purpose and ownership boundaries without prematurely fixing those implementation choices.
+文件格式、包划分、界面布局、定义分发与版本选择、沙箱技术，以及参考项目的迁移方式，留到后续编号文档。本文只确定项目目的和归属边界，不提前锁定这些实现选择。
