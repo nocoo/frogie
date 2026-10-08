@@ -12,6 +12,7 @@
 | [04 - Dashboard](04-dashboard.md) | 基于 Basalt 的完整本地设计台、MVVM、定义编辑、调试观察与沙箱参考实现 |
 | [05 - Squads](05-squads.md) | MD 目录与字段规范、角色和技能组合，以及 zeppelin 的角色树与工作方式 |
 | [06 - Tests](06-tests.md) | 6DQ L1、精简的协议与恢复测试、浏览器验收、隔离和 TDD 交付顺序 |
+| [07 - Evals](07-evals.md) | 两个真实模型场景及一个恢复执行项、固定输入、预算、断言和证据闭环 |
 | [Logo 说明](logo.md) | 图稿、来源记录与衍生文件生成方式 |
 
 ## 维护约定
