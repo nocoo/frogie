@@ -6,6 +6,8 @@
 
 首期以 `@earendil-works/pi-durable`、`@earendil-works/pi-ai`、`@earendil-works/chord` 的 `1.1.0` 发布版为接口基线，统一锁定实际依赖版本。Node 运行端满足 Pi 的 `>=22.19.0` 要求。Pi Durable 的实验性接口通过明确版本和接入测试管理，升级作为独立变更验证。
 
+Pi Durable 提供持久执行，Pi AI 提供模型接入，Chord 提供状态与携带取消信号的 `Context`。公共异步运行入口沿用该 `Context`。
+
 术语沿用 [项目定位](01-project-positioning.md)，文件格式见 [Squads](05-squads.md)，参考宿主见 [Dashboard](04-dashboard.md)，验证分工见 [Tests](06-tests.md) 与 [Evals](07-evals.md)。
 
 ## 职责切分
@@ -19,6 +21,22 @@
 首期在 `src/definitions/`、`src/protocol/`、`src/runtime/` 内组织这些职责。浏览器入口只暴露协议类型与无运行时副作用的状态转换；文件解析和 Pi 宿主入口分别加载。React、Basalt、HTTP 服务和 SQLite 文件位置由应用选择。
 
 公共能力直接使用 Pi 的 `Harness`、`Conversation`、`Submission`、`Task`、`Document`、Tool 与 Extension。界面层的数据投影保留这些身份和语义。
+
+### 最小公共入口
+
+以下是首期公共包的导出契约，具体数据与行为由本文后续章节定义：
+
+| 导出入口 | 函数或类型 | 契约 |
+| --- | --- | --- |
+| `./definitions` | `loadDefinition(root)` | 从授权目录解析、校验并返回含文件内容和摘要的 `DefinitionBundle` |
+| `./runtime` | `checkBinding(definition, binding, capabilities)` | 返回字段、引用和能力诊断，检查阶段保持只读 |
+| `./runtime` | `openRuntime(options, context)` | 校验绑定后打开 Pi Harness，返回 `RuntimeHandle` |
+| `./protocol` | `RuntimeScope`、`RuntimeDescription`、`RuntimeError`、`ObservationFrame` 及操作输入输出 | 浏览器可用的数据契约 |
+| `./testing` | `registerRuntimeConformance({ createHost })` | 注册同一组宿主符合性测试，回调与用例见 [Tests](06-tests.md) |
+
+`options` 包含宿主稳定的 `runtimeId`、`definition`、`binding`、已取得独占权的 Pi `storage`、`models`、`registry`，以及宿主提供的 `artifacts` 读写、`scripts` 执行和 `authorization` 检查；需要时传入受控 `env`。宿主先执行 `checkBinding` 与版本预检，再打开存储并交给 `openRuntime`。预算与能力上限来自绑定配置。宿主完成认证，把可信调用者身份交给授权检查；模型和工具权限在各自执行入口再次检查。
+
+`RuntimeHandle` 暴露原生 `harness`、落实下文操作的 `service` 和 `close(context)`。打开成功后由该句柄管理存储关闭；打开失败时清理已接纳的存储句柄，宿主最后释放独占锁。新建与恢复共用入口，恢复完成预检后才启用 Pi 调度。宿主通过 `service` 接入公共行为，通过原生 Harness 和 Extension 实现业务能力。
 
 ## 定义解析与校验
 
@@ -58,7 +76,7 @@ Core 的图结构属于可移植定义格式；React Flow 的组件、选中状�
 | `DefinitionBundle` | `schemaVersion`、`squadId`、`projectId`、角色树、技能、工作流、文件清单、`contentHash`、可用时的 `gitCommit` |
 | `RuntimeScope` | `environmentId`、`squadId`、`harnessId`，共同定位一份已绑定的运行存储 |
 | `ProjectBinding` | `projectId`、`RuntimeScope`、定义引用、环境微调、授权范围 |
-| `RuntimeDescription` | `protocolVersion`、运行端身份、`RuntimeScope`、绑定摘要、Pi 与宿主版本、模型目录、工具与扩展能力、可用操作 |
+| `RuntimeDescription` | `protocolVersion`、稳定的 `runtimeId`、`RuntimeScope`、绑定摘要、Pi 与宿主版本、模型目录、工具与扩展能力、可用操作 |
 | `ConversationBinding` | `roleId`、定义摘要、实际配置摘要、可选 `workflowId`、用户可读标题 |
 | `ArtifactRef` | `RuntimeScope`、不透明 `id`、名称、媒体类型、字节数、内容摘要，以及可选的来源会话与任务 |
 
@@ -119,27 +137,48 @@ Dashboard 保存文件后重新校验，用户再选择快照进行调试。定�
 
 工具通过 `api.details()` 保存子会话关联，等待 Pi Submission 后读取真实 answer entry，再将结果交回父会话。派发登记为 `replay: "safe"`，其安全性由已保存的所有权和输入去重保证。父任务的失败与取消按 Pi 所有权向下传播。
 
-同一轮多个派发可以由 Pi 并行执行。宿主限制活跃子工作数量和总请求预算，超出子工作限额的派发返回配额错误；父会话等待子会话时释放模型请求并发名额。
+每个 `delegate` Tool Task 对应一个子会话，重放该任务时复用原会话；新的工具调用产生新的 Task 和子会话，即使目标 Role 相同。同一轮多个派发可以由 Pi 并行执行。宿主限制活跃子工作数量和总请求预算，超出子工作限额的派发返回配额错误；父会话等待子会话时释放模型请求并发名额。
 
 ## 运行接入协议
 
 ### 最小操作集
 
-| 操作 | 行为 |
+| Service 操作 | 输入与结果 |
 | --- | --- |
-| 读取运行端说明 | 校验身份、协议、定义摘要、能力与当前授权 |
-| 列出或取得会话 | 返回 Pi ID、角色绑定、当前状态，历史分页读取 |
-| 创建会话 | 使用角色和可选工作流创建配置完整的 Conversation |
-| 提交输入 | 使用 `Conversation.submit()`，返回已持久接纳的 Submission ID |
-| 观察会话 | 取得当前快照，持续接收已提交状态更新 |
-| 取得 Submission | 返回 Pi 原始状态、answer entry 或失败原因 |
-| 取消工作 | 撤回排队 Submission，或停止 Conversation 的当前工作 |
-| 检查 Harness | 返回活跃任务图、`inspect()` 诊断与用量 |
-| 读取产物 | 在运行端授权范围内按 `ArtifactRef.id` 读取内容 |
+| `describe` | 返回 `RuntimeDescription`，包含身份、协议、绑定和当前授权 |
+| `listConversations`、`getConversation` | 分页条件或 Conversation ID → Pi 记录、角色绑定与当前状态 |
+| `listEntries` | Conversation ID、Pi 分页条件 → 原始 entries 与下一页游标 |
+| `createConversation` | Role ID、可选 Workflow 与获准配置 → 新 Conversation ID 和绑定 |
+| `submit` | Conversation ID、Pi Submission draft → 已持久接纳的 Submission ID |
+| `observeConversation` | Conversation ID → Pi `ConversationWatch`，传输层按下文封装 |
+| `getSubmission` | Submission ID → Pi 原始状态、已存在的 answer entry 或失败原因 |
+| `cancel` | Conversation ID、可选的排队 Submission ID → Pi 取消结果 |
+| `inspect` | 返回活跃任务图、`inspect()` 诊断与用量 |
+| `storeInputArtifact` | Conversation ID、名称、媒体类型与有界内容 → 已授权的输入 `ArtifactRef` |
+| `readArtifact` | `ArtifactRef.id` → 授权范围内的内容与摘要 |
+
+各操作接收 `scope`、对应 `input`、可信调用者身份和 `context`。所有 Pi ID、分页游标与状态使用发布版本的原类型；JSON 传输保留其值。取消指定 Submission 时同时核对所属 Conversation；工具产物的写入由 `write_artifact` 使用同一产物存储完成。HTTP 中的产物内容统一用 `contentBase64` 字段承载，按解码后的实际字节执行大小与摘要检查。
 
 操作、响应和观察事件携带 `RuntimeScope`，会话、输入、任务与产物按该范围验证归属。运行端在接纳请求时固定存储目标；界面切换后，已经接纳的工作仍属于原 Harness，新上下文重新读取自己的快照。错误统一携带稳定 `code`、可读原因、关联对象和可否重试，底层 Pi 的状态与原因保留在诊断中。
 
 协议与传输分开：本地 Dashboard 使用同源 HTTP 请求和服务端推送，集成方可以将同样的操作映射到自己的接口与认证体系。公共包提供数据和处理能力，业务项目负责网络服务。
+
+### 观察帧与错误
+
+HTTP 观察帧使用 `{ type, scope, conversationId, value }`：`type` 为 `snapshot` 或 `update`，`value` 为 Pi 的已提交 `ConversationView`。连接先发送 watch 取得的完整值，再按同一个 watch 的顺序发送完整更新值，客户端据此替换投影。断开或缓冲溢出后重新取得快照，观察数据的读取与持续订阅来自同一次 watch 获取。
+
+`RuntimeError` 包含 `code`、`message`、`retryable` 及可用时的 `scope`、对象 ID 和字段诊断。首期公共错误分类如下：
+
+| `code` | 含义 |
+| --- | --- |
+| `invalid_definition`、`invalid_request` | 定义校验失败或请求字段无效 |
+| `unsupported_version` | 定义格式、接入协议或存储运行版本不受当前实现支持 |
+| `binding_mismatch`、`capability_missing` | 定义或作用域与绑定不符，或模型、扩展、沙箱等必需能力缺失 |
+| `unauthenticated`、`forbidden`、`not_found` | 身份无效、动作未授权，或授权范围内对象不存在 |
+| `conversation_busy`、`budget_exhausted` | Pi 拒绝 busy 投递，或宿主额度、并发与期限限制被触发 |
+| `storage_in_use`、`runtime_unavailable` | 存储已有所有者，或宿主当前不可用 |
+
+临时连接故障及可解除的 busy、并发限制可标记重试；授权、字段、版本和已耗尽额度需要先处理相应条件。写请求按原身份与去重约定处理。Pi 执行失败保留原始状态及原因，与协议错误分别呈现。宿主预检在打开存储前报告版本实际值和支持值，待采用匹配实现后再恢复。
 
 ### 输入、等待与取消
 
@@ -155,6 +194,8 @@ Dashboard 保存文件后重新校验，用户再选择快照进行调试。定�
 
 Agent 工具权限取角色声明、工作流限制与宿主授权的交集。运行端在绑定时确认必需能力，并统一包裹登记的工具入口，依据已保存角色绑定检查身份、资源和操作。检查覆盖首次执行与恢复进入，权限收回在下一次受控操作时生效。
 
+权限收回后，新输入接纳、新模型请求与每次工具进入使用最新授权。已经开始的调用按原超时与取消规则结束；需要终止在途工作时，宿主另行调用 Pi 取消并结束相应沙箱。历史记录继续按观察和产物读取权限提供。
+
 Extension 由宿主代码安装并记录版本，MD 只引用它的名称。首期校验工具名称的唯一性，明确工具参数、重放策略和输出范围。宿主 Extension 属于受信代码；Agent 可调用的脚本属于沙箱工作负载。
 
 通用工具随公共接入提供：
@@ -169,6 +210,8 @@ Extension 由宿主代码安装并记录版本，MD 只引用它的名称。首�
 脚本调用使用结构化输入与输出，程序、入口和解释器来自已绑定的定义与宿主白名单。业务工具继续通过 Pi `defineTool()` 和 Extension 接入。工具回传业务结果与 `ArtifactRef`，界面展示通用信息，业务 UI 可以增加自己的呈现。
 
 Pi 的 `replay` 是 Tool 注册属性。首期 `run_script` 登记为 `replay: "safe"`，接纳经宿主确认可安全重放的脚本；其准入和授权检查在每次进入工具时执行。默认 unsafe 的外部副作用通过独立业务 Tool 表达，由该 Tool 定义重放语义。
+
+脚本执行依次核对绑定定义中的 `replay: safe` 声明、宿主对该版本入口的启用，以及当前角色、Workflow 与宿主的权限交集。三项同时满足后才读取可复用回执或启动沙箱，重放沿用同一检查顺序。
 
 `read_artifact` 读取不可变内容，`write_artifact` 通过宿主的稳定操作键和回执实现幂等，两者均登记为安全重放。用户提交的输入产物由宿主保存并授予当前会话访问权，来源类型与 Agent 生成产物分别记录。
 
@@ -208,7 +251,18 @@ Registry 中的函数、凭据和外部环境由宿主重新提供。缺少定�
 
 模型请求计数在 `Models` 接入处执行，包含子会话、压缩和重试；提供方内部自动重试关闭，重试由 Pi 的持久化机制驱动。工具计数包含恢复进入，回执单独记录实际外部执行次数。预算耗尽由宿主控制器发起 Pi 取消并返回诊断。
 
+### 预算的并发与中断语义
+
+- 取得模型并发名额后，宿主在同一 Pi Session commit 中读取并校验剩余额度与截止点，再递增 `frogie.budget`。并发请求在这条提交线上依次准入，预扣失败时请求保持未发送并释放名额。
+- 每次底层调用只经过一处计数入口；`completeSimple` 对 stream 的内部复用计为同一次调用。恢复或重试实际发起的新请求重新预扣，即使属于同一个 Pi Task。
+- 预扣提交成功后才调用模型。若在提交与发送之间中断，原预扣按已占用保留；重启沿用已保存计数，新尝试另行计数。请求预算采用保守准入计数，提供方已确认用量和未知费用分别报告。
+- 启动、读取快照和检查恢复条件只读取预算。模型等待并发名额期间响应取消和期限，到期释放等待；父会话等待子任务时继续沿用既有并发规则。
+
+工具进入额度也通过同一 Session 提交准入，进入次数与实际脚本执行次数分别记录，安全重放读取回执也消耗一次工具进入额度。恢复沿用已持久化的额度、消耗与截止点，授权追加同样进入持久化记录。
+
 脚本通过宿主提供的本地 OS 沙箱执行。模型凭据留在宿主，脚本只获得明确输入、只读定义资源和自身临时目录。Pi 的 `NodeExecutionEnv` 提供文件与命令能力；实际隔离边界由承载它或脚本执行器的宿主建立。
+
+Dashboard 参考宿主默认安装 `frogie` 的四个通用工具，按角色显式选择，脚本能力由独立沙箱执行器提供。它的 Harness `env` 保持未配置，普通宿主文件与命令能力留在受信服务代码。集成方可以安装业务 Extension；需要文件或命令工具时，同时提供满足隔离要求的 ExecutionEnv 与对应授权。
 
 ## MVP 完成条件
 
