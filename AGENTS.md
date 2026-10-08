@@ -10,6 +10,7 @@
 - 项目规范维护在根目录 `AGENTS.md`，项目概述放在 `README.md`，定位和设计文档放在 `docs/`。
 - 新增设计文档放在 `docs/`，按 `01-project-positioning.md` 的形式连续编号。已有的 `docs/logo.md` 保留原文件名。
 - 定位和设计以 [01 - 项目定位](docs/01-project-positioning.md) 为依据。
+- 目录职责、测试布局与提交检查遵循 [02 - 仓库结构与开发约定](docs/02-repository-and-workflow.md)。
 
 ## 写作原则
 
