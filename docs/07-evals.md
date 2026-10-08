@@ -25,7 +25,7 @@ evals/
 
 用例 MD 描述 ID、Squad、工作方式、可选 Workflow、输入材料、预算和验收项。固定简报的 frontmatter 保存结构化数据，正文给出用户目标；断言从同一材料读取数值和约束。
 
-恢复执行项是 `emergency-transit` 的中断配置，复用它的输入与业务断言。评估代码和控制信息由宿主使用，Agent 获得任务简报、定义和预期交付格式。
+恢复执行项是 `emergency-transit` 的中断配置，复用它的输入与业务断言。它使用 `--interrupt after-script-receipt` 选择下文的 E1-R 屏障，Dashboard 提供对应开关。评估代码和控制信息由宿主使用，Agent 获得任务简报、定义和预期交付格式。
 
 CLI 规划入口为 `frogie eval <squad-id> --case <case-id> --allow-real-model`。Dashboard 的评估页调用同一个 runner，显示同一报告。执行路径为：
 
@@ -57,7 +57,9 @@ CLI 规划入口为 `frogie eval <squad-id> --case <case-id> --allow-real-model`
 
 工作方式为流程指导，使用 `emergency-transit` Workflow。舰队需在八小时内让三艘船穿过受干扰区域，保持生命支持、医疗与护航保障。
 
-简报固定以下能量数据，全部使用同一虚构单位：
+评估通过公共创建入口建立采用该 Workflow 的 `command` 会话，将其作为本次工作的主控。Pi 保留的 `root()` 会话与这次新建会话分别按各自 ID 识别。
+
+简报固定以下能量数据，全部使用同一虚构单位，表示全舰队一次转场的总额：
 
 | 项目 | 数值 |
 | --- | --- |
@@ -73,7 +75,7 @@ CLI 规划入口为 `frogie eval <squad-id> --case <case-id> --allow-real-model`
 | `sheltered` | 44 | 6 小时 |
 | `detour` | 25 | 10 小时 |
 
-用户要求主控取得行动、工程和补给意见，形成保留必要保障的转场方案。`operations` 进一步取得 `navigation` 与 `tactical` 的意见。执行顺序、并行安排和讨论次数由模型决定。
+用户要求主控取得行动、工程和补给意见，分别计算三个候选预算并核对八小时约束，形成保留必要保障的转场方案。`operations` 进一步取得 `navigation` 与 `tactical` 的意见。执行顺序、并行安排和讨论次数由模型决定。
 
 ### 交付
 
@@ -89,7 +91,7 @@ CLI 规划入口为 `frogie eval <squad-id> --case <case-id> --allow-real-model`
 
 ### 断言
 
-- 根会话采用 `command`；取得 `operations`、`engineering`、`logistics` 的真实子会话结果，`operations` 的派发关联到 `navigation` 和 `tactical`。
+- 本次主控会话采用 `command`；取得 `operations`、`engineering`、`logistics` 的真实子会话结果，`operations` 的派发关联到 `navigation` 和 `tactical`。
 - 各会话具有自己的角色绑定与 Agent 配置，至少两种获准思考等级实际进入模型请求。
 - `resource-budget/calculate` 在沙箱中成功执行，结果覆盖三个候选；计算输入可追溯到简报。
 - `plan.md` 选择 `sheltered`，各必要分配和保留量满足输入，`remaining` 为 `6`，证据引用指向本次真实工具产物。
@@ -103,7 +105,7 @@ CLI 规划入口为 `frogie eval <squad-id> --case <case-id> --allow-real-model`
 
 工作方式为自由发挥，由主控接收一份生活目标：给六十名船员安排休整、园艺活动和洗浴，照顾八名夜班人员及两名需要静养的人员。
 
-简报提供以下约束：
+简报提供以下约束，用水量表示全部相关人员的当日总额：
 
 | 项目 | 要求 |
 | --- | --- |
@@ -127,7 +129,7 @@ CLI 规划入口为 `frogie eval <squad-id> --case <case-id> --allow-real-model`
 ### 断言
 
 - 输入采用自由发挥模式，协作链包含主控到 `crew` 和 `logistics`、`crew` 到 `medical` 和 `habitat` 的真实派发。
-- 医疗与居住的角色输出实际参与父会话汇总，资源方案引用成功的计算结果。
+- 医疗与居住的派发结果进入父会话后续模型请求的上下文，资源方案引用成功的计算结果。
 - 最初方案的活动时段满足窗口与时长，水量分配满足照护、园艺、节水洗浴和保留量，剩余为 `8`。
 - 后续输入使用同一主控 Conversation、不同 Submission，修订方案采用 `18:00–20:00`，保留供水与照护要求，并关联原方案。
 - 两次输入均取得真实 answer entry；两版 Markdown 产物可以独立读取。
@@ -144,7 +146,7 @@ CLI 规划入口为 `frogie eval <squad-id> --case <case-id> --allow-real-model`
 2. 脚本执行器保存结果和幂等回执，在返回 Pi 前向控制器报告屏障并等待。
 3. 控制器强制终止自己创建的 Harness 进程，Dashboard 和证据收集器继续运行。
 4. 新进程按原版本重建 Registry、Models 和沙箱，打开同一 SQLite，完成预检后 `resume()`。
-5. 被中断的安全工具重新进入时读取原回执，父派发继续等待原子会话结果，最终完成 E1。
+5. 被中断的安全工具重新进入时读取原回执，父派发继续等待原有子会话的结果，最终完成 E1。
 
 恢复额外检查：
 
