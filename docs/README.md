@@ -8,6 +8,7 @@
 | --- | --- |
 | [01 - 项目定位](01-project-positioning.md) | 项目目的、统一术语、Squad 与 Harness 的关系、主要模块和职责归属 |
 | [02 - 仓库结构与开发约定](02-repository-and-workflow.md) | Monorepo 初步划分、MVVM、TDD、原子提交及 Git 检查原则 |
+| [03 - Core](03-core.md) | 定义解析、角色装配、公共接入协议、权限、持久化恢复与运行观察 |
 | [Logo 说明](logo.md) | 图稿、来源记录与衍生文件生成方式 |
 
 ## 维护约定
