@@ -10,7 +10,7 @@
 | [02 - 仓库结构与开发约定](02-repository-and-workflow.md) | Monorepo、数据与 seed 归属、MVVM、TDD、原子提交及 Git 检查原则 |
 | [03 - Core](03-core.md) | 定义与工作流图解析、角色装配、运行作用域与公共协议、权限、持久化恢复与观察 |
 | [04 - Dashboard](04-dashboard.md) | Basalt 与 React Flow 设计台、全局 Squad／Harness 切换、本机三模式隔离、seed、调试与沙箱 |
-| [05 - Squads](05-squads.md) | MD 与步骤图规范、角色和技能组合，以及 zeppelin 的完整定义与界面搭建目标 |
+| [05 - Squads](05-squads.md) | MD 与步骤图规范、Skill 标识、显式能力与脚本契约，以及 zeppelin 的完整定义与界面搭建目标 |
 | [06 - Tests](06-tests.md) | 6DQ L1、协议与恢复、从零搭建 zeppelin 的必需 E2E、环境隔离和 TDD 交付顺序 |
 | [07 - Evals](07-evals.md) | 使用界面搭建快照，在独立 Local 环境完成两个真实模型场景与恢复项的证据闭环 |
 | [Logo 说明](logo.md) | 图稿、来源记录与衍生文件生成方式 |

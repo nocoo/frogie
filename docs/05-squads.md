@@ -26,7 +26,7 @@ squads/<squad-id>/
 
 `roles/` 下有且只有一个主控角色目录。每个角色目录内的下级角色目录表示它可以直接派发的子角色。角色 ID 在 Squad 内唯一，目录移动改变归属，ID 保持稳定。
 
-Squad、Role、Skill 和 Workflow 的 ID 使用 `^[a-z][a-z0-9-]*$`。ID 与对应目录或文件名一致，显示名称通过 `title` 表达。引用使用 ID，资源路径相对所属 Skill 目录解析。
+Squad、Role、Skill 和 Workflow 的 ID 使用 `^[a-z][a-z0-9-]*$`。ID 与对应目录或文件名一致；Squad、Role 和 Workflow 的显示名称通过 `title` 表达。Skill 的 `SKILL.md` 中，`name` 必须等于 `skills/<skill-id>` 的目录名，并直接作为 Skill ID，`description` 描述用途。引用使用 ID，资源路径相对所属 Skill 目录解析。
 
 定义格式由 `SQUAD.md` 的 `schemaVersion` 统一声明。解析器对结构、引用和文件归属进行校验，输出 Core 的 `DefinitionBundle`。脚本及其资源一同参与版本摘要和 Git 历史。
 
@@ -76,7 +76,7 @@ scripts: [resource-budget/calculate]
 
 ### SKILL.md 与 Script
 
-Skill 采用 `SKILL.md`、`name`、`description` 的基本形式。Frogie 的可执行入口放在 `frogie` 命名空间中：
+Skill 的标识与用途分别使用 `name` 和 `description`。Frogie 的可执行入口放在 `frogie` 命名空间中：
 
 ```yaml
 ---
@@ -225,7 +225,13 @@ squads/zeppelin/
 
 ### 能力分配
 
-所有角色均可读取获准的输入产物并写出结果。`command`、`operations`、`crew` 获得 `delegate`；`engineering`、`logistics` 额外获得 `run_script`，入口限定为 `resource-budget/calculate`。
+每个角色的能力组合显式如下：
+
+| 角色 | Extensions | Tools | Scripts |
+| --- | --- | --- | --- |
+| `command`、`operations`、`crew` | `[frogie]` | `[read_artifact, write_artifact, delegate]` | `[]` |
+| `engineering`、`logistics` | `[frogie]` | `[read_artifact, write_artifact, run_script]` | `[resource-budget/calculate]` |
+| `navigation`、`tactical`、`medical`、`habitat` | `[frogie]` | `[read_artifact, write_artifact]` | `[]` |
 
 派发时父会话传入本次任务和输入产物引用。子会话可读取该授权范围并返回自己的结果；父会话通过派发回执取得输出引用。产物访问根据工作关联在宿主校验。
 
@@ -241,9 +247,23 @@ remaining = available - reserve - demand
 withinBudget = remaining >= 0
 ```
 
-输入包含若干带 ID 的预算，每项给出可用量、保留量和分配列表；输出按 ID 返回总需求、剩余额度和是否满足预算。一个预算内使用同一单位，由输入资料标明。
+输入：
 
-脚本校验非负有限数值、必需字段和重复 ID，使用稳定输出。它读取 stdin、写 stdout，适合安全重放。资源是否应当分配、哪项需求更优先，仍由角色结合资料判断。
+```json
+{"budgets":[{"id":"alpha","available":10,"reserve":2,"allocations":[{"id":"fuel","amount":3}]}]}
+```
+
+输出：
+
+```json
+{"budgets":[{"id":"alpha","demand":3,"remaining":5,"withinBudget":true}]}
+```
+
+输入对象必需且仅接受 `budgets`；预算对象必需且仅接受 `id`、`available`、`reserve`、`allocations`；分配对象必需且仅接受 `id`、`amount`。`budgets` 为非空数组，`allocations` 为数组且允许零项。预算 ID 在请求内唯一，分配 ID 在所属预算内唯一；所有 ID 使用 `^[a-z][a-z0-9-]*$`。
+
+`available`、`reserve` 和 `amount` 必须是有限非负数，需求求和及 `remaining` 必须有限，`remaining` 可以为负。输出仅含 `budgets`，每项仅含 `id`、`demand`、`remaining`、`withinBudget`，按输入预算顺序对应；派生字段按上述公式保留原始计算精度。
+
+脚本读取 stdin 中的 JSON 并向 stdout 写入单份 JSON 结果。无效输入沿用脚本的非零退出码与 stderr 诊断边界。一个预算内使用同一单位，由输入资料标明。资源是否应当分配、哪项需求更优先，仍由角色结合资料判断。
 
 ### 两种工作方式
 
@@ -269,9 +289,9 @@ withinBudget = remaining >= 0
 | `check-supplies` | `logistics` | 核对保留量与补给，交给 `publish-plan` |
 | `publish-plan` | `command` | 综合方案并交付 `plan.md` |
 
-入口为 `receive-brief`，表中的交接形成十条连线。返回上级的连线表达结果交接，实际通过 `delegate` 回执回到父会话；目录中的九角色结构继续决定谁可以创建谁的子会话。步骤和会话按各自身份保存。
+入口为 `receive-brief`，表中的交接形成十条连线。返回上级的连线表达结果交接，实际通过 `delegate` 回执回到父会话；目录中的九角色结构继续决定谁可以创建谁的子会话。`publish-plan` 在原主控会话收到子结果后继续执行。步骤和会话按各自身份保存。
 
-自由发挥场景由用户向主控提交生活目标。主控自行安排 `crew`、`medical`、`habitat` 与 `logistics` 协作，形成生活与资源方案。它复用同一套角色和技能，通过另一类目标验证定义的组合能力。
+自由发挥场景由用户向主控提交生活目标。主控直接委派 `crew` 与 `logistics`，`crew` 再派发 `medical` 与 `habitat`，共同形成生活与资源方案。它复用同一套角色和技能，通过另一类目标验证定义的组合能力。
 
 输入简报和实际输出保存在运行端产物区。评估用的固定简报与验收数据放在 `evals/`，具体数值和断言由评估文档维护。
 
