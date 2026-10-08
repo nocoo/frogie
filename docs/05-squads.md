@@ -102,13 +102,60 @@ frogie:
 | frontmatter 字段 | 含义 |
 | --- | --- |
 | `id`、`title` | 工作流身份与名称 |
-| `entryRole` | 接受工作流输入的角色 ID |
-| `participants` | 工作说明引用的角色 ID，供校验和展示 |
+| `entry` | 入口节点 ID，节点引用的角色成为 `entryRole` |
+| `nodes` | 步骤数组，每项包含 `id`、`title`、`role` 与 `position: { x, y }` |
+| `edges` | 交接数组，每项包含 `source`、`target` 和可选的自然语言 `label` |
 | `tools`、`scripts` | 可选的能力上限，作用于本次工作及其派发子工作 |
 
-正文按“目标、输入、步骤、输出、验收要点”组织。步骤使用有序 Markdown 列表，说明由谁处理什么输入、交给谁以及需要产出什么。
+正文按二级标题“目标、输入、步骤、输出、验收要点”组织。“步骤”下用节点 ID 作为三级标题，一段对应一个节点，描述该步骤的输入、工作与输出。节点 ID 在工作流内唯一，采用与其他定义相同的小写命名规则；显示名保存在节点的 `title`。
 
-Workflow 是提交给模型的指导。`participants` 和步骤说明用于表达预期协作；运行端实际执行权限由角色树与能力交集检查。Dashboard 将定义步骤与真实任务分别展示。
+以下是通用的双步骤结构，两个步骤引用同一个已有角色：
+
+```markdown
+---
+id: review
+title: 审阅与交付
+entry: assess
+nodes:
+  - id: assess
+    title: 审阅材料
+    role: reviewer
+    position: { x: 80, y: 120 }
+  - id: publish
+    title: 输出结论
+    role: reviewer
+    position: { x: 400, y: 120 }
+edges:
+  - source: assess
+    target: publish
+    label: 带上发现与证据
+---
+
+## 目标
+根据输入材料形成有依据的结论。
+
+## 输入
+待审阅材料的产物引用。
+
+## 步骤
+### assess
+读取材料，核对要求并整理发现。
+
+### publish
+综合发现，通过产物工具提交结论。
+
+## 输出
+包含结论与证据引用的 Markdown。
+
+## 验收要点
+证据可以追溯到输入材料。
+```
+
+Core 从入口节点推导 `entryRole`，从所有节点的角色引用推导 `participants`。节点的正文与角色的 Prompt 分别保存：前者指导这一步，后者来自被引用的 `ROLE.md`。复制步骤产生新的节点 ID，复用同一角色定义；复制角色产生新的 Role ID。
+
+Workflow MD 是画布与源码编辑的共同依据。节点坐标随文件进入 Git 和内容摘要；画布缩放、选中项与视口属于界面偏好。连线端点、正文对应关系、角色引用与入口可达性通过统一校验，编辑中的未完成连接保留在草稿中。
+
+Workflow 是提交给模型的指导，连线的 `label` 用自然语言表达交接或条件，回路可以表示复核迭代。Core 将图与正文渲染为模型说明，角色树与能力交集负责实际派发权限，Pi Task 负责执行。Dashboard 分别展示设计图和真实任务关系。
 
 `tools` 或 `scripts` 缺省时保留角色与宿主已有的能力范围，显式空数组将该类能力收窄为空。工作流限制随派发保存在子会话绑定中。
 
@@ -208,6 +255,21 @@ withinBudget = remaining >= 0
 4. 主控汇总冲突，选择可执行方案并输出 `plan.md`。
 
 这条 Workflow 参与者为 `command`、`operations`、`navigation`、`tactical`、`engineering`、`logistics`，能力上限覆盖相应通用工具与唯一计算脚本。
+
+画布用八个步骤表达这些指导，同一角色可以负责接收目标与最终交付：
+
+| 节点 ID | Role | 工作与后续交接 |
+| --- | --- | --- |
+| `receive-brief` | `command` | 读取目标，分别交给 `coordinate-route`、`check-power`、`check-supplies` |
+| `coordinate-route` | `operations` | 安排行动分析，交给 `assess-route` 与 `assess-threat` |
+| `assess-route` | `navigation` | 提出航程与时机判断，交给 `merge-route` |
+| `assess-threat` | `tactical` | 提出威胁与护航判断，交给 `merge-route` |
+| `merge-route` | `operations` | 综合两个专业意见，交给 `publish-plan` |
+| `check-power` | `engineering` | 核对负载并计算预算，交给 `publish-plan` |
+| `check-supplies` | `logistics` | 核对保留量与补给，交给 `publish-plan` |
+| `publish-plan` | `command` | 综合方案并交付 `plan.md` |
+
+入口为 `receive-brief`，表中的交接形成十条连线。返回上级的连线表达结果交接，实际通过 `delegate` 回执回到父会话；目录中的九角色结构继续决定谁可以创建谁的子会话。步骤和会话按各自身份保存。
 
 自由发挥场景由用户向主控提交生活目标。主控自行安排 `crew`、`medical`、`habitat` 与 `logistics` 协作，形成生活与资源方案。它复用同一套角色和技能，通过另一类目标验证定义的组合能力。
 

@@ -8,9 +8,9 @@
 | --- | --- |
 | [01 - 项目定位](01-project-positioning.md) | 项目目的、统一术语、Squad 与 Harness 的关系、主要模块和职责归属 |
 | [02 - 仓库结构与开发约定](02-repository-and-workflow.md) | Monorepo 初步划分、MVVM、TDD、原子提交及 Git 检查原则 |
-| [03 - Core](03-core.md) | 定义解析、角色装配、公共接入协议、权限、持久化恢复与运行观察 |
-| [04 - Dashboard](04-dashboard.md) | 基于 Basalt 的完整本地设计台、MVVM、定义编辑、调试观察与沙箱参考实现 |
-| [05 - Squads](05-squads.md) | MD 目录与字段规范、角色和技能组合，以及 zeppelin 的角色树与工作方式 |
+| [03 - Core](03-core.md) | 定义与工作流图解析、角色装配、公共接入协议、权限、持久化恢复与运行观察 |
+| [04 - Dashboard](04-dashboard.md) | Basalt 与 React Flow 本地设计台、MVVM、可视化编排、调试观察与沙箱参考实现 |
+| [05 - Squads](05-squads.md) | MD 目录与步骤图规范、角色和技能组合，以及 zeppelin 的角色树与工作方式 |
 | [06 - Tests](06-tests.md) | 6DQ L1、精简的协议与恢复测试、浏览器验收、隔离和 TDD 交付顺序 |
 | [07 - Evals](07-evals.md) | 两个真实模型场景及一个恢复执行项、固定输入、预算、断言和证据闭环 |
 | [Logo 说明](logo.md) | 图稿、来源记录与衍生文件生成方式 |

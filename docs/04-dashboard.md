@@ -2,7 +2,7 @@
 
 ## 产品目标
 
-`apps/dashboard/` 是本机启动的设计台、观察台和调试运行端。用户可以完成“浏览定义 → 编辑角色与技能 → 校验并绑定 → 真实对话与派发 → 查看产物 → 重启恢复 → 运行评估”的完整过程。
+`apps/dashboard/` 是本机启动的设计台、观察台和调试运行端。用户可以完成“创建 Squad → 整理角色与技能 → 拖拽设计 Workflow → 校验并绑定 → 真实对话与派发 → 查看产物 → 重启恢复 → 运行评估”的完整过程。
 
 界面展示通用 Squad、Role、Workflow 和 Pi 运行对象，业务内容来自加载的定义。公共接入遵循 [Core](03-core.md)，目录和开发方式遵循 [仓库结构与开发约定](02-repository-and-workflow.md)。
 
@@ -13,8 +13,8 @@
 | 位置 | 职责 |
 | --- | --- |
 | `src/models/` | 定义、绑定、会话、产物和评估数据；公共协议客户端与文件服务 |
-| `src/viewmodels/` | 编辑草稿、选择项、校验结果、异步动作、投递重试、观察连接和页面状态 |
-| `src/views/` | Basalt 组件组合、布局、焦点、滚动和键盘交互 |
+| `src/viewmodels/` | 文件与图编辑草稿、选择项、校验结果、异步动作、投递重试、观察连接和页面状态 |
+| `src/views/` | Basalt 组件组合、React Flow 画布、布局、焦点、滚动和键盘交互 |
 | `src/server/` | 本地认证、受控文件编辑、HTTP 与状态推送、运行端管理 |
 | `src/runtime/` | 引用 Core 的 Harness 宿主、SQLite、产物、脚本沙箱和预检 |
 | `src/cli.ts` | 解析启动参数、选择工作区与数据目录、启动和关闭服务 |
@@ -39,7 +39,9 @@ ViewModel 接收服务依赖，以普通 TypeScript 状态转换和 React 绑定
 
 首期锁定已核实的 npm 稳定版 `@nocoo/basalt@2.2.0`，采用 `@nocoo/basalt/styles/standalone`。版本依据为 npm 镜像的 `latest`、独立 CDN 元数据及相同版本发布产物。
 
-本地 `../basalt` 用于理解设计体系，组件能力以 `2.2.0` 产物内的 `ai/registry.json`、类型声明与 `ai/INTEGRATION.md` 为准。该版本的布局、编辑、列表和聊天展示组件足以完成首期界面。
+本地 `../basalt` 用于理解设计体系，组件能力以 `2.2.0` 产物内的 `ai/registry.json`、类型声明与 `ai/INTEGRATION.md` 为准。布局、表单、列表和聊天展示使用该版本公开组件。
+
+Workflow 专业画布采用已核实的稳定版 `@xyflow/react@12.12.0`，其 React peer 范围支持 React 19。React Flow 提供节点拖动、连线、坐标变换与缩放；Basalt 提供节点内容、属性编辑、菜单和动作控件。
 
 ### 应用骨架
 
@@ -60,11 +62,14 @@ ViewModel 接收服务依赖，以普通 TypeScript 状态转换和 React 绑定
 | 表单与动作 | `Field`、`Input`、`Button`、`Checkbox`，`components/input-area`、`components/select`、`components/multi-select` |
 | 目录导航与主从布局 | `components/editable-nav-item` 的 `EditableNavItem`、`FolderNavItem`，`components/responsive-master-detail` |
 | 列表、摘要与状态 | `components/data-table`、`DescriptionList`、`Badge`、`components/banner` |
-| 工作流步骤 | `components/flow` 的 `Flow`、`FlowNode`，配合 Markdown 正文 |
+| 工作流画布 | `@xyflow/react` 的 `ReactFlow`、`ReactFlowProvider`、`Handle`，配合 Basalt 节点内容与属性面板 |
+| 步骤摘要 | `components/flow` 的 `Flow`、`FlowNode`，用于只读概览 |
 | 会话导航与消息 | `components/chat-inbox`、`components/chat-header`、`components/chat-bubble` |
 | 代码、确认与反馈 | `components/code` 的 `CodeBlock`，`Dialog`、`AlertDialog`、`Sheet`、`Tooltip`、`Toaster` |
 
-层级导航由应用数据驱动 `FolderNavItem` 和 `EditableNavItem`；展开、选择和角色归属由 ViewModel 管理。Workflow 用步骤与说明展示编排，实际进展来自运行状态。
+层级导航由应用数据驱动 `FolderNavItem` 和 `EditableNavItem`；展开、选择和角色归属由 ViewModel 管理。工作流画布呈现 MD 中的设计，实际进展来自独立的运行观察。
+
+React Flow 使用 `dist/base.css` 提供必要布局，画布背景、节点表面、端口、连线与焦点样式映射 Basalt Tokens，主题跟随应用。编辑面板和工具条继续组合 Basalt 控件，复用画布库的交互与无障碍能力。
 
 聊天输入使用受控 `InputArea`、`Button` 和模式选择控件组合，让 ViewModel 持有每个会话的草稿、失败重试和输入法状态。`2.2.0` 的 `ChatComposer` 使用内部草稿及同步 `onSend`，本应用采用基础控件组合管理跨会话草稿。
 
@@ -91,7 +96,7 @@ Markdown 展示使用成熟的 `react-markdown` 与 GFM 解析，复用 Basalt �
 | Squad | 修改公共说明和默认模型配置，查看主控角色与能力需求 |
 | Role | 新增、编辑、复制、调整父目录、删除；配置职责、模型、思考等级、Skills 和 Tools |
 | Skill | 新增、编辑和删除技能，管理资源和已声明脚本，查看引用它的角色 |
-| Workflow | 新增、编辑和删除工作流，配置适用角色、能力范围、输入输出和步骤 Markdown，查看步骤预览 |
+| Workflow | 在画布或 MD 中新建、编辑和删除工作流，配置步骤、交接、入口、能力范围及输入输出 |
 
 表单与源码编辑共享同一份草稿。表单修改映射到 frontmatter 和对应正文；源码解析成功后刷新表单。校验结果能够定位到文件和字段，编辑脚本时明确显示其路径、入口和授权要求。
 
@@ -100,6 +105,27 @@ Markdown 展示使用成熟的 `react-markdown` 与 GFM 解析，复用 Basalt �
 稳定 ID 与目录名保持一致，显示名可以独立修改。角色移动通过工作区内目录重命名改变层级，原 ID 和引用保持稳定；删除前列出引用并要求先处理依赖。多文件创建在完整候选目录校验后提交到工作区。
 
 保存后展示 Git 工作区差异与新的内容摘要；Git 提交仍由用户或开发工作流完成。运行环境继续使用自己的已绑定快照。
+
+### Workflow 画布
+
+画布采用节点搭建与属性检查的交互：紧凑的标题工具行下方，角色面板、中央画布与按需展开的属性面板共享可用高度。画布可以收起辅助面板以专注设计，保留全局上下文。页面内的“画布／源码”切换使用同一份文件草稿。
+
+| 操作 | 行为 |
+| --- | --- |
+| 添加步骤 | 从当前 Squad 的角色面板拖入画布，生成稳定节点 ID；也可用“添加步骤”选择角色 |
+| 组织流程 | 拖动节点、从端口连线、修改交接说明、设置入口、复制或删除步骤；提供撤销与重做 |
+| 编辑步骤 | 单击节点打开属性面板，编辑标题、输入输出与步骤 Markdown，选择已有 Role |
+| 编辑角色 | 从节点打开其 `ROLE.md`，修改 Prompt、模型、思考等级、Skills、Tools 与 Scripts，并显示引用该角色的步骤 |
+| 创建角色 | 从角色面板进入标准创建流程，选择父角色并保存定义，再将新角色拖入画布 |
+| 定位与校验 | 平移、缩放、适配全图，点击诊断定位节点、连线或文件字段 |
+
+节点代表角色承担的一个步骤。节点上显示角色名称与配置摘要，实际会话的 Agent 配置在运行详情中查看。角色编辑作用于被引用的文件，同角色的其他步骤立即反映草稿或已保存定义；步骤说明保存在 Workflow 自身。
+
+ViewModel 持有受控图数据与草稿历史，使用库提供的节点、边变更函数及 `screenToFlowPosition()` 处理交互。Core 校验图和角色引用，服务端保存完整候选定义。删除节点时同步移除关联连线与正文段落，删除入口时要求选择有效的新入口。
+
+一次图编辑保存将节点、连线、入口、坐标与正文共同写入 Workflow MD。刷新或从 Git 重新加载后恢复相同设计；解析失败时保留源码草稿并定位错误，画布展示上次有效解析结果。画布视口和选中状态按工作区保存为本地偏好。
+
+节点交接可以分支、汇合和表达复核回路，说明通过 Core 装配给模型。角色层级仍由目录编辑管理；运行观察使用真实 Pi Conversation 与 Task 关系。设计图中的步骤完成情况只有在取得可关联的执行证据后才呈现，具体工作结果以会话、工具与产物为准。
 
 ### 绑定与启动
 
@@ -140,9 +166,9 @@ Markdown 展示使用成熟的 `react-markdown` 与 GFM 解析，复用 Basalt �
 
 列表和详情均具有加载、空数据、失败重试、已有数据刷新和完整数据状态。动作反馈在发生位置显示，Toast 补充整体反馈。所有可见操作对应真实服务能力。
 
-键盘可以完成导航、编辑、提交、对话切换和弹窗操作。输入法组合期间 Enter 保持输入语义，Shift+Enter 换行；发送快捷键在界面明确说明。图标动作提供名称，弹窗关闭后恢复焦点。
+键盘可以完成导航、编辑、提交、对话切换和弹窗操作。画布节点可聚焦，拖放有“添加步骤”“连接到步骤”和坐标编辑的等价入口；节点、端口与连线提供可访问名称和状态。输入法组合期间 Enter 保持输入语义，Shift+Enter 换行；发送快捷键在界面明确说明。图标动作提供名称，弹窗关闭后恢复焦点。
 
-窄屏侧栏使用左侧 `Sheet`，主从内容使用 `ResponsiveMasterDetail`，选中详情时只保留一份可聚焦内容。调试详情转为 Sheet 或页内标签；表格在自身区域横向滚动。页面在 390px 与 1440px 视口、两种主题及 reduced-motion 下验收。
+窄屏侧栏使用左侧 `Sheet`，主从内容使用 `ResponsiveMasterDetail`，选中详情时只保留一份可聚焦内容。画布的角色面板与属性面板转为 Sheet，触屏可平移缩放并通过等价动作完成编辑。调试详情转为 Sheet 或页内标签；表格在自身区域横向滚动。页面在 390px 与 1440px 视口、两种主题及 reduced-motion 下验收。
 
 ## 本地调试运行端
 
@@ -206,3 +232,5 @@ Docker 缺失或隔离配置不满足时，脚本能力预检返回阻塞原因�
 - [Basalt 2.2.0 集成指南](https://unpkg.com/@nocoo/basalt@2.2.0/ai/INTEGRATION.md)
 - [Basalt 2.2.0 组件注册表](https://unpkg.com/@nocoo/basalt@2.2.0/ai/registry.json)
 - [Basalt 2.2.0 ChatComposer 类型](https://unpkg.com/@nocoo/basalt@2.2.0/dist/components/chat-composer.d.ts)
+- [React Flow 12.12.0 包清单](https://unpkg.com/@xyflow/react@12.12.0/package.json)
+- [React Flow 拖放](https://reactflow.dev/examples/interaction/drag-and-drop)与[保存恢复](https://reactflow.dev/examples/interaction/save-and-restore)
