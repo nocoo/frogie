@@ -10,7 +10,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { materializeIndex, runChecks } from "./check.js";
 
 const temporaryRoots: string[] = [];
@@ -47,6 +47,7 @@ async function expectProcessExited(pid: number): Promise<void> {
 }
 
 afterEach(() => {
+  vi.unstubAllEnvs();
   for (const root of temporaryRoots.splice(0)) {
     rmSync(root, { recursive: true, force: true });
   }
@@ -241,14 +242,9 @@ describe("runChecks", () => {
 describe("materializeIndex", () => {
   it("rejects a non-repository and removes its temporary directory", () => {
     const directory = temporaryDirectory("frogie-not-repo-");
-    const before = new Set(
-      readdirSync(tmpdir()).filter((name) => name.startsWith("frogie-index-")),
-    );
+    vi.stubEnv("TMPDIR", directory);
     expect(() => materializeIndex(directory)).toThrow();
-    const after = readdirSync(tmpdir()).filter((name) =>
-      name.startsWith("frogie-index-"),
-    );
-    expect(after.filter((name) => !before.has(name))).toEqual([]);
+    expect(readdirSync(directory)).toEqual([]);
   });
 
   it("materializes the staged version and disposes the temporary snapshot", () => {
