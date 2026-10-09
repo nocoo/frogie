@@ -96,7 +96,7 @@ Workflow 专业画布采用已核实的稳定版 `@xyflow/react@12.12.0`，其 R
 
 React Flow 使用 `@xyflow/react/dist/base.css` 提供必要布局，画布背景、节点表面、端口、连线与焦点样式映射 Basalt Tokens，主题跟随应用。编辑面板和工具条继续组合 Basalt 控件，复用画布库的交互与无障碍能力。
 
-聊天输入使用受控 `InputArea`、`Button` 和模式选择控件组合，让 ViewModel 持有每个会话的草稿、失败重试和输入法状态。`3.0.0` 的 `ChatComposer` 使用内部草稿及同步 `onSend`，本应用采用基础控件组合管理跨会话草稿。
+聊天输入使用 Basalt 3.0.0 的受控 `ChatComposer`，通过 `value`、`onValueChange` 和异步 `onSend` 绑定 ViewModel。每个会话的草稿、失败重试和发送意图由 ViewModel 持有，输入法、附件展示及停止动作采用控件公开接口。
 
 Markdown 展示使用 Basalt `ChatMarkdown`，以发布版接口核对 GFM、安全链接及代码与表格能力。HTML 按文本处理，图片通过用户明确操作读取，产物引用走授权接口。
 
