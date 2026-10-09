@@ -23,7 +23,7 @@ import type {
 import sirv, { type RequestHandler } from "sirv";
 import { type Static, Type } from "typebox";
 import Value from "typebox/value";
-import { version } from "../../../../package.json";
+import appPackage from "../../../../package.json" with { type: "json" };
 import type { DefinitionWorkspace } from "./definitions.js";
 import {
   createLocalAuth,
@@ -384,7 +384,7 @@ export async function startLocalServer(
         return;
       }
       if (method === "GET" && pathname === "/api/live") {
-        sendJson(response, 200, { status: "ok", version });
+        sendJson(response, 200, { status: "ok", version: appPackage.version });
         return;
       }
       if (!staticFiles) {

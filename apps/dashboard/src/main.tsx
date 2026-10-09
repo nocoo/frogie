@@ -1,6 +1,7 @@
 import "./styles.css";
 import type { SubmitInput } from "@frogie/core/protocol";
-import { Field, LayerCard, Text } from "@nocoo/basalt";
+import { LayerCard } from "@nocoo/basalt";
+import { ChatMarkdown } from "@nocoo/basalt/components/chat-markdown";
 import { Combobox } from "@nocoo/basalt/components/combobox";
 import type { ReactNode } from "react";
 import { createRoot } from "react-dom/client";
@@ -136,10 +137,14 @@ export function mountDashboard(
       );
     } else if (page === "chat") {
       content = (
-        <>
-          <Field label="会话">
+        <ChatView
+          title={
+            conversationId === undefined ? "新对话" : `会话 ${conversationId}`
+          }
+          conversationSelector={
             <Combobox
               aria-label="选择会话"
+              className="frogie-conversation-selector"
               items={[...(conversations?.keys() ?? [])].map((id) => ({
                 value: String(id),
                 label: `会话 ${id}`,
@@ -164,84 +169,79 @@ export function mountDashboard(
                 }
               }}
             />
-          </Field>
-          <ChatView
-            title={
-              conversationId === undefined ? "新对话" : `会话 ${conversationId}`
+          }
+          entries={chat.entries}
+          draft={chatDrafts.get(draftKey) ?? ""}
+          loading={connecting}
+          sending={sending}
+          running={chat.running}
+          compacting={compacting || chat.compacting}
+          canSend={vm !== undefined && definition !== undefined && !sending}
+          canStop={conversationId !== undefined && !stopping}
+          canCompact={
+            conversationId !== undefined && !compacting && !chat.compacting
+          }
+          error={viewError}
+          onDraftChange={(value) => {
+            if (!disposed) {
+              chatDrafts.set(
+                draftKey === "new" ? (newConversationId ?? "new") : draftKey,
+                value,
+              );
+              render();
             }
-            entries={chat.entries}
-            draft={chatDrafts.get(draftKey) ?? ""}
-            loading={connecting}
-            sending={sending}
-            running={chat.running}
-            compacting={compacting || chat.compacting}
-            canSend={vm !== undefined && definition !== undefined && !sending}
-            canStop={conversationId !== undefined && !stopping}
-            canCompact={
-              conversationId !== undefined && !compacting && !chat.compacting
-            }
-            error={viewError}
-            onDraftChange={(value) => {
-              if (!disposed) {
-                chatDrafts.set(
-                  draftKey === "new" ? (newConversationId ?? "new") : draftKey,
-                  value,
-                );
+          }}
+          onSend={(text) =>
+            act(async () => {
+              if (!vm || !definition || sending) return;
+              sending = true;
+              chatDrafts.set(draftKey, text);
+              render();
+              try {
+                const id =
+                  conversationId ??
+                  (await vm.createConversation({
+                    roleId: definition.rootRoleId,
+                  }));
+                if (draftKey === "new") {
+                  newConversationId = id;
+                  chatDrafts.set(id, chatDrafts.get("new") ?? text);
+                  chatDrafts.delete("new");
+                }
+                selectedConversationId = id;
                 render();
+                await vm.submit(id, text);
+                if (chatDrafts.get(id) === text) chatDrafts.delete(id);
+              } finally {
+                sending = false;
               }
-            }}
-            onSend={(text) =>
-              act(async () => {
-                if (!vm || !definition || sending) return;
-                sending = true;
-                chatDrafts.set(draftKey, text);
-                render();
-                try {
-                  const id =
-                    conversationId ??
-                    (await vm.createConversation({
-                      roleId: definition.rootRoleId,
-                    }));
-                  if (draftKey === "new") {
-                    newConversationId = id;
-                    chatDrafts.set(id, chatDrafts.get("new") ?? text);
-                    chatDrafts.delete("new");
-                  }
-                  selectedConversationId = id;
-                  render();
-                  await vm.submit(id, text);
-                  if (chatDrafts.get(id) === text) chatDrafts.delete(id);
-                } finally {
-                  sending = false;
-                }
-              }, true)
-            }
-            onStop={() =>
-              act(async () => {
-                if (!vm || conversationId === undefined || stopping) return;
-                stopping = true;
-                render();
-                try {
-                  await vm.cancel(conversationId);
-                } finally {
-                  stopping = false;
-                }
-              })
-            }
-            onCompact={() =>
-              act(async () => {
-                if (!vm || conversationId === undefined || compacting) return;
-                compacting = true;
-                render();
-                try {
-                  await vm.compact(conversationId);
-                } finally {
-                  compacting = false;
-                }
-              })
-            }
-          />
-        </>
+            }, true)
+          }
+          onStop={() =>
+            act(async () => {
+              if (!vm || conversationId === undefined || stopping) return;
+              stopping = true;
+              render();
+              try {
+                await vm.cancel(conversationId);
+              } finally {
+                stopping = false;
+              }
+            })
+          }
+          onCompact={() =>
+            act(async () => {
+              if (!vm || conversationId === undefined || compacting) return;
+              compacting = true;
+              render();
+              try {
+                await vm.compact(conversationId);
+              } finally {
+                compacting = false;
+              }
+            })
+          }
+        />
       );
     } else {
       content =
@@ -249,7 +249,7 @@ export function mountDashboard(
           <LayerCard>
             <LayerCard.Header>{definition.title}</LayerCard.Header>
             <LayerCard.Body>
-              <Text>{definition.content}</Text>
+              <ChatMarkdown content={definition.content} />
             </LayerCard.Body>
           </LayerCard>
         ) : (
@@ -278,7 +278,7 @@ export function mountDashboard(
         squads={snapshot?.squads.map(({ id, title }) => ({ id, title })) ?? []}
         selectedSquadId={snapshot?.scope?.squadId ?? null}
         busy={connecting || snapshot?.busy === true}
-        error={viewError}
+        error={page === "chat" || page === "definitions" ? null : viewError}
         canCreateSquad={false}
         canChangeMode={false}
         onPageChange={(next) => {

@@ -8,8 +8,9 @@ import {
   LinkProvider,
   SegmentControl,
   Sidebar,
-  SidebarGroup,
+  SidebarFooter,
   SidebarHeader,
+  SidebarIconItem,
   SidebarItem,
   SidebarNav,
   SidebarProvider,
@@ -42,6 +43,7 @@ import {
   Menu,
   MessageSquare,
   PanelLeftClose,
+  PanelLeftOpen,
   Plus,
 } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
@@ -81,16 +83,23 @@ const modes = [
   { value: "prod", label: "Prod" },
 ] as const;
 
+const palette = {
+  green: { light: "138 36% 78%", dark: "138 36% 70%" },
+};
+
 export function AppView(props: AppViewProps) {
-  const [compact, setCompact] = useState(false);
-  const [collapsed, setCollapsed] = useState(false);
+  const [compact, setCompact] = useState(
+    () =>
+      typeof matchMedia !== "undefined" &&
+      matchMedia("(max-width: 767px)").matches,
+  );
+  const [collapsed, setCollapsed] = useState(compact);
   useEffect(() => {
     const media = matchMedia("(max-width: 767px)");
     const update = () => {
       setCompact(media.matches);
       setCollapsed(media.matches);
     };
-    update();
     media.addEventListener("change", update);
     return () => media.removeEventListener("change", update);
   }, []);
@@ -99,9 +108,10 @@ export function AppView(props: AppViewProps) {
   const squadTitle = props.squads.find(
     (squad) => squad.id === props.selectedSquadId,
   )?.title;
+  const expanded = !collapsed || compact;
   return (
     <ThemeProvider>
-      <AccentProvider defaultAccent="green">
+      <AccentProvider accent="green" persist={false} paletteOverrides={palette}>
         <LinkProvider>
           <TooltipProvider>
             <SidebarProvider
@@ -109,7 +119,7 @@ export function AppView(props: AppViewProps) {
               onCollapsedChange={setCollapsed}
               overlay={compact}
             >
-              <AppShell layout="responsive" className="basalt-ui">
+              <AppShell layout="workspace" className="basalt-ui frogie-shell">
                 <AppSkipLink>跳转到主要内容</AppSkipLink>
                 <Sidebar
                   aria-label={`Frogie 导航 · ${squadTitle ?? "未选择 Squad"} · ${modeLabel}`}
@@ -123,13 +133,18 @@ export function AppView(props: AppViewProps) {
                     </>
                   )}
                   <SidebarHeader>
-                    <img
-                      src={props.logoSrc}
-                      alt="Frogie"
-                      width={24}
-                      height={24}
-                    />
-                    {(!collapsed || compact) && (
+                    <Text
+                      as="span"
+                      className={expanded ? "frogie-brand-mark" : undefined}
+                    >
+                      <img
+                        src={props.logoSrc}
+                        alt="Frogie"
+                        width={24}
+                        height={24}
+                      />
+                    </Text>
+                    {expanded && (
                       <>
                         <Text as="strong" bold>
                           Frogie
@@ -137,12 +152,30 @@ export function AppView(props: AppViewProps) {
                         <Badge variant="secondary" className="font-mono">
                           v{props.version}
                         </Badge>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="frogie-sidebar-collapse"
+                          aria-label="收起导航"
+                          onClick={() => setCollapsed(true)}
+                        >
+                          <PanelLeftClose
+                            aria-hidden="true"
+                            size={16}
+                            strokeWidth={1.5}
+                          />
+                        </Button>
                       </>
                     )}
                   </SidebarHeader>
-                  {(!collapsed || compact) && (
-                    <SidebarGroup label="工作区">
-                      <Field label="Squad" htmlFor="squad-selector" required>
+                  <SidebarNav aria-label="主要导航">
+                    {expanded ? (
+                      <Field
+                        label="Squad"
+                        htmlFor="squad-selector"
+                        required
+                        className="frogie-workspace-selector"
+                      >
                         <Combobox
                           id="squad-selector"
                           items={props.squads.map((squad) => ({
@@ -155,8 +188,62 @@ export function AppView(props: AppViewProps) {
                           placeholder="选择 Squad"
                         />
                       </Field>
+                    ) : (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <SidebarIconItem
+                            aria-label="展开导航"
+                            onClick={() => setCollapsed(false)}
+                          >
+                            <PanelLeftOpen
+                              aria-hidden="true"
+                              size={16}
+                              strokeWidth={1.5}
+                            />
+                          </SidebarIconItem>
+                        </TooltipTrigger>
+                        <TooltipContent side="right">展开导航</TooltipContent>
+                      </Tooltip>
+                    )}
+                    {pages.map(({ id, title, icon: Icon }) => {
+                      const Item = expanded ? SidebarItem : SidebarIconItem;
+                      return (
+                        <Tooltip key={id}>
+                          <TooltipTrigger asChild>
+                            <Item
+                              className="frogie-nav-item"
+                              active={props.page === id}
+                              aria-label={title}
+                              onClick={() => {
+                                props.onPageChange(id);
+                                if (compact) setCollapsed(true);
+                              }}
+                            >
+                              <Icon
+                                aria-hidden="true"
+                                size={16}
+                                strokeWidth={1.5}
+                              />
+                              {expanded && (
+                                <Text
+                                  as="span"
+                                  truncate
+                                  className="frogie-nav-label"
+                                >
+                                  {title}
+                                </Text>
+                              )}
+                            </Item>
+                          </TooltipTrigger>
+                          <TooltipContent side="right">{title}</TooltipContent>
+                        </Tooltip>
+                      );
+                    })}
+                  </SidebarNav>
+                  <SidebarFooter>
+                    {expanded ? (
                       <SegmentControl
-                        legend="环境"
+                        legend="运行环境"
                         value={props.mode}
                         options={modes}
                         disabled={props.busy || props.canChangeMode === false}
@@ -164,71 +251,36 @@ export function AppView(props: AppViewProps) {
                           props.onModeChange(value as Mode)
                         }
                       />
-                    </SidebarGroup>
-                  )}
-                  <SidebarNav aria-label="主要导航">
-                    {pages.map(({ id, title, icon: Icon }) => (
-                      <Tooltip key={id}>
-                        <TooltipTrigger asChild>
-                          <SidebarItem
-                            active={props.page === id}
-                            aria-current={
-                              props.page === id ? "page" : undefined
-                            }
-                            aria-label={title}
-                            onClick={() => {
-                              props.onPageChange(id);
-                              if (compact) setCollapsed(true);
-                            }}
-                          >
-                            <Icon
-                              aria-hidden="true"
-                              size={16}
-                              strokeWidth={1.5}
-                            />
-                            <Text
-                              as="span"
-                              className={
-                                collapsed && !compact ? "sr-only" : "truncate"
-                              }
-                            >
-                              {title}
-                            </Text>
-                          </SidebarItem>
-                        </TooltipTrigger>
-                        <TooltipContent side="right">{title}</TooltipContent>
-                      </Tooltip>
-                    ))}
-                  </SidebarNav>
+                    ) : (
+                      <Badge variant="secondary">{modeLabel}</Badge>
+                    )}
+                  </SidebarFooter>
                 </Sidebar>
                 <AppMain aria-busy={props.busy}>
                   <AppHeader
                     density="compact"
                     title={title}
+                    {...(!compact && squadTitle
+                      ? { breadcrumbs: [{ label: squadTitle }] }
+                      : {})}
                     leading={
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        aria-label={collapsed ? "展开导航" : "收起导航"}
-                        onClick={(event) => {
-                          event.currentTarget.focus();
-                          setCollapsed(!collapsed);
-                        }}
-                      >
-                        {collapsed ? (
+                      compact ? (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          aria-label="展开导航"
+                          onClick={(event) => {
+                            event.currentTarget.focus();
+                            setCollapsed(false);
+                          }}
+                        >
                           <Menu
                             aria-hidden="true"
                             size={16}
                             strokeWidth={1.5}
                           />
-                        ) : (
-                          <PanelLeftClose
-                            aria-hidden="true"
-                            size={16}
-                            strokeWidth={1.5}
-                          />
-                        )}
-                      </Button>
+                        </Button>
+                      ) : undefined
                     }
                     actions={
                       <>
@@ -259,37 +311,50 @@ export function AppView(props: AppViewProps) {
                       </>
                     }
                   />
-                  <ContentIsland className="space-y-basalt-layout-md">
-                    <PageHeader
-                      title={title}
-                      actions={
-                        <Button
-                          disabled={
-                            props.busy || props.canCreateSquad === false
-                          }
-                          onClick={props.onCreateSquad}
-                          icon={
-                            <Plus
-                              aria-hidden="true"
-                              size={16}
-                              strokeWidth={1.5}
-                            />
-                          }
-                        >
-                          新建 Squad
-                        </Button>
+                  <div className="frogie-island-wrap">
+                    <ContentIsland
+                      className={
+                        props.page === "chat" || props.page === "definitions"
+                          ? "frogie-island frogie-island-workspace"
+                          : "frogie-island"
                       }
-                    />
-                    {props.error !== null && (
-                      <Banner
-                        role="alert"
-                        variant="error"
-                        title="操作失败"
-                        description={props.error}
-                      />
-                    )}
-                    {props.children}
-                  </ContentIsland>
+                    >
+                      {props.page !== "chat" &&
+                        props.page !== "definitions" && (
+                          <PageHeader
+                            title={title}
+                            actions={
+                              props.page === "overview" ? (
+                                <Button
+                                  disabled={
+                                    props.busy || props.canCreateSquad === false
+                                  }
+                                  onClick={props.onCreateSquad}
+                                  icon={
+                                    <Plus
+                                      aria-hidden="true"
+                                      size={16}
+                                      strokeWidth={1.5}
+                                    />
+                                  }
+                                >
+                                  新建 Squad
+                                </Button>
+                              ) : undefined
+                            }
+                          />
+                        )}
+                      {props.error !== null && (
+                        <Banner
+                          role="alert"
+                          variant="error"
+                          title="操作失败"
+                          description={props.error}
+                        />
+                      )}
+                      {props.children}
+                    </ContentIsland>
+                  </div>
                 </AppMain>
               </AppShell>
             </SidebarProvider>

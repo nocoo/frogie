@@ -4,9 +4,187 @@ html,
 body,
 #root {
   min-width: 0;
-  min-height: 100%;
+  height: 100%;
 }
 
 body {
   margin: 0;
+}
+
+.frogie-shell {
+  font-family: var(--basalt-font-sans);
+}
+
+.frogie-brand-mark {
+  display: inline-flex;
+  flex: 0 0 calc(var(--basalt-size-rail) - 2 * var(--basalt-space-nav-inset));
+  align-items: center;
+  justify-content: center;
+}
+
+.frogie-brand-mark img {
+  display: block;
+}
+
+.frogie-sidebar-collapse {
+  margin-inline-start: auto;
+  flex-shrink: 0;
+}
+
+.frogie-workspace-selector {
+  flex-shrink: 0;
+  margin-block-end: var(--basalt-space-layout);
+}
+
+.frogie-nav-item[aria-current="page"],
+.frogie-chat-user {
+  background-color: hsl(var(--basalt-accent-4));
+  color: hsl(var(--basalt-foreground));
+}
+
+.dark .frogie-nav-item[aria-current="page"],
+.dark .frogie-chat-user {
+  color: hsl(var(--basalt-primary-foreground));
+}
+
+.frogie-nav-label {
+  color: inherit;
+}
+
+.frogie-island-wrap {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  padding: 0 var(--basalt-space-layout) var(--basalt-space-layout);
+}
+
+.frogie-island {
+  display: flex;
+  flex-direction: column;
+  gap: var(--basalt-space-layout-lg);
+}
+
+.frogie-island > * {
+  flex-shrink: 0;
+}
+
+.frogie-island-workspace {
+  overflow: hidden;
+}
+
+.frogie-island-workspace > .frogie-chat,
+.frogie-island-workspace > .frogie-definition-split {
+  flex: 1;
+  min-height: 0;
+}
+
+.frogie-conversation-selector {
+  width: 16rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.frogie-chat-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--basalt-space-lg);
+  min-width: 0;
+  max-width: 100%;
+}
+
+.frogie-chat-messages {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--basalt-space-layout);
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  overflow-wrap: anywhere;
+}
+
+.frogie-chat-empty {
+  margin-block: auto;
+}
+
+.frogie-chat-footer {
+  flex-shrink: 0;
+}
+
+.frogie-chat-composer {
+  width: 100%;
+}
+
+.frogie-message-text {
+  color: inherit;
+  white-space: pre-wrap;
+}
+
+.frogie-definition-editor,
+.frogie-definition-tabs,
+.frogie-definition-source[data-state="active"] {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.frogie-definition-editor {
+  height: 100%;
+}
+
+.frogie-definition-body,
+.frogie-definition-tabs,
+.frogie-definition-source,
+.frogie-definition-field {
+  flex: 1;
+  min-height: 0;
+}
+
+.frogie-definition-body {
+  display: flex;
+  flex-direction: column;
+}
+
+.frogie-definition-path {
+  overflow-wrap: anywhere;
+}
+
+.frogie-definition-input {
+  flex: 1;
+  min-height: 12rem;
+  resize: none;
+  font-family: monospace;
+}
+
+.frogie-definition-preview {
+  min-height: 0;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+}
+
+@media (min-width: 768px) {
+  .frogie-definition-split [aria-label="定义内容"] > div:not([hidden]) {
+    height: 100%;
+  }
+}
+
+@media (max-width: 767px) {
+  .frogie-island-wrap {
+    padding: 0 var(--basalt-space-nav-inset) var(--basalt-space-nav-inset);
+  }
+
+  .frogie-island {
+    gap: var(--basalt-space-layout);
+  }
+
+  .frogie-definition-split {
+    overflow-y: auto;
+  }
+
+  .frogie-definition-input {
+    min-height: 20rem;
+    font-size: 1rem;
+  }
 }

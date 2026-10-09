@@ -15,8 +15,8 @@ import { ChatMarkdown } from "@nocoo/basalt/components/chat-markdown";
 import { EditableNavItem } from "@nocoo/basalt/components/editable-nav-item";
 import { InputArea } from "@nocoo/basalt/components/input-area";
 import { Loader } from "@nocoo/basalt/components/loader";
+import { PageHeader } from "@nocoo/basalt/components/page-header";
 import { ResponsiveMasterDetail } from "@nocoo/basalt/components/responsive-master-detail";
-import { SectionRule } from "@nocoo/basalt/components/section-rule";
 import { useEffect, useState } from "react";
 
 export interface DefinitionViewFile {
@@ -49,36 +49,40 @@ export function DefinitionView(props: DefinitionViewProps) {
     setDetailOpen(props.selectedPath !== null);
   }, [props.selectedPath]);
   return (
-    <SectionRule
-      title={props.title}
-      actions={
-        <>
-          {props.dirty && <Badge variant="warning">未保存</Badge>}
-          <Button
-            variant="outline"
-            aria-label="保存定义"
-            disabled={
-              !props.canSave || props.loading || props.saving || props.creating
-            }
-            onClick={props.onSave}
-          >
-            保存
-          </Button>
-          <Button
-            aria-label="创建定义"
-            disabled={
-              !props.canCreate ||
-              props.loading ||
-              props.saving ||
-              props.creating
-            }
-            onClick={props.onCreate}
-          >
-            创建
-          </Button>
-        </>
-      }
-    >
+    <>
+      <PageHeader
+        title={props.title}
+        actions={
+          <>
+            {props.dirty && <Badge variant="warning">未保存</Badge>}
+            <Button
+              variant="outline"
+              aria-label="保存定义"
+              disabled={
+                !props.canSave ||
+                props.loading ||
+                props.saving ||
+                props.creating
+              }
+              onClick={props.onSave}
+            >
+              保存
+            </Button>
+            <Button
+              aria-label="创建定义"
+              disabled={
+                !props.canCreate ||
+                props.loading ||
+                props.saving ||
+                props.creating
+              }
+              onClick={props.onCreate}
+            >
+              创建
+            </Button>
+          </>
+        }
+      />
       {props.error !== null && (
         <Banner
           role="alert"
@@ -102,7 +106,7 @@ export function DefinitionView(props: DefinitionViewProps) {
         selectedId={props.selectedPath}
         detailOpen={detailOpen}
         onDetailOpenChange={setDetailOpen}
-        className="md:h-full"
+        className="frogie-definition-split"
         empty={
           <LayerCard.Empty
             title="选择定义文件"
@@ -131,23 +135,24 @@ export function DefinitionView(props: DefinitionViewProps) {
           </SidebarNav>
         }
       >
-        <LayerCard>
+        <LayerCard className="frogie-definition-editor">
           <LayerCard.Header>
-            <Text as="span" variant="mono" truncate>
+            <Text as="span" variant="mono" className="frogie-definition-path">
               {props.selectedPath}
             </Text>
           </LayerCard.Header>
-          <LayerCard.Body>
-            <Tabs defaultValue="edit">
+          <LayerCard.Body className="frogie-definition-body">
+            <Tabs defaultValue="edit" className="frogie-definition-tabs">
               <TabsList aria-label="定义展示方式">
                 <TabsTrigger value="edit">源码编辑</TabsTrigger>
                 <TabsTrigger value="preview">Markdown 预览</TabsTrigger>
               </TabsList>
-              <TabsContent value="edit">
+              <TabsContent value="edit" className="frogie-definition-source">
                 <Field
                   label="Markdown 源码"
                   htmlFor="definition-source"
                   required
+                  className="frogie-definition-field"
                 >
                   <InputArea
                     id="definition-source"
@@ -159,16 +164,20 @@ export function DefinitionView(props: DefinitionViewProps) {
                     disabled={props.loading || props.saving || props.creating}
                     rows={12}
                     spellCheck={false}
+                    className="frogie-definition-input"
                   />
                 </Field>
               </TabsContent>
-              <TabsContent value="preview">
+              <TabsContent
+                value="preview"
+                className="frogie-definition-preview"
+              >
                 <ChatMarkdown content={props.markdown} />
               </TabsContent>
             </Tabs>
           </LayerCard.Body>
         </LayerCard>
       </ResponsiveMasterDetail>
-    </SectionRule>
+    </>
   );
 }

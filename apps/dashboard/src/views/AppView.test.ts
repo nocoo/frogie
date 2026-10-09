@@ -64,4 +64,15 @@ describe("AppView", () => {
       "Current page content",
     );
   });
+
+  it("keeps squad creation on the overview instead of unrelated workspaces", () => {
+    expect(render({ page: "overview" })).toContain("新建 Squad");
+    for (const page of ["chat", "definitions", "workflows", "evals"] as const)
+      expect(render({ page })).not.toContain("新建 Squad");
+  });
+
+  it("places the desktop collapse action inside the sidebar", () => {
+    const sidebar = render().match(/<aside\b[\s\S]*?<\/aside>/)?.[0];
+    expect(sidebar).toContain('aria-label="收起导航"');
+  });
 });

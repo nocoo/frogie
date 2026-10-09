@@ -21,6 +21,7 @@
   "include": [
     "packages/core/src",
     "apps/dashboard/src",
+    "apps/dashboard/tests",
     "tests",
     "seeds",
     "evals",

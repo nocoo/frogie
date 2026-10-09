@@ -186,10 +186,11 @@ function findElement<T>(
   }
   if (!isValidElement(node)) return undefined;
   if (node.type === component) return node as ReactElement<T>;
-  return findElement(
-    (node.props as { children?: ReactNode }).children,
-    component,
-  );
+  const props = node.props as {
+    children?: ReactNode;
+    conversationSelector?: ReactNode;
+  };
+  return findElement([props.children, props.conversationSelector], component);
 }
 
 const elements: HTMLElement[] = [];
@@ -460,6 +461,7 @@ describe("mountDashboard client wiring", () => {
       error: "Connection interrupted",
       sending: false,
     });
+    expect(currentApp(root.render).props.error).toBeNull();
     await failed?.onSend("Retry this");
     expect(client.submit).toHaveBeenCalledTimes(2);
     const calls = vi.mocked(client.submit).mock.calls;
