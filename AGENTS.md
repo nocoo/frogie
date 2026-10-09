@@ -40,7 +40,7 @@
 - 本地人工验收入口为 `https://frogie.dev.hexly.ai`，现有 Caddy 转发至 `127.0.0.1:7033`。L2／浏览器端口分别保留 `17033`／`27033`，Vite 辅助端口为 `37033`；隔离测试可以使用临时 loopback 端口。
 - 应用版本以根 `package.json` 为唯一来源，工作区包版本同步；界面显示 `vX.Y.Z`，`/api/live` 返回 `X.Y.Z`。调整版本和发布分别执行，远端操作遵循明确授权。
 - 使用 Node.js 26 与 `pnpm install --frozen-lockfile` 安装锁定依赖；安装后由 Husky 设置 Git hooks。
-- `pnpm dev` 启动本地 Dashboard，`pnpm build` 构建 Dashboard。
+- `pnpm dev` 启动 Local Dashboard，从 `data/local-model.json` 或 `FROGIE_MODEL_CONFIG` 读取服务端模型配置，状态保存在 `data/local/dashboard/`。`FROGIE_MODE=e2e pnpm dev` 使用隔离目录和无模型费用的替身。`pnpm build` 构建 Dashboard。
 - `pnpm typecheck` 执行严格类型检查；`pnpm lint` 执行 Biome 只读检查并拒绝警告。
 - `pnpm test` 提供单元测试反馈；`pnpm test:coverage` 执行全量单元测试及四项覆盖率门槛；`pnpm check` 顺序执行类型、lint 与覆盖率。
 - `pnpm test:ui` 构建并验证当前 Dashboard 的桌面与移动端布局、主题、对话和定义编辑；使用独立的 `data/e2e/` 数据及 `27033` 端口，截图和失败 trace 存入 `data/e2e/browser-results/`。
@@ -50,4 +50,4 @@
 ## 本地数据
 
 - `squads/` 定义和 `seeds/` 初始化源码及输入纳入 Git；生成的本地数据统一放在已忽略的 `data/`。
-- Local、E2E、Prod 的数据库分别存放在本机。测试使用本次运行拥有的隔离目录，文件编辑、重置与清理先核对归属，具体约定见文档索引中的 Dashboard 与 Tests。
+- Local、E2E 的数据库分别存放在本机。测试使用本次运行拥有的隔离目录，文件编辑、重置与清理先核对归属，具体约定见文档索引中的 Dashboard 与 Tests。

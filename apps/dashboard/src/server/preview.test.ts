@@ -57,7 +57,11 @@ it("runs a no-cost Pi conversation with editable definitions and preserves its S
   expect(preview.url).toBe(`${publicOrigin}/#token=preview-test-token`);
   expect(startLocalServer).toHaveBeenCalledOnce();
   const options = vi.mocked(startLocalServer).mock.calls[0]?.[0];
-  expect(options).toMatchObject({ publicOrigin, port: 7033 });
+  expect(options).toMatchObject({
+    publicOrigin,
+    port: 7033,
+    scope: { environmentId: "e2e" },
+  });
   if (!options?.definitions) throw new Error("Expected definition workspace");
   expect(options.publicDirectory?.replaceAll("\\", "/")).toMatch(
     /\/apps\/dashboard\/dist$/,

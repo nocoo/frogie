@@ -202,12 +202,12 @@ test("header icons remain readable when the system starts dark and after theme c
       name: "运行环境",
       exact: true,
     });
-    for (const name of ["Local", "E2E", "Prod"]) {
+    for (const name of ["Local", "E2E"]) {
       const option = environment.getByRole("radio", { name, exact: true });
       await expect(option).toBeDisabled();
       await expect(option).toHaveAttribute(
         "aria-checked",
-        String(name === "Local"),
+        String(name === "E2E"),
       );
       const foreground = await option.evaluate(
         (element) => getComputedStyle(element).color,
@@ -239,16 +239,25 @@ test("desktop shell geometry, bounded chat, editor and theme retain real interac
   });
   const environmentBox = await box(environment);
   expect(environmentBox.x).toBeGreaterThan(1000);
-  expect(environmentBox.y).toBeLessThan(52);
+  const headerBox = await box(page.locator("[data-basalt-header]"));
+  expect(environmentBox.height).toBeLessThanOrEqual(36);
+  expect(environmentBox.y - headerBox.y).toBeGreaterThanOrEqual(8);
+  expect(
+    headerBox.y + headerBox.height - environmentBox.y - environmentBox.height,
+  ).toBeGreaterThanOrEqual(8);
+  await expect(environment.getByRole("radio")).toHaveCount(2);
+  await expect(
+    environment.getByRole("radio", { name: "Prod", exact: true }),
+  ).toHaveCount(0);
   const avatar = rail.getByRole("img", { name: "本地用户头像", exact: true });
   expect((await box(avatar)).y).toBeGreaterThan(900);
-  for (const name of ["Local", "E2E", "Prod"]) {
+  for (const name of ["Local", "E2E"]) {
     await expect(
       environment.getByRole("radio", { name, exact: true }),
     ).toBeDisabled();
   }
   await expect(
-    environment.getByRole("radio", { name: "Local", exact: true }),
+    environment.getByRole("radio", { name: "E2E", exact: true }),
   ).toHaveAttribute("aria-checked", "true");
   await page.screenshot({
     path: testInfo.outputPath("environment-desktop.png"),
@@ -357,7 +366,7 @@ test("mobile navigation restores focus and editor and composer stay usable", asy
   await expect(
     page.getByRole("link", { name: "Frogie on Hexly", exact: true }),
   ).toBeInViewport();
-  for (const name of ["Local", "E2E", "Prod"]) {
+  for (const name of ["Local", "E2E"]) {
     await expect(
       environment.getByRole("radio", { name, exact: true }),
     ).toBeInViewport();

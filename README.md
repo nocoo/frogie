@@ -46,9 +46,24 @@ Frogie 面向使用 [Pi Durable](https://github.com/earendil-works/pi/tree/main/
 
 ## 本地体验
 
-运行 `pnpm dev` 构建并启动当前可用的本地预览，通过终端输出的一次性链接打开 `https://frogie.dev.hexly.ai`。本机 Caddy 将该域名转发到 `127.0.0.1:7033`。
+运行 `pnpm dev` 构建并启动 Local，通过终端输出的一次性链接打开 `https://frogie.dev.hexly.ai`。本机 Caddy 将该域名转发到 `127.0.0.1:7033`。
 
-预览使用 Pi 官方确定性模型替身，可验证对话、状态观察和 Markdown 保存，不调用付费模型。每次启动在 `data/local/` 下创建独立目录，编辑的是测试定义副本，会话 SQLite 随目录保留。完整 Workflow 画布、真实多角色派发与正式宿主入口继续按设计文档实现。
+Local 使用真实的 OpenAI-compatible Chat Completions 模型。服务端从 `data/local-model.json` 读取私有配置，也可通过 `FROGIE_MODEL_CONFIG` 指定文件；密钥仅留在服务端。配置格式如下，将示例值替换为自己的模型配置：
+
+```json
+{
+  "baseUrl": "http://127.0.0.1:3425/v1",
+  "apiKey": "your-api-key",
+  "modelId": "your-model-id",
+  "contextWindow": 128000,
+  "maxTokens": 4096,
+  "thinkingLevel": "low"
+}
+```
+
+模型地址接受 HTTPS 或 loopback HTTP。Local 在 `data/local/dashboard/` 保存定义副本、运行身份与会话 SQLite，重启继续使用原状态；更换绑定定义或模型时沿用 Core 的一致性校验。点击“对话”发送消息后才调用模型，费用按模型服务计费。
+
+`FROGIE_MODE=e2e pnpm dev` 启动 Pi 官方确定性模型替身，每次在 `data/e2e/` 创建独立目录，不读取 Local 模型配置。当前入口由启动参数固定环境，右上角分段控件显示实际环境。完整 Workflow 画布、真实多角色派发与界面跨环境切换继续按设计文档实现。
 
 ## 文档
 

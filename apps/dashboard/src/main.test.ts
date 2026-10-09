@@ -31,7 +31,7 @@ type ConversationId = Parameters<
 type ConversationRecord = Awaited<
   ReturnType<LocalRuntimeClient["listConversations"]>
 >[number]["conversation"];
-type MountOptions = { connect?: Connect; mode?: "local" | "e2e" | "prod" };
+type MountOptions = { connect?: Connect; mode?: "local" | "e2e" };
 const origin = "http://127.0.0.1:4321";
 
 function mount(element: HTMLElement, options?: MountOptions): () => void {
@@ -237,6 +237,31 @@ describe("mountDashboard client wiring", () => {
     expect(client.loadDefinition).toHaveBeenCalledWith("zeppelin");
     expect(client.listConversations).toHaveBeenCalledWith({});
     expect(client.listSquads).toHaveBeenCalledOnce();
+  });
+
+  it("shows E2E from the connected runtime scope without a mount override", async () => {
+    const e2eScope = { ...scope, environmentId: "e2e" };
+    const e2eDescription = { ...description, scope: e2eScope };
+    const { client } = createClient({
+      context: {
+        instanceId: "e2e-instance",
+        scope: e2eScope,
+        description: e2eDescription,
+      },
+      describe: vi.fn(async () => e2eDescription),
+    });
+    const root = makeRoot();
+    const element = { nodeType: 1 } as HTMLElement;
+    elements.push(element);
+    mount(element, { connect: async () => client });
+    await vi.waitFor(() =>
+      expect(currentApp(root.render).props).toMatchObject({
+        mode: "e2e",
+        busy: false,
+        selectedSquadId: "zeppelin",
+        error: null,
+      }),
+    );
   });
 
   it("resumes the existing session when the startup fragment is absent", async () => {
@@ -496,7 +521,7 @@ describe("mountDashboard client wiring", () => {
     const count = root.render.mock.calls.length;
     app.onPageChange("definitions");
     app.onSquadChange("other");
-    app.onModeChange("prod");
+    app.onModeChange("e2e");
     app.onCreateSquad();
     chat?.onDraftChange("ignored");
     selector?.onValueChange?.("17");

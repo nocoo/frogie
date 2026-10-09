@@ -87,6 +87,7 @@ describe("AppView", () => {
     )?.[1];
     expect(mainHeader).toContain('aria-label="运行环境"');
     expect(mainHeader).toContain('role="radiogroup"');
+    expect(mainHeader).not.toContain("Prod");
     expect(mainHeader).not.toContain('aria-haspopup="menu"');
     expect(mainHeader).toContain('aria-label="Frogie GitHub 仓库"');
     expect(mainHeader).toContain('href="https://hexly.ai/projects/frogie"');

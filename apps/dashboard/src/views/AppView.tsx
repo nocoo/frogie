@@ -54,7 +54,7 @@ import {
 import { type ReactNode, useEffect, useState } from "react";
 
 export type Page = "overview" | "definitions" | "workflows" | "chat" | "evals";
-export type Mode = "local" | "e2e" | "prod";
+export type Mode = "local" | "e2e";
 
 export interface AppViewProps {
   version: string;
@@ -85,7 +85,6 @@ const pages = [
 const modes = [
   { value: "local", label: "Local" },
   { value: "e2e", label: "E2E" },
-  { value: "prod", label: "Prod" },
 ] as const;
 
 const palette = {

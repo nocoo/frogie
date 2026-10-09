@@ -1,14 +1,34 @@
 import { randomUUID } from "node:crypto";
 import { mkdir } from "node:fs/promises";
 import { resolve } from "node:path";
+import {
+  loadLocalModel,
+  startLocal,
+} from "../apps/dashboard/src/server/localRuntime.js";
 import { startPreview } from "../apps/dashboard/src/server/preview.js";
 import { version } from "../package.json";
 
-export async function main(): Promise<void> {
-  const parent = resolve("data/local");
+export async function main(
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<void> {
+  const mode = env.FROGIE_MODE ?? "local";
+  if (mode !== "local" && mode !== "e2e")
+    throw new Error("FROGIE_MODE 仅支持 local 或 e2e。");
+  const model =
+    mode === "local"
+      ? await loadLocalModel(
+          env.FROGIE_MODEL_CONFIG ?? resolve("data/local-model.json"),
+        )
+      : undefined;
+  const parent = resolve(`data/${mode}`);
   await mkdir(parent, { recursive: true });
-  const directory = resolve(parent, `preview-${randomUUID()}`);
-  const preview = await startPreview({ directory });
+  const directory = resolve(
+    parent,
+    mode === "local" ? "dashboard" : `preview-${randomUUID()}`,
+  );
+  const preview = model
+    ? await startLocal({ directory, model })
+    : await startPreview({ directory });
   const shutdown = async () => {
     process.off("SIGINT", shutdown);
     process.off("SIGTERM", shutdown);
@@ -24,7 +44,9 @@ export async function main(): Promise<void> {
   };
   process.on("SIGINT", shutdown);
   process.on("SIGTERM", shutdown);
-  console.log(`Frogie v${version} — 本地测试模式（无模型费用）`);
+  console.log(
+    `Frogie v${version} — ${model ? `Local · ${model.modelId}` : "E2E（无模型费用）"}`,
+  );
   console.log(`打开一次性链接：${preview.url}`);
   console.log(`本地数据：${directory}`);
 }

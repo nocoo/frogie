@@ -1,17 +1,34 @@
 import { mkdir } from "node:fs/promises";
-import { isAbsolute } from "node:path";
+import { isAbsolute, resolve } from "node:path";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import {
+  type LocalModelConfig,
+  loadLocalModel,
+  startLocal,
+} from "../apps/dashboard/src/server/localRuntime.js";
 import { startPreview } from "../apps/dashboard/src/server/preview.js";
 import { version } from "../package.json";
 import { main } from "./dev.js";
 
 vi.mock("node:fs/promises", () => ({ mkdir: vi.fn() }));
+vi.mock("../apps/dashboard/src/server/localRuntime.js", () => ({
+  loadLocalModel: vi.fn(),
+  startLocal: vi.fn(),
+}));
 vi.mock("../apps/dashboard/src/server/preview.js", () => ({
   startPreview: vi.fn(),
 }));
 
 const close = vi.fn<() => Promise<void>>();
 const url = "https://frogie.dev.hexly.ai/#token=test-preview";
+const model: LocalModelConfig = {
+  baseUrl: "https://models.example/v1",
+  apiKey: "private-test-key",
+  modelId: "selected-model",
+  contextWindow: 32000,
+  maxTokens: 1024,
+  thinkingLevel: "low",
+};
 let originalExitCode: typeof process.exitCode;
 
 beforeEach(() => {
@@ -25,6 +42,12 @@ beforeEach(() => {
   vi.spyOn(process, "exit").mockReturnValue(undefined as never);
   vi.mocked(mkdir).mockReset().mockResolvedValue(undefined);
   close.mockReset().mockResolvedValue(undefined);
+  vi.mocked(loadLocalModel).mockReset().mockResolvedValue(model);
+  vi.mocked(startLocal).mockReset().mockResolvedValue({
+    origin: "https://frogie.dev.hexly.ai",
+    url,
+    close,
+  });
   vi.mocked(startPreview).mockReset().mockResolvedValue({
     origin: "https://frogie.dev.hexly.ai",
     url,
@@ -35,6 +58,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.useRealTimers();
   vi.restoreAllMocks();
+  vi.unstubAllEnvs();
   process.exitCode = originalExitCode;
 });
 
@@ -46,19 +70,20 @@ function handler(signal: "SIGINT" | "SIGTERM"): () => void {
   return listener;
 }
 
-it("starts an isolated local preview, reports its version and shares shutdown for both signals", async () => {
+it("defaults to the persistent Local runtime, reports its model and shares shutdown for both signals", async () => {
+  vi.stubEnv("FROGIE_MODE", undefined);
+  vi.stubEnv("FROGIE_MODEL_CONFIG", undefined);
   await main();
-  expect(mkdir).toHaveBeenCalledWith(
-    expect.stringMatching(/\/data\/local\/?$/),
-    { recursive: true },
-  );
-  const directory = vi.mocked(startPreview).mock.calls[0]?.[0].directory;
-  if (!directory) throw new Error("Missing preview directory");
-  expect(isAbsolute(directory)).toBe(true);
-  expect(directory).toMatch(/\/data\/local\/preview-[0-9a-f-]{36}$/);
+  const directory = resolve("data/local/dashboard");
+  expect(loadLocalModel).toHaveBeenCalledWith(resolve("data/local-model.json"));
+  expect(startLocal).toHaveBeenCalledWith({ directory, model });
+  expect(startPreview).not.toHaveBeenCalled();
   const output = vi.mocked(console.log).mock.calls.flat().join("\n");
   expect(output).toContain(`Frogie v${version}`);
-  expect(output).toContain("无模型费用");
+  expect(output).toContain("Local");
+  expect(output).toContain(model.modelId);
+  expect(output).not.toContain(model.apiKey);
+  expect(output).not.toContain("无模型费用");
   expect(output).toContain(url);
   expect(output).toContain(directory);
   const stop = handler("SIGINT");
@@ -73,10 +98,58 @@ it("starts an isolated local preview, reports its version and shares shutdown fo
   expect(process.exitCode).toBeUndefined();
 });
 
+it("loads an explicitly selected Local configuration", async () => {
+  await main({
+    FROGIE_MODE: "local",
+    FROGIE_MODEL_CONFIG: "/private/frogie-model.json",
+  });
+  expect(loadLocalModel).toHaveBeenCalledWith("/private/frogie-model.json");
+  expect(startLocal).toHaveBeenCalledOnce();
+  expect(startPreview).not.toHaveBeenCalled();
+});
+
+it("isolates E2E under its own unique directory without loading any model key", async () => {
+  await main({
+    FROGIE_MODE: "e2e",
+    FROGIE_MODEL_CONFIG: "/private/unused.json",
+  });
+  expect(mkdir).toHaveBeenCalledWith(resolve("data/e2e"), { recursive: true });
+  const directory = vi.mocked(startPreview).mock.calls[0]?.[0].directory;
+  if (!directory) throw new Error("Missing preview directory");
+  expect(isAbsolute(directory)).toBe(true);
+  expect(directory).toMatch(/\/data\/e2e\/preview-[0-9a-f-]{36}$/);
+  expect(startLocal).not.toHaveBeenCalled();
+  expect(loadLocalModel).not.toHaveBeenCalled();
+  const output = vi.mocked(console.log).mock.calls.flat().join("\n");
+  expect(output).toContain("E2E");
+  expect(output).toContain("无模型费用");
+  expect(output).toContain(directory);
+});
+
+it.each(["prod", "production", "", "LOCAL"])(
+  "rejects unsupported mode %s before accessing runtime resources",
+  async (mode) => {
+    await expect(main({ FROGIE_MODE: mode })).rejects.toThrow();
+    expect(mkdir).not.toHaveBeenCalled();
+    expect(loadLocalModel).not.toHaveBeenCalled();
+    expect(startLocal).not.toHaveBeenCalled();
+    expect(startPreview).not.toHaveBeenCalled();
+  },
+);
+
+it("propagates an invalid Local configuration without substituting a faux model", async () => {
+  const error = new Error("Configuration invalid");
+  vi.mocked(loadLocalModel).mockRejectedValueOnce(error);
+  await expect(main({})).rejects.toBe(error);
+  expect(startLocal).not.toHaveBeenCalled();
+  expect(startPreview).not.toHaveBeenCalled();
+  expect(process.on).not.toHaveBeenCalled();
+});
+
 it("reports a close failure, removes listeners and marks failure without leaking its deadline", async () => {
   const error = new Error("Close failed");
   close.mockRejectedValueOnce(error);
-  await main();
+  await main({});
   const stop = handler("SIGTERM");
   stop();
   await vi.advanceTimersByTimeAsync(0);
@@ -89,7 +162,7 @@ it("reports a close failure, removes listeners and marks failure without leaking
 
 it("forces exit only when the five-second close deadline expires", async () => {
   close.mockReturnValueOnce(new Promise(() => undefined));
-  await main();
+  await main({});
   handler("SIGINT")();
   await vi.advanceTimersByTimeAsync(4_999);
   expect(process.exit).not.toHaveBeenCalled();
@@ -100,8 +173,8 @@ it("forces exit only when the five-second close deadline expires", async () => {
 
 it("surfaces startup failures without registering shutdown listeners", async () => {
   const error = new Error("Port unavailable");
-  vi.mocked(startPreview).mockRejectedValueOnce(error);
-  await expect(main()).rejects.toBe(error);
+  vi.mocked(startLocal).mockRejectedValueOnce(error);
+  await expect(main({})).rejects.toBe(error);
   expect(process.on).not.toHaveBeenCalled();
   expect(close).not.toHaveBeenCalled();
 });

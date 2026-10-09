@@ -84,7 +84,7 @@ Core 的图结构属于可移植定义格式；React Flow 的组件、选中状�
 
 内容摘要覆盖排序后的相对路径、文件字节和必要的文件模式，包括脚本及其资源。Git commit 表示来源；未提交的编辑通过内容摘要精确标识。运行端保存这份不可变文件快照，恢复时使用同一份内容。
 
-`environmentId` 由宿主标识独立配置范围，`harnessId` 由宿主在创建存储时分配并保存，重启保持原值。这两个字段是 Frogie 的绑定身份；Conversation、Submission 与 Task 继续使用 Pi 原始 ID。Dashboard 的 Local／E2E／Prod 是宿主对环境的分类，集成项目按自己的方式组织环境。
+`environmentId` 由宿主标识独立配置范围，`harnessId` 由宿主在创建存储时分配并保存，重启保持原值。这两个字段是 Frogie 的绑定身份；Conversation、Submission 与 Task 继续使用 Pi 原始 ID。Dashboard 的 Local／E2E 是宿主对环境的分类，集成项目按自己的方式组织环境。
 
 ### 生效方式
 

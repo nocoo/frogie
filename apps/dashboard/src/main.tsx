@@ -25,7 +25,7 @@ const mounted = new WeakMap<HTMLElement, () => void>();
 
 export interface MountDashboardOptions {
   readonly connect?: () => Promise<LocalRuntimeClient>;
-  readonly mode?: "local" | "e2e" | "prod";
+  readonly mode?: "local" | "e2e";
 }
 
 export function mountDashboard(
@@ -274,7 +274,10 @@ export function mountDashboard(
         version={version}
         logoSrc={logoSrc}
         page={page}
-        mode={options?.mode ?? "local"}
+        mode={
+          options?.mode ??
+          (client?.context.scope.environmentId === "e2e" ? "e2e" : "local")
+        }
         squads={snapshot?.squads.map(({ id, title }) => ({ id, title })) ?? []}
         selectedSquadId={snapshot?.scope?.squadId ?? null}
         busy={connecting || snapshot?.busy === true}

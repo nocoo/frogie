@@ -32,7 +32,7 @@ export async function startPreview(options: {
   const definition = loadDefinition(join(squads, "minimal-squad"));
   const instanceId = randomUUID();
   const scope = {
-    environmentId: "local",
+    environmentId: "e2e",
     squadId: definition.squadId,
     harnessId: instanceId,
   };

@@ -23,7 +23,7 @@ ViewModel 接收服务依赖，以普通 TypeScript 状态转换和 React 绑定
 
 ## 启动与访问
 
-规划的用户入口为 `frogie dashboard --workspace <path> --mode local|e2e|prod`。模式参数可省略。人工开发与验收使用 `https://frogie.dev.hexly.ai`，Caddy 将 HTTPS 转发到 `127.0.0.1:7033`；服务只绑定 loopback 地址。隔离自动化测试使用独立的 loopback HTTP 来源。
+规划的用户入口为 `frogie dashboard --workspace <path> --mode local|e2e`。模式参数可省略。人工开发与验收使用 `https://frogie.dev.hexly.ai`，Caddy 将 HTTPS 转发到 `127.0.0.1:7033`；服务只绑定 loopback 地址。隔离自动化测试使用独立的 loopback HTTP 来源。
 
 首次打开通过一次性启动凭据建立会话，凭据放在 URL fragment，浏览器交换后清除；服务端颁发短期 HttpOnly、SameSite 会话 Cookie，HTTPS 来源同时设置 Secure。刷新通过已有 Cookie 恢复认证并取得 CSRF，不重复使用启动凭据。模型凭据只由宿主配置读取，界面显示已配置的连接名称与可用状态。
 
@@ -31,7 +31,7 @@ ViewModel 接收服务依赖，以普通 TypeScript 状态转换和 React 绑定
 
 首期本地启动者拥有工作区的管理与调试权限。页面动作仍使用 Core 的权限标识，便于集成项目沿用自己的身份与授权系统。
 
-关闭浏览器只解除观察。CLI 管理自己启动的调试子进程，关闭服务时有界地关闭这些 Harness 和脚本工作负载；Local／Prod 保留已提交状态供下次恢复，临时 E2E 按其归属释放。独立运行端的进程与存储由其集成项目管理。
+关闭浏览器只解除观察。CLI 管理自己启动的调试子进程，关闭服务时有界地关闭这些 Harness 和脚本工作负载；Local 保留已提交状态供下次恢复，临时 E2E 按其归属释放。独立运行端的进程与存储由其集成项目管理。
 
 ### 模型连接
 
@@ -71,7 +71,7 @@ Workflow 专业画布采用已核实的稳定版 `@xyflow/react@12.12.0`，其 R
 
 组合顺序采用 Basalt 的 `AppShell`、`Sidebar`、`AppMain`、`AppSkipLink`、`AppHeader` 和一个 `ContentIsland`。内容页以 `PageHeader` 开始，分区使用 `SectionRule`，成组内容使用 `LayerCard`。
 
-侧栏顶部显示现有 Frogie 标志、名称、构建版本与折叠操作，紧接全局 Squad／Harness 切换器，下方导航围绕当前 Squad 展开，底部显示用户头像与身份。Header 左侧显示真实上级路径和当前页面，右侧依次放置 Local／E2E／Prod 运行环境分段选择、GitHub、Hexly 入口与主题切换。环境选择使用 Basalt `SegmentControl`，头像使用 Basalt 公开控件，运行端能力决定环境选项是否可用。页面操作位于内容标题行，新建 Squad 属于概览页面。
+侧栏顶部显示现有 Frogie 标志、名称、构建版本与折叠操作，紧接全局 Squad／Harness 切换器，下方导航围绕当前 Squad 展开，底部显示用户头像与身份。Header 左侧显示真实上级路径和当前页面，右侧依次放置 Local／E2E 运行环境分段选择、GitHub、Hexly 入口与主题切换。环境选择使用 Basalt `SegmentControl`，头像使用 Basalt 公开控件，运行端能力决定环境选项是否可用。页面操作位于内容标题行，新建 Squad 属于概览页面。
 
 使用 `ThemeProvider`、`AccentProvider`、`LinkProvider`、`TooltipProvider` 和单个全局 `Toaster`。品牌采用淡绿色，通过 `AccentProvider.paletteOverrides` 定义 `green`，用于导航选中态与用户消息。语义按钮颜色沿用 Basalt 的对比度推导。保留 Frogie 现有图稿，使用合适尺寸的衍生资产。
 
@@ -112,27 +112,26 @@ Markdown 展示使用 Basalt `ChatMarkdown`，以发布版接口核对 GFM、安
 
 用户进入某个 Squad 后持续看到其角色、工作流与运行内容，通过顶部切换器返回其他 Squad。工具条与属性面板可以收起，让画布或对话占据主要空间。环境标识在收起侧栏、全屏画布与发送输入时仍然可见。
 
-切换前处理当前未保存的文件和画布草稿，提供保存后切换、放弃草稿或留在当前上下文。已经接纳的 Local／Prod 工作继续在原 Harness 运行，切换只改变观察目标；停止工作使用独立的取消动作。临时 E2E 的退出按下文生命周期执行。
+切换前处理当前未保存的文件和画布草稿，提供保存后切换、放弃草稿或留在当前上下文。已经接纳的 Local 工作继续在原 Harness 运行，切换只改变观察目标；停止工作使用独立的取消动作。临时 E2E 的退出按下文生命周期执行。
 
 Chat 草稿和待确认的发送意图按 `RuntimeScope` 与 Conversation 分开保留，返回原会话后继续处理。请求重试携带原作用域与 `requestId`，目标始终是原 Harness。
 
-### Local、E2E 与 Prod
+### Local 与 E2E
 
-三种模式使用相同的应用、认证、Core 接入、Pi SQLite 与沙箱实现，分别绑定本机数据和模型配置。下表目录用于 Dashboard 自己托管的调试 Harness；独立运行端按登记模式展示，数据由其宿主管理。
+两种模式使用相同的应用、认证、Core 接入、Pi SQLite 与沙箱实现，分别绑定本机数据和模型配置。下表目录用于 Dashboard 自己托管的调试 Harness；独立运行端按登记模式展示，数据由其宿主管理。
 
 | 模式 | 定义与存储 | 生命周期 |
 | --- | --- | --- |
-| Local | 工作区的 `squads/` 与 `data/local/` 下的独立 Harness 数据库 | 日常设计与调试，重启保留编辑和运行状态 |
+| Local | 工作区的 `squads/` 与 `data/local/` 下的独立 Harness 数据库 | 日常设计、调试与正式使用，连接真实模型对话，重启保留编辑和运行状态 |
 | E2E | `data/e2e/<run-id>/` 下的隔离定义工作区与数据库 | 每次进入创建新范围，默认空白，按归属释放 |
-| Prod | 工作区的定义源、明确选定的不可变快照与 `data/prod/` 下的独立数据库 | 本机正式使用，单独授权模型与工具，重启保留状态 |
 
-Local 与 Prod 的定义编辑都作用于获准工作区的 MD；各 Harness 始终读取自己绑定的快照。正式使用新定义时明确选择版本并创建新环境。界面同时显示正在编辑的来源和已加载摘要，切换模式只选择目标数据，版本采用通过绑定操作完成。
+Local 的定义编辑作用于获准工作区的 MD；各 Harness 始终读取自己绑定的快照。正式使用新定义时明确选择版本并创建新环境。界面同时显示正在编辑的来源和已加载摘要，切换模式只选择目标数据，版本采用通过绑定操作完成。
 
-环境列表展示 Harness 身份；托管项显示 SQLite 保存位置，独立运行端显示连接地址与存储归属。用户可以直接选择已存在的绑定，也可以创建新的环境。浏览器提交服务端枚举的身份，由服务端解析目标与授权。Prod 首次启动运行需确认其数据库、定义、模型连接和权限范围。
+环境列表展示 Harness 身份；托管项显示 SQLite 保存位置，独立运行端显示连接地址与存储归属。用户可以直接选择已存在的绑定，也可以创建新的环境。浏览器提交服务端枚举的身份，由服务端解析目标与授权。Local 首次运行需确认其数据库、定义、模型连接和权限范围。
 
 模式选择顺序为：自动 E2E 启动器锁定值、显式 CLI 参数、当前工作区保存的有效交互选择、Local。只有服务端接受的交互选择写入本地偏好；自动测试使用自己的参数和目录。
 
-手动进入 E2E 时允许切换到 Local 或 Prod，退出前提示并结束该临时环境的活跃工作，关闭存储并清理自己拥有的状态；用户可先显式导出定义或证据。自动 E2E 的 `locked` 与 `automated` 由受信启动器设置，服务端将模式和资源根固定到本次测试。测试仍可在该范围内新建和切换 Squad／Harness。
+手动进入 E2E 时允许切换到 Local，退出前提示并结束该临时环境的活跃工作，关闭存储并清理自己拥有的状态；用户可先显式导出定义或证据。自动 E2E 的 `locked` 与 `automated` 由受信启动器设置，服务端将模式和资源根固定到本次测试。测试仍可在该范围内新建和切换 Squad／Harness。
 
 ### 切换与请求隔离
 
@@ -259,9 +258,6 @@ data/
         evals/<evaluation-id>/
           report.json
           evidence/
-  prod/
-    environments/<environment-id>/
-      ...
   e2e/<run-id>/
     owner.json
     workspace/squads/
@@ -270,11 +266,11 @@ data/
     reports/
 ```
 
-Prod 和 E2E 的 `environments/` 使用与 Local 相同的内部结构。`environment.json` 保存模式、环境身份与目录归属，`binding.json` 保存 `RuntimeScope`、定义摘要、运行版本、无凭据配置和模型连接 ID，并与 Pi 的绑定 Document 核对。`definition/` 是 Harness 已加载的不可变快照，E2E 的 `workspace/squads/` 则是独立可编辑源。
+E2E 的 `environments/` 使用与 Local 相同的内部结构。`environment.json` 保存模式、环境身份与目录归属，`binding.json` 保存 `RuntimeScope`、定义摘要、运行版本、无凭据配置和模型连接 ID，并与 Pi 的绑定 Document 核对。`definition/` 是 Harness 已加载的不可变快照，E2E 的 `workspace/squads/` 则是独立可编辑源。
 
 SQLite、WAL 和 SHM 文件归同一 Harness，打开前取得独占权。创建、seed、重置与清理核对规范化路径、归属标记、模式和活跃所有者，目录组件必须为归属范围内的真实目录。模型凭据留在本机私有配置，按环境显式提供；E2E 子进程仅获得虚构连接配置和本次认证材料。
 
-Local／Prod 正常重启重新打开原数据库。用户选择另一绑定就是切换到另一份本地数据库，旧绑定保留自己的状态。显式清理先关闭选定 Harness，确认路径和身份后释放对应数据；自动测试的清理只处理 `owner.json` 标记的本次进程、文件和容器。
+Local 正常重启重新打开原数据库。用户选择另一绑定就是切换到另一份本地数据库，旧绑定保留自己的状态。显式清理先关闭选定 Harness，确认路径和身份后释放对应数据；自动测试的清理只处理 `owner.json` 标记的本次进程、文件和容器。
 
 产物写入采用 `RuntimeScope` 与 Tool Task 组成的稳定操作键、内容摘要和原子落盘，成功后返回不可变引用。脚本回执还核对定义、入口和输入摘要；重启后相同操作可读取已保存回执，内容冲突返回诊断。用户通过页面查看数据与证据的保存位置。
 
@@ -296,9 +292,9 @@ seeds/
 | `empty` | 只有目录归属、应用初始化与本次认证条件，Squad、Harness 绑定和运行历史均为空 | 从零搭建的 E2E 与空状态验证 |
 | `sample` | 在新建范围内登记或复制样例定义，通过公共入口创建绑定，运行从正常会话入口开始 | 手动体验、聚焦交互测试和界面截图 |
 
-E2E 默认使用 `empty`。从零搭建测试可以读取已追踪的文本和脚本作为填写内容，创建与保存通过真实 UI 完成。`sample` 显式选择：Local 登记已有的样例源并建立新绑定，E2E 将样例复制到本次定义工作区。Prod 通过用户选择的定义与真实配置建立绑定。
+E2E 默认使用 `empty`。从零搭建测试可以读取已追踪的文本和脚本作为填写内容，创建与保存通过真实 UI 完成。`sample` 显式选择：Local 登记已有的样例源并建立新绑定，E2E 将样例复制到本次定义工作区。Local 通过用户选择的定义与真实配置建立绑定。
 
-初始化使用正式的解析、文件与 Pi 接入代码，模型替身仅安装在 `Models` 边界。种子输入的版本与摘要记录在归属元数据中。seed 完成后，宿主重启沿用原范围的文件、会话和编辑；新的 E2E run 重新初始化，再次 seed 已使用的目标返回清晰诊断。seed 重置入口面向用户确认的 Local 样例运行数据与当前临时 E2E，保留 Git 管理的定义源；Prod 通过新建绑定采用选定定义。
+初始化使用正式的解析、文件与 Pi 接入代码，模型替身仅安装在 `Models` 边界。种子输入的版本与摘要记录在归属元数据中。seed 完成后，宿主重启沿用原范围的文件、会话和编辑；新的 E2E run 重新初始化，再次 seed 已使用的目标返回清晰诊断。seed 重置入口面向用户确认的 Local 样例运行数据与当前临时 E2E，保留 Git 管理的定义源。
 
 ### 脚本沙箱
 
@@ -334,7 +330,7 @@ Harness 由宿主持有，页面卸载只解除观察。本地启动期限默认
 
 用户从本地 URL 进入空工作区后，能够创建完整 Squad 的角色、Skills 与脚本，在画布上拖入步骤、连线、打开角色编辑并保存为 MD；刷新后恢复相同设计。随后检查引用与权限，绑定并启动真实 Harness，与主控对话、观察子会话、查看脚本计算与 Markdown 产物。
 
-侧栏全局切换能进入对应 Squad／Harness，Local、E2E、Prod 使用各自本机数据库，旧请求与事件保持原作用域。确定性 E2E 锁定从零创建到保存、运行和重连的路径；真实模型评估采用界面生成的同一份定义，在独立环境验证协作、恢复与报告。验收材料按 [Tests](06-tests.md) 与 [Evals](07-evals.md) 组织。
+侧栏全局切换能进入对应 Squad／Harness，Local、E2E 使用各自本机数据库，旧请求与事件保持原作用域。确定性 E2E 锁定从零创建到保存、运行和重连的路径；真实模型评估采用界面生成的同一份定义，在独立环境验证协作、恢复与报告。验收材料按 [Tests](06-tests.md) 与 [Evals](07-evals.md) 组织。
 
 ## 组件依据
 
