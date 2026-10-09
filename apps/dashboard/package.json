@@ -1,6 +1,6 @@
 {
   "name": "@frogie/dashboard",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -9,6 +9,8 @@
   },
   "dependencies": {
     "@earendil-works/chord": "1.1.0",
+    "@earendil-works/pi-ai": "1.1.0",
+    "@earendil-works/pi-durable": "1.1.0",
     "@frogie/core": "workspace:*",
     "@nocoo/basalt": "3.0.0",
     "@xyflow/react": "12.12.0",
