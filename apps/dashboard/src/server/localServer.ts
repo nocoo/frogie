@@ -20,6 +20,7 @@ import type {
   RuntimeService,
   SubmitInput,
 } from "@frogie/core/protocol";
+import sirv, { type RequestHandler } from "sirv";
 import { type Static, Type } from "typebox";
 import Value from "typebox/value";
 import type { DefinitionWorkspace } from "./definitions.js";
@@ -155,6 +156,7 @@ export interface LocalServerOptions {
   readonly service: RuntimeService;
   readonly context: Context;
   readonly definitions?: DefinitionWorkspace;
+  readonly publicDirectory?: string;
   readonly port?: number;
 }
 
@@ -297,6 +299,7 @@ export async function startLocalServer(
   let closed = false;
   let closePromise: Promise<void> | undefined;
   let origin!: string;
+  let staticFiles: RequestHandler | undefined;
   const server: Server = createServer((request, response) => {
     void handle(request, response).catch((error: unknown) => {
       if (response.headersSent) response.destroy();
@@ -356,6 +359,37 @@ export async function startLocalServer(
     const url = new URL(request.url ?? "/", origin);
     const pathname = url.pathname;
     const authRequest = identity(request);
+
+    if (pathname !== "/__local" && !pathname.startsWith("/__local/")) {
+      if (method !== "GET" && method !== "HEAD") {
+        sendJson(response, 405, {
+          error: {
+            code: "invalid_request",
+            message: "Invalid request",
+            retryable: false,
+          },
+        });
+        return;
+      }
+      if (
+        request.headers.host !== new URL(origin).host ||
+        (request.headers.origin !== undefined &&
+          request.headers.origin !== origin)
+      ) {
+        sendJson(response, 403, {
+          error: { code: "forbidden", message: "Forbidden", retryable: false },
+        });
+        return;
+      }
+      if (!staticFiles) {
+        sendJson(response, 404, {
+          error: { code: "not_found", message: "Not found", retryable: false },
+        });
+        return;
+      }
+      staticFiles(request, response);
+      return;
+    }
 
     if (method === "POST" && pathname === "/__local/auth/exchange") {
       const body = await readJson(request);
@@ -672,6 +706,20 @@ export async function startLocalServer(
     const address = server.address() as import("node:net").AddressInfo;
     origin = `http://127.0.0.1:${address.port}`;
     auth = createLocalAuth(origin);
+    if (options.publicDirectory) {
+      staticFiles = sirv(options.publicDirectory, {
+        etag: true,
+        onNoMatch(_request, response) {
+          sendJson(response, 404, {
+            error: {
+              code: "not_found",
+              message: "Not found",
+              retryable: false,
+            },
+          });
+        },
+      });
+    }
   } catch (error) {
     await close();
     throw error;

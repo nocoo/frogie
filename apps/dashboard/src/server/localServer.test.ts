@@ -1,4 +1,4 @@
-import { cp, mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { request as httpRequest } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -431,6 +431,65 @@ describe("local definition transport", () => {
 });
 
 describe("startLocalServer", () => {
+  it("serves only the built public shell with exact Host checking and no source fallback", async () => {
+    const root = await mkdtemp(join(tmpdir(), "frogie-public-"));
+    definitionRoots.push(root);
+    await mkdir(join(root, "dist/assets"), { recursive: true });
+    await writeFile(
+      join(root, "dist/index.html"),
+      "<!doctype html><title>Frogie</title>",
+    );
+    await writeFile(
+      join(root, "dist/assets/main.js"),
+      "console.log('Frogie');",
+    );
+    await writeFile(join(root, "private.txt"), "secret");
+    const server = await startLocalServer({
+      instanceId,
+      scope,
+      service: runtimeService().service,
+      context: BACKGROUND_CONTEXT,
+      publicDirectory: join(root, "dist"),
+    });
+    activeServers.push(server);
+    const home = await fetch(server.origin);
+    expect(home.status).toBe(200);
+    expect(home.headers.get("Content-Type")).toContain("text/html");
+    expect(await home.text()).toContain("<title>Frogie</title>");
+    const asset = await fetch(`${server.origin}/assets/main.js`);
+    expect(asset.status).toBe(200);
+    expect(asset.headers.get("Content-Type")).toContain("javascript");
+    expect((await fetch(`${server.origin}/src/main.tsx`)).status).toBe(404);
+    expect((await fetch(`${server.origin}/private.txt`)).status).toBe(404);
+    expect((await fetch(`${server.origin}/__local/context`)).status).toBe(401);
+    expect((await fetch(`${server.origin}/__local/unknown`)).status).toBe(404);
+    const wrongHost = await new Promise<number | undefined>(
+      (resolve, reject) => {
+        const request = httpRequest(
+          server.origin,
+          { headers: { Host: "evil.example" } },
+          (response) => {
+            response.resume();
+            response.on("end", () => resolve(response.statusCode));
+          },
+        );
+        request.on("error", reject);
+        request.end();
+      },
+    );
+    expect(wrongHost).toBe(403);
+    expect(
+      (
+        await fetch(server.origin, {
+          headers: { Origin: "https://evil.example" },
+        })
+      ).status,
+    ).toBe(403);
+    const head = await fetch(server.origin, { method: "HEAD" });
+    expect(head.status).toBe(200);
+    expect(await head.text()).toBe("");
+  });
+
   it("starts on an ephemeral loopback port and exposes only an opaque startup token in the URL fragment", async () => {
     const server = await startLocalServer({
       instanceId,
