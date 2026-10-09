@@ -444,8 +444,11 @@ describe("mountDashboard client wiring", () => {
     const sending = props?.onSend("Retry this");
     await props?.onSend("Retry this");
     expect(client.submit).toHaveBeenCalledOnce();
+    const failedSend = expect(sending).rejects.toThrow(
+      "Connection interrupted",
+    );
     pending.reject(new Error("Connection interrupted"));
-    await sending;
+    await failedSend;
     const failed = findElement(
       currentApp(root.render).props.children,
       ChatView,
@@ -651,10 +654,11 @@ describe("mountDashboard client wiring", () => {
       deferred<Awaited<ReturnType<LocalRuntimeClient["submit"]>>>();
     vi.mocked(client.submit).mockReturnValueOnce(second.promise);
     const late = props()?.onSend("Next input");
+    const lateFailure = expect(late).rejects.toThrow("Late network failure");
     dispose();
     const count = root.render.mock.calls.length;
     second.reject(new Error("Late network failure"));
-    await late;
+    await lateFailure;
     expect(root.render).toHaveBeenCalledTimes(count);
   });
 

@@ -52,7 +52,10 @@ export function mountDashboard(
   let compacting = false;
   let saving = false;
 
-  async function act(action: () => Promise<void>): Promise<void> {
+  async function act(
+    action: () => Promise<void>,
+    rethrow = false,
+  ): Promise<void> {
     if (disposed) return;
     error = null;
     try {
@@ -60,6 +63,7 @@ export function mountDashboard(
     } catch (failure) {
       if (!disposed)
         error = failure instanceof Error ? failure.message : "操作失败";
+      if (rethrow) throw failure;
     } finally {
       render();
     }
@@ -210,7 +214,7 @@ export function mountDashboard(
                 } finally {
                   sending = false;
                 }
-              })
+              }, true)
             }
             onStop={() =>
               act(async () => {
