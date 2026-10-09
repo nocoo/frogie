@@ -43,6 +43,7 @@
 - `pnpm dev` 启动本地 Dashboard，`pnpm build` 构建 Dashboard。
 - `pnpm typecheck` 执行严格类型检查；`pnpm lint` 执行 Biome 只读检查并拒绝警告。
 - `pnpm test` 提供单元测试反馈；`pnpm test:coverage` 执行全量单元测试及四项覆盖率门槛；`pnpm check` 顺序执行类型、lint 与覆盖率。
+- `pnpm test:ui` 构建并验证当前 Dashboard 的桌面与移动端布局、主题、对话和定义编辑；使用独立的 `data/e2e/` 数据及 `27033` 端口，截图和失败 trace 存入 `data/e2e/browser-results/`。
 - Pre-commit 在临时目录检查暂存快照，Pre-push 检查标准输入指定的提交及构建；工作区与暂存区保持原样。检查复用已安装的锁定依赖，依赖元数据不匹配时先安装对应依赖。
 - 以上命令对应已建立的工程入口；集成测试、完整 E2E 与真实评估按设计文档继续实现，完成证据分别验证。
 
