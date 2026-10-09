@@ -135,6 +135,34 @@ test("desktop shell geometry, bounded chat, editor and theme retain real interac
   await expect(squad).toBeEnabled();
   const rail = page.locator("aside").first();
   const island = page.locator("[data-basalt-island]");
+  const environment = page.getByRole("button", {
+    name: "运行环境",
+    exact: true,
+  });
+  const environmentBox = await box(environment);
+  expect(environmentBox.x).toBeGreaterThan(1000);
+  expect(environmentBox.y).toBeLessThan(52);
+  const avatar = rail.getByRole("img", { name: "本地用户头像", exact: true });
+  expect((await box(avatar)).y).toBeGreaterThan(900);
+  await environment.click();
+  const menu = page.getByRole("menu");
+  await expect(menu).toBeVisible();
+  for (const name of ["Local", "E2E", "Prod"]) {
+    await expect(
+      menu.getByRole("menuitemradio", { name, exact: true }),
+    ).toBeDisabled();
+  }
+  await expect(
+    menu.getByRole("menuitemradio", { name: "Local", exact: true }),
+  ).toHaveAttribute("aria-checked", "true");
+  await page.screenshot({
+    path: testInfo.outputPath("environment-desktop.png"),
+  });
+  await page.keyboard.press("Escape");
+  await expect(environment).toBeFocused();
+  await expect(
+    page.getByRole("link", { name: "Frogie on Hexly", exact: true }),
+  ).toHaveAttribute("href", "https://hexly.ai/projects/frogie");
   expect((await box(rail)).width).toBe(260);
   const selector = await box(squad);
   expect(selector.x).toBeGreaterThanOrEqual(8);
@@ -201,6 +229,7 @@ test("desktop shell geometry, bounded chat, editor and theme retain real interac
   });
   await rail.getByRole("button", { name: "收起导航", exact: true }).click();
   await expect.poll(async () => (await box(rail)).width).toBe(68);
+  await expect(avatar).toBeVisible();
   await rail.getByRole("button", { name: "展开导航", exact: true }).click();
   await expect.poll(async () => (await box(rail)).width).toBe(260);
   await page.getByRole("button", { name: "对话", exact: true }).click();
@@ -227,6 +256,21 @@ test("mobile navigation restores focus and editor and composer stay usable", asy
 }, testInfo) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(local.url);
+  const environment = page.getByRole("button", {
+    name: "运行环境",
+    exact: true,
+  });
+  await expect(environment).toBeInViewport();
+  await expect(
+    page.getByRole("link", { name: "Frogie on Hexly", exact: true }),
+  ).toBeInViewport();
+  await environment.click();
+  await expect(page.getByRole("menu")).toBeInViewport();
+  await page.screenshot({
+    path: testInfo.outputPath("environment-mobile.png"),
+  });
+  await page.keyboard.press("Escape");
+  await expect(environment).toBeFocused();
   const menu = page.getByRole("button", { name: "展开导航", exact: true });
   await expect(menu).toBeVisible();
   await menu.click();

@@ -1,4 +1,6 @@
 import {
+  Avatar,
+  AvatarFallback,
   Badge,
   Button,
   ContentIsland,
@@ -6,7 +8,6 @@ import {
   DialogTitle,
   Field,
   LinkProvider,
-  SegmentControl,
   Sidebar,
   SidebarFooter,
   SidebarHeader,
@@ -14,6 +15,7 @@ import {
   SidebarItem,
   SidebarNav,
   SidebarProvider,
+  SidebarUser,
   Text,
   ThemeProvider,
   ThemeToggle,
@@ -32,19 +34,29 @@ import {
 import { Banner } from "@nocoo/basalt/components/banner";
 import { LinkButton } from "@nocoo/basalt/components/button";
 import { Combobox } from "@nocoo/basalt/components/combobox";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@nocoo/basalt/components/dropdown-menu";
 import { PageHeader } from "@nocoo/basalt/components/page-header";
 import { AccentProvider } from "@nocoo/basalt/providers/accent";
 import {
   BookOpen,
-  CodeXml,
+  Check,
+  ChevronDown,
+  createLucideIcon,
   FlaskConical,
   GitBranch,
+  Hexagon,
   LayoutDashboard,
   Menu,
   MessageSquare,
   PanelLeftClose,
   PanelLeftOpen,
   Plus,
+  UserRound,
 } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
 
@@ -87,6 +99,18 @@ const palette = {
   green: { light: "138 36% 78%", dark: "138 36% 70%" },
 };
 
+// Original Lucide v0.577 nodes (ISC); v1 removed brand exports.
+const Github = createLucideIcon("Github", [
+  [
+    "path",
+    {
+      d: "M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4",
+      key: "body",
+    },
+  ],
+  ["path", { d: "M9 18c-4.51 2-5-2-7-2", key: "tail" }],
+]);
+
 export function AppView(props: AppViewProps) {
   const [compact, setCompact] = useState(
     () =>
@@ -109,6 +133,13 @@ export function AppView(props: AppViewProps) {
     (squad) => squad.id === props.selectedSquadId,
   )?.title;
   const expanded = !collapsed || compact;
+  const avatar = (
+    <Avatar role="img" aria-label="本地用户头像">
+      <AvatarFallback>
+        <UserRound aria-hidden="true" size={16} strokeWidth={1.5} />
+      </AvatarFallback>
+    </Avatar>
+  );
   return (
     <ThemeProvider>
       <AccentProvider accent="green" persist={false} paletteOverrides={palette}>
@@ -128,7 +159,7 @@ export function AppView(props: AppViewProps) {
                     <>
                       <DialogTitle className="sr-only">工作区导航</DialogTitle>
                       <DialogDescription className="sr-only">
-                        选择 Squad、环境和页面。
+                        选择 Squad 和页面。
                       </DialogDescription>
                     </>
                   )}
@@ -242,17 +273,16 @@ export function AppView(props: AppViewProps) {
                   </SidebarNav>
                   <SidebarFooter>
                     {expanded ? (
-                      <SegmentControl
-                        legend="运行环境"
-                        value={props.mode}
-                        options={modes}
-                        disabled={props.busy || props.canChangeMode === false}
-                        onValueChange={(value) =>
-                          props.onModeChange(value as Mode)
-                        }
+                      <SidebarUser
+                        name="本地用户"
+                        email="local-user"
+                        avatar={avatar}
                       />
                     ) : (
-                      <Badge variant="secondary">{modeLabel}</Badge>
+                      <Tooltip>
+                        <TooltipTrigger asChild>{avatar}</TooltipTrigger>
+                        <TooltipContent side="right">本地用户</TooltipContent>
+                      </Tooltip>
                     )}
                   </SidebarFooter>
                 </Sidebar>
@@ -284,9 +314,61 @@ export function AppView(props: AppViewProps) {
                     }
                     actions={
                       <>
-                        <Badge variant="secondary">{modeLabel}</Badge>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              aria-label="运行环境"
+                              disabled={props.busy}
+                            >
+                              {modeLabel}
+                              <ChevronDown
+                                aria-hidden="true"
+                                size={16}
+                                strokeWidth={1.5}
+                              />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent
+                            align="end"
+                            aria-label="运行环境选项"
+                          >
+                            {props.canChangeMode === false && (
+                              <Text
+                                size="sm"
+                                tone="muted"
+                                className="frogie-environment-hint"
+                              >
+                                当前运行端固定环境
+                              </Text>
+                            )}
+                            {modes.map((mode) => (
+                              <DropdownMenuItem
+                                key={mode.value}
+                                role="menuitemradio"
+                                aria-checked={props.mode === mode.value}
+                                disabled={
+                                  props.busy || props.canChangeMode === false
+                                }
+                                onSelect={() => props.onModeChange(mode.value)}
+                              >
+                                <Check
+                                  aria-hidden="true"
+                                  size={16}
+                                  strokeWidth={1.5}
+                                  visibility={
+                                    props.mode === mode.value
+                                      ? "visible"
+                                      : "hidden"
+                                  }
+                                />
+                                {mode.label}
+                              </DropdownMenuItem>
+                            ))}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                         {props.busy && (
-                          <Text as="span" size="sm" role="status">
+                          <Text as="span" className="sr-only" role="status">
                             处理中
                           </Text>
                         )}
@@ -298,13 +380,30 @@ export function AppView(props: AppViewProps) {
                           variant="ghost"
                           aria-label="Frogie GitHub 仓库"
                         >
-                          <CodeXml
+                          <Github
                             aria-hidden="true"
                             size={16}
                             strokeWidth={1.5}
                           />
                           <Text as="span" className="sr-only">
                             GitHub
+                          </Text>
+                        </LinkButton>
+                        <LinkButton
+                          href="https://hexly.ai/projects/frogie"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          size="icon"
+                          variant="ghost"
+                          aria-label="Frogie on Hexly"
+                        >
+                          <Hexagon
+                            aria-hidden="true"
+                            size={16}
+                            strokeWidth={1.5}
+                          />
+                          <Text as="span" className="sr-only">
+                            Frogie on Hexly
                           </Text>
                         </LinkButton>
                         <ThemeToggle aria-label="切换浅色与深色主题" />

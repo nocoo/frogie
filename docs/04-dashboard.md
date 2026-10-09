@@ -71,7 +71,7 @@ Workflow 专业画布采用已核实的稳定版 `@xyflow/react@12.12.0`，其 R
 
 组合顺序采用 Basalt 的 `AppShell`、`Sidebar`、`AppMain`、`AppSkipLink`、`AppHeader` 和一个 `ContentIsland`。内容页以 `PageHeader` 开始，分区使用 `SectionRule`，成组内容使用 `LayerCard`。
 
-侧栏顶部显示现有 Frogie 标志、名称、构建版本与折叠操作，紧接全局 Squad／Harness 切换器，下方导航围绕当前 Squad 展开。Local／E2E／Prod 选择位于侧栏底部。Header 显示真实上级路径、当前页面、环境标识、连接状态、GitHub 入口和末位主题切换。页面操作位于内容标题行，新建 Squad 属于概览页面。
+侧栏顶部显示现有 Frogie 标志、名称、构建版本与折叠操作，紧接全局 Squad／Harness 切换器，下方导航围绕当前 Squad 展开，底部显示用户头像与身份。Header 左侧显示真实上级路径和当前页面，右侧依次放置 Local／E2E／Prod 运行环境下拉、GitHub、Hexly 入口与主题切换。下拉与头像使用 Basalt 公开控件，运行端能力决定环境选项是否可用。页面操作位于内容标题行，新建 Squad 属于概览页面。
 
 使用 `ThemeProvider`、`AccentProvider`、`LinkProvider`、`TooltipProvider` 和单个全局 `Toaster`。品牌采用淡绿色，通过 `AccentProvider.paletteOverrides` 定义 `green`，用于导航选中态与用户消息。语义按钮颜色沿用 Basalt 的对比度推导。保留 Frogie 现有图稿，使用合适尺寸的衍生资产。
 

@@ -31,6 +31,10 @@ body {
   flex-shrink: 0;
 }
 
+.frogie-environment-hint {
+  padding: var(--basalt-space-lg);
+}
+
 .frogie-workspace-selector {
   flex-shrink: 0;
   margin-block-end: var(--basalt-space-layout);

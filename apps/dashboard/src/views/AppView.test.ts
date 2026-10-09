@@ -75,4 +75,20 @@ describe("AppView", () => {
     const sidebar = render().match(/<aside\b[\s\S]*?<\/aside>/)?.[0];
     expect(sidebar).toContain('aria-label="收起导航"');
   });
+
+  it("keeps runtime selection and framework links in the header, and identity in the rail", () => {
+    const html = render();
+    const sidebar = html.match(/<aside\b[\s\S]*?<\/aside>/)?.[0];
+    expect(sidebar).toContain("本地用户头像");
+    expect(sidebar).toContain("local-user");
+    expect(sidebar).not.toContain('aria-label="运行环境"');
+    const mainHeader = html.match(
+      /<main\b[\s\S]*?<header\b([\s\S]*?)<\/header>/,
+    )?.[1];
+    expect(mainHeader).toContain('aria-label="运行环境"');
+    expect(mainHeader).toContain('aria-haspopup="menu"');
+    expect(mainHeader).toContain('aria-label="Frogie GitHub 仓库"');
+    expect(mainHeader).toContain('href="https://hexly.ai/projects/frogie"');
+    expect(mainHeader).toContain('aria-label="切换浅色与深色主题"');
+  });
 });
