@@ -35,6 +35,15 @@
 - Dashboard 使用 Basalt 3.0.0 发布组件、Tokens 和官方 Recipes。所有容器、按钮与表单优先按参考模板组合；专业画布使用 React Flow，外围和节点内容继续使用 Basalt。
 - 独立测试 agent 根据行为契约建立红灯，实现 agent 负责使其通过；主控协调文件归属、接口、依赖与提交。
 
+## 开发命令
+
+- 使用 Node.js 26 与 `pnpm install --frozen-lockfile` 安装锁定依赖；安装后由 Husky 设置 Git hooks。
+- `pnpm dev` 启动本地 Dashboard，`pnpm build` 构建 Dashboard。
+- `pnpm typecheck` 执行严格类型检查；`pnpm lint` 执行 Biome 只读检查并拒绝警告。
+- `pnpm test` 提供单元测试反馈；`pnpm test:coverage` 执行全量单元测试及四项覆盖率门槛；`pnpm check` 顺序执行类型、lint 与覆盖率。
+- Pre-commit 在临时目录检查暂存快照，Pre-push 检查标准输入指定的提交及构建；工作区与暂存区保持原样。检查复用已安装的锁定依赖，依赖元数据不匹配时先安装对应依赖。
+- 以上命令对应已建立的工程入口；集成测试、完整 E2E 与真实评估按设计文档继续实现，完成证据分别验证。
+
 ## 本地数据
 
 - `squads/` 定义和 `seeds/` 初始化源码及输入纳入 Git；生成的本地数据统一放在已忽略的 `data/`。

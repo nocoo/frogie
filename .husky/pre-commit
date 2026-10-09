@@ -1,0 +1,12 @@
+set -eu
+root=$(git rev-parse --show-toplevel)
+temporary=$(mktemp -d "${TMPDIR:-/tmp}/frogie-hook-XXXXXX")
+trap 'rm -rf "$temporary"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+for name in check gate cli; do
+  git show ":scripts/$name.ts" > "$temporary/$name.ts"
+done
+TSX_DISABLE_CACHE=1 node --import "$root/node_modules/tsx/dist/loader.mjs" --input-type=module -e \
+  'const { main } = await import(process.argv[1]); await main(["index", process.argv[2]], "")' \
+  "$temporary/cli.ts" "$root"

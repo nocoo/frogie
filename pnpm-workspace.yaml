@@ -1,0 +1,17 @@
+packages:
+  - packages/core
+  - apps/dashboard
+
+allowBuilds:
+  '@google/genai': false
+  esbuild: true
+  protobufjs: false
+
+minimumReleaseAgeExclude:
+  - '@nocoo/basalt@3.0.0'
+  - lucide-react@1.54.0
+  - vite@8.3.4
+
+strictPeerDependencies: true
+
+verifyDepsBeforeRun: false

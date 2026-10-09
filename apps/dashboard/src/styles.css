@@ -1,0 +1,12 @@
+@import "@nocoo/basalt/styles/standalone";
+
+html,
+body,
+#root {
+  min-width: 0;
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+}

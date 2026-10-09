@@ -1,0 +1,23 @@
+set -eu
+root=$(git rev-parse --show-toplevel)
+temporary=$(mktemp -d "${TMPDIR:-/tmp}/frogie-hook-XXXXXX")
+trap 'rm -rf "$temporary"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+while read -r local_ref revision remote_ref remote_revision extra; do
+  [ -z "$extra" ] && [ -n "$remote_revision" ] || exit 1
+  case "$revision" in
+    *[!0-9a-fA-F]*|'') exit 1 ;;
+  esac
+  case ${#revision} in 40|64) ;; *) exit 1 ;; esac
+  case "$revision" in *[!0]*) ;; *) continue ;; esac
+  [ ! -f "$temporary/checked-$revision" ] || continue
+  for name in check gate cli; do
+    git show "$revision:scripts/$name.ts" > "$temporary/$name.ts"
+  done
+  printf '%s %s %s %s\n' "$local_ref" "$revision" "$remote_ref" "$remote_revision" |
+    TSX_DISABLE_CACHE=1 node --import "$root/node_modules/tsx/dist/loader.mjs" --input-type=module -e \
+      'import { readFileSync } from "node:fs"; const { main } = await import(process.argv[1]); await main(["push", process.argv[2]], readFileSync(0, "utf8"))' \
+      "$temporary/cli.ts" "$root"
+  touch "$temporary/checked-$revision"
+done
