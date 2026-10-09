@@ -23,9 +23,9 @@ ViewModel 接收服务依赖，以普通 TypeScript 状态转换和 React 绑定
 
 ## 启动与访问
 
-规划的用户入口为 `frogie dashboard --workspace <path> --mode local|e2e|prod`。模式参数可省略，CLI 选择工作区，输出 `127.0.0.1` 本地 URL；端口冲突时返回明确错误或使用用户指定端口。服务只绑定 loopback 地址。
+规划的用户入口为 `frogie dashboard --workspace <path> --mode local|e2e|prod`。模式参数可省略。人工开发与验收使用 `https://frogie.dev.hexly.ai`，Caddy 将 HTTPS 转发到 `127.0.0.1:7033`；服务只绑定 loopback 地址。隔离自动化测试使用独立的 loopback HTTP 来源。
 
-首次打开通过一次性启动凭据建立会话，凭据放在 URL fragment，浏览器交换后清除；服务端颁发短期 HttpOnly、SameSite 会话 Cookie。模型凭据只由宿主配置读取，界面显示已配置的连接名称与可用状态。
+首次打开通过一次性启动凭据建立会话，凭据放在 URL fragment，浏览器交换后清除；服务端颁发短期 HttpOnly、SameSite 会话 Cookie，HTTPS 来源同时设置 Secure。刷新通过已有 Cookie 恢复认证并取得 CSRF，不重复使用启动凭据。模型凭据只由宿主配置读取，界面显示已配置的连接名称与可用状态。
 
 服务验证 Host、Origin 和请求身份，写操作具有 CSRF 防护，跨源访问按明确本地来源限制。文件操作限定 CLI 授权的工作区；运行连接限定已登记的本地运行端。请求日志和错误输出保留诊断信息并过滤凭据。
 

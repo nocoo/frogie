@@ -37,6 +37,8 @@
 
 ## 开发命令
 
+- 本地人工验收入口为 `https://frogie.dev.hexly.ai`，现有 Caddy 转发至 `127.0.0.1:7033`。L2／浏览器端口分别保留 `17033`／`27033`，Vite 辅助端口为 `37033`；隔离测试可以使用临时 loopback 端口。
+- 应用版本以根 `package.json` 为唯一来源，工作区包版本同步；界面显示 `vX.Y.Z`，`/api/live` 返回 `X.Y.Z`。调整版本和发布分别执行，远端操作遵循明确授权。
 - 使用 Node.js 26 与 `pnpm install --frozen-lockfile` 安装锁定依赖；安装后由 Husky 设置 Git hooks。
 - `pnpm dev` 启动本地 Dashboard，`pnpm build` 构建 Dashboard。
 - `pnpm typecheck` 执行严格类型检查；`pnpm lint` 执行 Biome 只读检查并拒绝警告。
