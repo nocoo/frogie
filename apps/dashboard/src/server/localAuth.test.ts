@@ -12,6 +12,31 @@ const request: LocalRequestIdentity = {
 afterEach(() => vi.useRealTimers());
 
 describe("local authentication", () => {
+  it("uses Secure cookies and exact Caddy origin for the local HTTPS domain", () => {
+    const origin = "https://frogie.dev.hexly.ai";
+    const identity = { ...request, host: "frogie.dev.hexly.ai", origin };
+    const auth = createLocalAuth(origin);
+    const session = auth.exchange(identity, auth.bootstrapToken);
+    expect(session.cookie).toContain("; Secure");
+    const authenticated = {
+      ...identity,
+      cookie: session.cookie.split(";")[0],
+      csrf: session.csrf,
+    };
+    expect(auth.authorize(authenticated, true)).toEqual(session.caller);
+    expect(
+      auth.resume({ ...authenticated, csrf: undefined, origin: undefined }),
+    ).toEqual({ csrf: session.csrf, caller: session.caller });
+    expect(() =>
+      auth.resume({ ...authenticated, origin: "https://other.dev.hexly.ai" }),
+    ).toThrow();
+    expect(() =>
+      auth.resume({ ...authenticated, cookie: undefined }),
+    ).toThrow();
+    auth.close();
+    expect(() => auth.resume(authenticated)).toThrow();
+  });
+
   it("exchanges a one-time token for a scoped HttpOnly session", () => {
     const auth = createLocalAuth(origin);
     expect(auth.bootstrapToken).toMatch(/^[a-zA-Z0-9_-]{43,}$/);
@@ -46,6 +71,12 @@ describe("local authentication", () => {
     "http://user:pass@127.0.0.1:4317",
     "http://127.0.0.1:4317/?secret=value",
     "not-a-url",
+    "http://frogie.dev.hexly.ai",
+    "https://frogie.dev.hexly.ai.evil.example",
+    "https://other.dev.hexly.ai",
+    "https://frogie.dev.hexly.ai:444",
+    "https://frogie.dev.hexly.ai/",
+    "https://frogie.dev.hexly.ai#token=x",
   ])("rejects an unsupported local origin: %s", (value) => {
     expect(() => createLocalAuth(value)).toThrow();
   });

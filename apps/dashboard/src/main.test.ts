@@ -238,19 +238,21 @@ describe("mountDashboard client wiring", () => {
     expect(client.listSquads).toHaveBeenCalledOnce();
   });
 
-  it("does not connect without the default startup token and renders a recoverable error", async () => {
+  it("resumes the existing session when the startup fragment is absent", async () => {
     vi.stubGlobal("document", { getElementById: () => elements[0] });
-    vi.stubGlobal("location", { hash: "" });
+    vi.stubGlobal("location", { hash: "", origin, pathname: "/", search: "" });
     vi.stubGlobal("history", { replaceState: vi.fn() });
     const root = makeRoot();
     const element = { nodeType: 1 } as HTMLElement;
     elements.push(element);
+    rootMock.connect.mockResolvedValue(createClient().client);
 
     mount(element);
     await vi.waitFor(() =>
-      expect(currentApp(root.render).props.error).toBeTruthy(),
+      expect(currentApp(root.render).props.busy).toBe(false),
     );
-    expect(rootMock.connect).not.toHaveBeenCalled();
+    expect(rootMock.connect).toHaveBeenCalledWith({ origin });
+    expect(currentApp(root.render).props.error).toBeNull();
   });
 
   it("clears the default token fragment before connecting", async () => {

@@ -324,9 +324,10 @@ export function mountDashboard(
             "",
             `${location.pathname}${location.search}`,
           );
-          if (!token)
-            throw new Error("缺少启动凭据，请从本地服务提供的链接打开。");
-          return connectLocalRuntime({ origin: location.origin, token });
+          return connectLocalRuntime({
+            origin: location.origin,
+            ...(token === null ? {} : { token }),
+          });
         });
       const connected = await connect();
       if (disposed) {

@@ -16,6 +16,7 @@ export interface LocalSession {
 export interface LocalAuth {
   readonly bootstrapToken: string;
   exchange(request: LocalRequestIdentity, token: string): LocalSession;
+  resume(request: LocalRequestIdentity): Pick<LocalSession, "csrf" | "caller">;
   authorize(
     request: LocalRequestIdentity,
     write: boolean,
@@ -36,8 +37,10 @@ export function createLocalAuth(origin: string): LocalAuth {
     return fail("invalid_request");
   }
   if (
-    url.protocol !== "http:" ||
-    url.hostname !== "127.0.0.1" ||
+    !(
+      (url.protocol === "http:" && url.hostname === "127.0.0.1") ||
+      origin === "https://frogie.dev.hexly.ai"
+    ) ||
     url.origin !== origin
   )
     fail("invalid_request");
@@ -71,6 +74,24 @@ export function createLocalAuth(origin: string): LocalAuth {
       fail("forbidden");
   };
 
+  const authorize = (request: LocalRequestIdentity, write: boolean) => {
+    if (closed || !session || Date.now() >= session.expires)
+      return fail("unauthenticated");
+    verifyOrigin(request, write);
+    const cookies = new Map<string, string>();
+    for (const part of request.cookie?.split(";") ?? []) {
+      const separator = part.indexOf("=");
+      if (separator < 1) fail("invalid_request");
+      const name = part.slice(0, separator).trim();
+      if (!name || cookies.has(name)) fail("invalid_request");
+      cookies.set(name, part.slice(separator + 1).trim());
+    }
+    if (!matches(cookies.get("frogie_session"), session.token))
+      fail("unauthenticated");
+    if (write && !matches(request.csrf, session.csrf)) fail("forbidden");
+    return session;
+  };
+
   return {
     bootstrapToken,
     exchange(request, token) {
@@ -89,27 +110,17 @@ export function createLocalAuth(origin: string): LocalAuth {
       };
       bootstrap = "";
       return {
-        cookie: `frogie_session=${tokenValue}; HttpOnly; SameSite=Strict; Path=/__local; Max-Age=28800`,
+        cookie: `frogie_session=${tokenValue}; HttpOnly; SameSite=Strict; Path=/__local; Max-Age=28800${url.protocol === "https:" ? "; Secure" : ""}`,
         csrf,
         caller,
       };
     },
+    resume(request) {
+      const { csrf, caller } = authorize(request, false);
+      return { csrf, caller };
+    },
     authorize(request, write) {
-      if (closed || !session || Date.now() >= session.expires)
-        return fail("unauthenticated");
-      verifyOrigin(request, write);
-      const cookies = new Map<string, string>();
-      for (const part of request.cookie?.split(";") ?? []) {
-        const separator = part.indexOf("=");
-        if (separator < 1) fail("invalid_request");
-        const name = part.slice(0, separator).trim();
-        if (!name || cookies.has(name)) fail("invalid_request");
-        cookies.set(name, part.slice(separator + 1).trim());
-      }
-      if (!matches(cookies.get("frogie_session"), session.token))
-        fail("unauthenticated");
-      if (write && !matches(request.csrf, session.csrf)) fail("forbidden");
-      return session.caller;
+      return authorize(request, write).caller;
     },
     close() {
       closed = true;

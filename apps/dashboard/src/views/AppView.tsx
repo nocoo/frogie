@@ -134,7 +134,9 @@ export function AppView(props: AppViewProps) {
                         <Text as="strong" bold>
                           Frogie
                         </Text>
-                        <Badge variant="secondary">v{props.version}</Badge>
+                        <Badge variant="secondary" className="font-mono">
+                          v{props.version}
+                        </Badge>
                       </>
                     )}
                   </SidebarHeader>

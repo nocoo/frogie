@@ -23,6 +23,7 @@ import type {
 import sirv, { type RequestHandler } from "sirv";
 import { type Static, Type } from "typebox";
 import Value from "typebox/value";
+import { version } from "../../../../package.json";
 import type { DefinitionWorkspace } from "./definitions.js";
 import {
   createLocalAuth,
@@ -157,6 +158,7 @@ export interface LocalServerOptions {
   readonly context: Context;
   readonly definitions?: DefinitionWorkspace;
   readonly publicDirectory?: string;
+  readonly publicOrigin?: string;
   readonly port?: number;
 }
 
@@ -381,6 +383,10 @@ export async function startLocalServer(
         });
         return;
       }
+      if (method === "GET" && pathname === "/api/live") {
+        sendJson(response, 200, { status: "ok", version });
+        return;
+      }
       if (!staticFiles) {
         sendJson(response, 404, {
           error: { code: "not_found", message: "Not found", retryable: false },
@@ -388,6 +394,11 @@ export async function startLocalServer(
         return;
       }
       staticFiles(request, response);
+      return;
+    }
+
+    if (method === "GET" && pathname === "/__local/auth/session") {
+      sendJson(response, 200, auth.resume(authRequest));
       return;
     }
 
@@ -704,7 +715,7 @@ export async function startLocalServer(
       });
     });
     const address = server.address() as import("node:net").AddressInfo;
-    origin = `http://127.0.0.1:${address.port}`;
+    origin = options.publicOrigin ?? `http://127.0.0.1:${address.port}`;
     auth = createLocalAuth(origin);
     if (options.publicDirectory) {
       staticFiles = sirv(options.publicDirectory, {

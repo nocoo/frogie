@@ -81,7 +81,7 @@ function sameScope(left: RuntimeScope, right: RuntimeScope): boolean {
 
 export interface LocalRuntimeOptions {
   readonly origin: string;
-  readonly token: string;
+  readonly token?: string;
   readonly fetch?: typeof fetch;
 }
 
@@ -130,10 +130,12 @@ export async function connectLocalRuntime(
     throw failure("invalid_request", "Invalid local runtime origin");
   }
   if (
-    origin.protocol !== "http:" ||
-    origin.hostname !== "127.0.0.1" ||
+    !(
+      (origin.protocol === "http:" && origin.hostname === "127.0.0.1") ||
+      options.origin === "https://frogie.dev.hexly.ai"
+    ) ||
     origin.origin !== options.origin ||
-    !options.token
+    options.token === ""
   )
     throw failure("invalid_request", "Invalid local runtime connection");
 
@@ -199,9 +201,10 @@ export async function connectLocalRuntime(
     }
   };
 
-  const auth = await request("/__local/auth/exchange", {
-    token: options.token,
-  });
+  const auth =
+    options.token === undefined
+      ? await request("/__local/auth/session")
+      : await request("/__local/auth/exchange", { token: options.token });
   if (!Value.Check(authSchema, auth))
     throw failure(
       "runtime_unavailable",

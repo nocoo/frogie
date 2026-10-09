@@ -21,7 +21,7 @@ import { defineDoc, Harness } from "@earendil-works/pi-durable";
 import piDurablePackage from "@earendil-works/pi-durable/package.json" with {
   type: "json",
 };
-import corePackage from "../../package.json" with { type: "json" };
+import corePackage from "../../../../package.json" with { type: "json" };
 import type {
   DefinitionDefaults,
   DefinitionModel,

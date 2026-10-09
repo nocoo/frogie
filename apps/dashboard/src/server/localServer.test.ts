@@ -10,6 +10,7 @@ import type {
   RuntimeService,
 } from "@frogie/core/protocol";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { version } from "../../../../package.json";
 import { createDefinitionWorkspace } from "./definitions.js";
 import { type LocalServer, startLocalServer } from "./localServer.js";
 
@@ -431,6 +432,62 @@ describe("local definition transport", () => {
 });
 
 describe("startLocalServer", () => {
+  it("reports the authoritative application version without runtime data", async () => {
+    const { server } = await launch();
+    const response = await fetch(`${server.origin}/api/live`);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ status: "ok", version });
+    expect(
+      (
+        await fetch(`${server.origin}/api/live`, {
+          headers: { Origin: "https://evil.example" },
+        })
+      ).status,
+    ).toBe(403);
+  });
+  it("honors an explicit Caddy origin and resumes the cookie session", async () => {
+    const publicOrigin = "https://frogie.dev.hexly.ai";
+    const server = await startLocalServer({
+      instanceId,
+      scope,
+      service: runtimeService().service,
+      context: BACKGROUND_CONTEXT,
+      publicOrigin,
+    });
+    activeServers.push(server);
+    expect(server.origin).toBe(publicOrigin);
+    expect(server.url.startsWith(`${publicOrigin}/#token=`)).toBe(true);
+  });
+
+  it("returns session CSRF only for an authenticated browser", async () => {
+    const { server, cookie, credentials } = await start();
+    const endpoint = `${server.origin}/__local/auth/session`;
+    expect((await fetch(endpoint)).status).toBe(401);
+    const resumed = await fetch(endpoint, { headers: { Cookie: cookie } });
+    expect(resumed.status).toBe(200);
+    expect(await resumed.json()).toEqual(credentials);
+    expect(resumed.headers.get("Cache-Control")).toBe("no-store");
+    expect(
+      (
+        await fetch(endpoint, {
+          headers: { Cookie: cookie, Origin: "https://evil.example" },
+        })
+      ).status,
+    ).toBe(403);
+  });
+
+  it("rejects unsupported configured public origins", async () => {
+    await expect(
+      startLocalServer({
+        instanceId,
+        scope,
+        service: runtimeService().service,
+        context: BACKGROUND_CONTEXT,
+        publicOrigin: "https://evil.example",
+      }),
+    ).rejects.toThrow();
+  });
+
   it("serves only the built public shell with exact Host checking and no source fallback", async () => {
     const root = await mkdtemp(join(tmpdir(), "frogie-public-"));
     definitionRoots.push(root);

@@ -126,6 +126,36 @@ function frame(
 }
 
 describe("connectLocalRuntime", () => {
+  it("resumes the HTTPS session without reusing a startup token", async () => {
+    const fixture = successfulFetch();
+    const client = await connectLocalRuntime({
+      origin: "https://frogie.dev.hexly.ai",
+      fetch: fixture.fetch,
+    });
+    expect(requestUrl(callAt(fixture.calls, 0)).href).toBe(
+      "https://frogie.dev.hexly.ai/__local/auth/session",
+    );
+    expect(requestInit(callAt(fixture.calls, 0)).method).toBe("GET");
+    expect(requestInit(callAt(fixture.calls, 0)).credentials).toBe(
+      "same-origin",
+    );
+    expect(client.context).toEqual(context);
+    client.dispose();
+  });
+
+  it("exchanges a provided token on the exact HTTPS domain", async () => {
+    const fixture = successfulFetch();
+    const client = await connectLocalRuntime({
+      origin: "https://frogie.dev.hexly.ai",
+      token: "once",
+      fetch: fixture.fetch,
+    });
+    expect(requestUrl(callAt(fixture.calls, 0)).href).toBe(
+      "https://frogie.dev.hexly.ai/__local/auth/exchange",
+    );
+    client.dispose();
+  });
+
   it("exchanges the fragment token, loads context and connects with same-origin credentials", async () => {
     const fixture = successfulFetch();
     const client = await connectLocalRuntime({
