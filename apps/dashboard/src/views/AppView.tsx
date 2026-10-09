@@ -8,6 +8,7 @@ import {
   DialogTitle,
   Field,
   LinkProvider,
+  SegmentControl,
   Sidebar,
   SidebarFooter,
   SidebarHeader,
@@ -34,18 +35,10 @@ import {
 import { Banner } from "@nocoo/basalt/components/banner";
 import { LinkButton } from "@nocoo/basalt/components/button";
 import { Combobox } from "@nocoo/basalt/components/combobox";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@nocoo/basalt/components/dropdown-menu";
 import { PageHeader } from "@nocoo/basalt/components/page-header";
 import { AccentProvider } from "@nocoo/basalt/providers/accent";
 import {
   BookOpen,
-  Check,
-  ChevronDown,
   createLucideIcon,
   FlaskConical,
   GitBranch,
@@ -150,7 +143,10 @@ export function AppView(props: AppViewProps) {
               onCollapsedChange={setCollapsed}
               overlay={compact}
             >
-              <AppShell layout="workspace" className="basalt-ui frogie-shell">
+              <AppShell
+                layout="workspace"
+                className="basalt-ui text-basalt-foreground frogie-shell"
+              >
                 <AppSkipLink>跳转到主要内容</AppSkipLink>
                 <Sidebar
                   aria-label={`Frogie 导航 · ${squadTitle ?? "未选择 Squad"} · ${modeLabel}`}
@@ -288,6 +284,7 @@ export function AppView(props: AppViewProps) {
                 </Sidebar>
                 <AppMain aria-busy={props.busy}>
                   <AppHeader
+                    className="frogie-app-header"
                     density="compact"
                     title={title}
                     {...(!compact && squadTitle
@@ -314,59 +311,17 @@ export function AppView(props: AppViewProps) {
                     }
                     actions={
                       <>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              aria-label="运行环境"
-                              disabled={props.busy}
-                            >
-                              {modeLabel}
-                              <ChevronDown
-                                aria-hidden="true"
-                                size={16}
-                                strokeWidth={1.5}
-                              />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent
-                            align="end"
-                            aria-label="运行环境选项"
-                          >
-                            {props.canChangeMode === false && (
-                              <Text
-                                size="sm"
-                                tone="muted"
-                                className="frogie-environment-hint"
-                              >
-                                当前运行端固定环境
-                              </Text>
-                            )}
-                            {modes.map((mode) => (
-                              <DropdownMenuItem
-                                key={mode.value}
-                                role="menuitemradio"
-                                aria-checked={props.mode === mode.value}
-                                disabled={
-                                  props.busy || props.canChangeMode === false
-                                }
-                                onSelect={() => props.onModeChange(mode.value)}
-                              >
-                                <Check
-                                  aria-hidden="true"
-                                  size={16}
-                                  strokeWidth={1.5}
-                                  visibility={
-                                    props.mode === mode.value
-                                      ? "visible"
-                                      : "hidden"
-                                  }
-                                />
-                                {mode.label}
-                              </DropdownMenuItem>
-                            ))}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                        <SegmentControl
+                          aria-label="运行环境"
+                          legend={<span className="sr-only">运行环境</span>}
+                          className="frogie-environment"
+                          value={props.mode}
+                          options={modes}
+                          disabled={props.busy || props.canChangeMode === false}
+                          onValueChange={(value) =>
+                            props.onModeChange(value as Mode)
+                          }
+                        />
                         {props.busy && (
                           <Text as="span" className="sr-only" role="status">
                             处理中

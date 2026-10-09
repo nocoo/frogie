@@ -123,6 +123,104 @@ async function readableGreen(locator: Locator) {
   ).toBeGreaterThanOrEqual(4.5);
 }
 
+async function readableControl(locator: Locator) {
+  await expect
+    .poll(async () =>
+      locator
+        .evaluate((element) => {
+          const rgb = (value: string) =>
+            value.match(/[\d.]+/g)?.map(Number) ?? [];
+          let surface: Element | null = element;
+          let background: number[] = [];
+          while (surface) {
+            const color = rgb(getComputedStyle(surface).backgroundColor);
+            if (color.length === 3 || color[3] === 1) {
+              background = color;
+              break;
+            }
+            surface = surface.parentElement;
+          }
+          const style = getComputedStyle(element);
+          const foreground = rgb(style.color);
+          const luminance = (color: number[]) =>
+            color.slice(0, 3).reduce((sum, channel, index) => {
+              const value = channel / 255;
+              const linear =
+                value <= 0.04045
+                  ? value / 12.92
+                  : ((value + 0.055) / 1.055) ** 2.4;
+              return sum + linear * ([0.2126, 0.7152, 0.0722][index] ?? 0);
+            }, 0);
+          const a = luminance(background);
+          const b = luminance(foreground);
+          const icon = element.querySelector("svg");
+          return {
+            foreground: style.color,
+            background,
+            stroke: icon ? getComputedStyle(icon).stroke : style.color,
+            ratio: (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05),
+          };
+        })
+        .then((result) =>
+          result.background.length >= 3 && result.stroke === result.foreground
+            ? result.ratio
+            : 0,
+        ),
+    )
+    .toBeGreaterThanOrEqual(4.5);
+}
+
+test("header icons remain readable when the system starts dark and after theme changes", async ({
+  page,
+  local,
+}, testInfo) => {
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.goto(local.url);
+  await expect(
+    page.getByRole("combobox", { name: "Squad", exact: true }),
+  ).toBeEnabled();
+  const header = page.locator("[data-basalt-header]");
+  const actions = [
+    header.getByRole("link", { name: "Frogie GitHub 仓库", exact: true }),
+    header.getByRole("link", { name: "Frogie on Hexly", exact: true }),
+    header.getByRole("button", { name: "切换浅色与深色主题", exact: true }),
+  ];
+  for (const [index, theme] of ["dark", "light", "dark"].entries()) {
+    await expect(page.locator("html")).toHaveClass(new RegExp(theme));
+    for (const action of actions) {
+      await readableControl(action);
+      await action.hover();
+      await readableControl(action);
+      await page.mouse.move(0, 0);
+      await action.focus();
+      await readableControl(action);
+    }
+    await header.screenshot({
+      path: testInfo.outputPath(`header-${theme}.png`),
+    });
+    const environment = header.getByRole("radiogroup", {
+      name: "运行环境",
+      exact: true,
+    });
+    for (const name of ["Local", "E2E", "Prod"]) {
+      const option = environment.getByRole("radio", { name, exact: true });
+      await expect(option).toBeDisabled();
+      await expect(option).toHaveAttribute(
+        "aria-checked",
+        String(name === "Local"),
+      );
+      const foreground = await option.evaluate(
+        (element) => getComputedStyle(element).color,
+      );
+      expect(foreground).not.toBe("rgb(0, 0, 0)");
+    }
+    if (index < 2) await actions[2]?.click();
+  }
+  await page.reload();
+  await expect(page.locator("html")).toHaveClass(/dark/);
+  for (const action of actions) await readableControl(action);
+});
+
 test("desktop shell geometry, bounded chat, editor and theme retain real interactions", async ({
   page,
   local,
@@ -135,7 +233,7 @@ test("desktop shell geometry, bounded chat, editor and theme retain real interac
   await expect(squad).toBeEnabled();
   const rail = page.locator("aside").first();
   const island = page.locator("[data-basalt-island]");
-  const environment = page.getByRole("button", {
+  const environment = page.getByRole("radiogroup", {
     name: "运行环境",
     exact: true,
   });
@@ -144,22 +242,17 @@ test("desktop shell geometry, bounded chat, editor and theme retain real interac
   expect(environmentBox.y).toBeLessThan(52);
   const avatar = rail.getByRole("img", { name: "本地用户头像", exact: true });
   expect((await box(avatar)).y).toBeGreaterThan(900);
-  await environment.click();
-  const menu = page.getByRole("menu");
-  await expect(menu).toBeVisible();
   for (const name of ["Local", "E2E", "Prod"]) {
     await expect(
-      menu.getByRole("menuitemradio", { name, exact: true }),
+      environment.getByRole("radio", { name, exact: true }),
     ).toBeDisabled();
   }
   await expect(
-    menu.getByRole("menuitemradio", { name: "Local", exact: true }),
+    environment.getByRole("radio", { name: "Local", exact: true }),
   ).toHaveAttribute("aria-checked", "true");
   await page.screenshot({
     path: testInfo.outputPath("environment-desktop.png"),
   });
-  await page.keyboard.press("Escape");
-  await expect(environment).toBeFocused();
   await expect(
     page.getByRole("link", { name: "Frogie on Hexly", exact: true }),
   ).toHaveAttribute("href", "https://hexly.ai/projects/frogie");
@@ -256,7 +349,7 @@ test("mobile navigation restores focus and editor and composer stay usable", asy
 }, testInfo) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(local.url);
-  const environment = page.getByRole("button", {
+  const environment = page.getByRole("radiogroup", {
     name: "运行环境",
     exact: true,
   });
@@ -264,13 +357,14 @@ test("mobile navigation restores focus and editor and composer stay usable", asy
   await expect(
     page.getByRole("link", { name: "Frogie on Hexly", exact: true }),
   ).toBeInViewport();
-  await environment.click();
-  await expect(page.getByRole("menu")).toBeInViewport();
+  for (const name of ["Local", "E2E", "Prod"]) {
+    await expect(
+      environment.getByRole("radio", { name, exact: true }),
+    ).toBeInViewport();
+  }
   await page.screenshot({
     path: testInfo.outputPath("environment-mobile.png"),
   });
-  await page.keyboard.press("Escape");
-  await expect(environment).toBeFocused();
   const menu = page.getByRole("button", { name: "展开导航", exact: true });
   await expect(menu).toBeVisible();
   await menu.click();

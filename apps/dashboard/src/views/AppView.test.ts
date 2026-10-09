@@ -86,7 +86,8 @@ describe("AppView", () => {
       /<main\b[\s\S]*?<header\b([\s\S]*?)<\/header>/,
     )?.[1];
     expect(mainHeader).toContain('aria-label="运行环境"');
-    expect(mainHeader).toContain('aria-haspopup="menu"');
+    expect(mainHeader).toContain('role="radiogroup"');
+    expect(mainHeader).not.toContain('aria-haspopup="menu"');
     expect(mainHeader).toContain('aria-label="Frogie GitHub 仓库"');
     expect(mainHeader).toContain('href="https://hexly.ai/projects/frogie"');
     expect(mainHeader).toContain('aria-label="切换浅色与深色主题"');
