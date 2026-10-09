@@ -13,6 +13,7 @@
 | [05 - Squads](05-squads.md) | MD 与步骤图规范、Skill 标识、显式能力与脚本契约，以及 zeppelin 的完整定义与界面搭建目标 |
 | [06 - Tests](06-tests.md) | 6DQ L1、宿主符合性与恢复、从零搭建 zeppelin 的 E2E 检查点、环境隔离和 TDD 交付顺序 |
 | [07 - Evals](07-evals.md) | 使用完整 E2E 验收快照，在独立 Local 环境按持久预算完成真实模型场景与恢复项的证据闭环 |
+| [08 - MVP 实施](08-mvp-implementation.md) | 独立测试与实现分工、纵向交付顺序、生命周期及完成验收 |
 | [Logo 说明](logo.md) | 图稿、来源记录与衍生文件生成方式 |
 
 ## 维护约定

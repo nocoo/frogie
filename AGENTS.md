@@ -28,6 +28,13 @@
 - 文档修改按逻辑原子化提交，保留既有 logo、来源资料和衍生文件。
 - 推送远端在用户明确授权后执行。
 
+## 实现
+
+- Dashboard 采用 MVVM，Model、ViewModel、服务和运行逻辑接受四项至少 95% 的覆盖率检查；纯展示 View 可单独排除。
+- TypeScript 使用严格类型检查，Biome 执行零错误、零警告的只读检查。
+- Dashboard 使用 Basalt 3.0.0 发布组件、Tokens 和官方 Recipes。所有容器、按钮与表单优先按参考模板组合；专业画布使用 React Flow，外围和节点内容继续使用 Basalt。
+- 独立测试 agent 根据行为契约建立红灯，实现 agent 负责使其通过；主控协调文件归属、接口、依赖与提交。
+
 ## 本地数据
 
 - `squads/` 定义和 `seeds/` 初始化源码及输入纳入 Git；生成的本地数据统一放在已忽略的 `data/`。

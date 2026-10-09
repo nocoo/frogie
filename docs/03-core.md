@@ -153,6 +153,7 @@ Dashboard 保存文件后重新校验，用户再选择快照进行调试。定�
 | `observeConversation` | Conversation ID → Pi `ConversationWatch`，传输层按下文封装 |
 | `getSubmission` | Submission ID → Pi 原始状态、已存在的 answer entry 或失败原因 |
 | `cancel` | Conversation ID、可选的排队 Submission ID → Pi 取消结果 |
+| `compact` | Conversation ID、可选保留要求 → 原生压缩 Task ID，按 Pi 状态观察完成 |
 | `inspect` | 返回活跃任务图、`inspect()` 诊断与用量 |
 | `storeInputArtifact` | Conversation ID、名称、媒体类型与有界内容 → 已授权的输入 `ArtifactRef` |
 | `readArtifact` | `ArtifactRef.id` → 授权范围内的内容与摘要 |
@@ -240,6 +241,14 @@ Registry 中的函数、凭据和外部环境由宿主重新提供。缺少定�
 输入去重、工具重放和业务副作用分别验证。模型请求恢复可能重发，用量采用 Pi 已回报的记录；中断且未回报的用量保留为未知，模型账单以提供方计费为准。
 
 ## 观察、诊断与资源边界
+
+### 上下文压缩
+
+上下文压缩使用 Pi 原生 `CompactionPolicy`：自动阈值通过 `enabled`、`reserveTokens`、`keepRecentTokens` 和 `backgroundTokens` 配置，手动操作调用 Conversation 的 `compact()`。策略作为宿主绑定配置持久保存，并按实际模型窗口校验。
+
+压缩结果通过 Pi Task、摘要 entry 与上下文状态观察；完成后模型使用新的上下文，原始历史仍由 Pi 保存。重启恢复沿用已提交摘要与会话身份，压缩请求同样经过模型权限、并发、预算和用量记录。Dashboard 展示压缩状态及失败原因。
+
+### 运行观察
 
 会话观察以 `watch()` 或 `viewState()` 的已提交状态为依据。每次连接先获取快照；断线、慢消费者或缓冲溢出后用新快照替换本地投影。传输层只承担当前状态同步。
 

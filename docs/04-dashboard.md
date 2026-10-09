@@ -61,9 +61,9 @@ Dashboard 服务用 `Authorization: Bearer <token>` 连接固定 endpoint，核�
 
 ### 发布包
 
-首期锁定已核实的 npm 稳定版 `@nocoo/basalt@2.2.0`，采用 `@nocoo/basalt/styles/standalone`。版本依据为 npm 镜像的 `latest`、独立 CDN 元数据及相同版本发布产物。
+首期锁定已核实的 npm 稳定版 `@nocoo/basalt@3.0.0`，采用 `@nocoo/basalt/styles/standalone`。版本依据为 npm 镜像的 `latest`、独立 CDN 元数据及相同版本发布产物。
 
-本地 `../basalt` 用于理解设计体系，组件能力以 `2.2.0` 产物内的 `ai/registry.json`、类型声明与 `ai/INTEGRATION.md` 为准。布局、表单、列表和聊天展示使用该版本公开组件。
+本地 `../basalt` 用于理解设计体系，组件能力以 `3.0.0` 产物内的 `ai/registry.json`、类型声明与 `ai/INTEGRATION.md` 为准。布局、表单、列表和聊天展示使用该版本公开组件。
 
 Workflow 专业画布采用已核实的稳定版 `@xyflow/react@12.12.0`，其 React peer 范围支持 React 19。React Flow 提供节点拖动、连线、坐标变换与缩放；Basalt 提供节点内容、属性编辑、菜单和动作控件。
 
@@ -75,7 +75,7 @@ Workflow 专业画布采用已核实的稳定版 `@xyflow/react@12.12.0`，其 R
 
 使用 `ThemeProvider`、`AccentProvider`、`LinkProvider`、`TooltipProvider` 和单个全局 `Toaster`。默认强调色采用 Basalt 的 `green`，保留 Frogie 现有图稿，使用合适尺寸的衍生资产。
 
-字体、控件尺寸、圆角、间距和表面遵循发布版 Design Tokens。内容通过亮度层级区分，状态同时提供文字与图标。界面以紧凑的横向信息组织为主，浅色与深色主题均可使用。
+应用壳、页面容器、卡片、分栏、弹窗、按钮和表单统一使用 Basalt 3.0.0 公开组件及官方 Recipes，按参考项目的结构组装。React Flow 仅承担专业画布布局与交互，节点内容、工具栏和属性面板采用 Basalt。字体、控件尺寸、圆角、间距和表面遵循发布版 Design Tokens。内容通过亮度层级区分，状态同时提供文字与图标。界面以紧凑的横向信息组织为主，浅色与深色主题均可使用。
 
 ### 控件选择
 
@@ -96,9 +96,9 @@ Workflow 专业画布采用已核实的稳定版 `@xyflow/react@12.12.0`，其 R
 
 React Flow 使用 `@xyflow/react/dist/base.css` 提供必要布局，画布背景、节点表面、端口、连线与焦点样式映射 Basalt Tokens，主题跟随应用。编辑面板和工具条继续组合 Basalt 控件，复用画布库的交互与无障碍能力。
 
-聊天输入使用受控 `InputArea`、`Button` 和模式选择控件组合，让 ViewModel 持有每个会话的草稿、失败重试和输入法状态。`2.2.0` 的 `ChatComposer` 使用内部草稿及同步 `onSend`，本应用采用基础控件组合管理跨会话草稿。
+聊天输入使用受控 `InputArea`、`Button` 和模式选择控件组合，让 ViewModel 持有每个会话的草稿、失败重试和输入法状态。`3.0.0` 的 `ChatComposer` 使用内部草稿及同步 `onSend`，本应用采用基础控件组合管理跨会话草稿。
 
-Markdown 展示使用成熟的 `react-markdown` 与 GFM 解析，复用 Basalt 链接、代码和表格组件。HTML 按文本处理，链接校验协议与目标，图片通过用户明确操作读取，产物引用走授权接口。
+Markdown 展示使用 Basalt `ChatMarkdown`，以发布版接口核对 GFM、安全链接及代码与表格能力。HTML 按文本处理，图片通过用户明确操作读取，产物引用走授权接口。
 
 ## 页面与导航
 
@@ -318,6 +318,12 @@ E2E 默认使用 `empty`。从零搭建测试可以读取已追踪的文本和�
 
 Docker 缺失或隔离配置不满足时，脚本能力预检返回阻塞原因，定义管理仍可使用。超时、取消和重启清理依据环境与工具任务标签，只处理该宿主拥有的容器。
 
+### 生命周期
+
+ViewModel 按页面与作用域创建，构造阶段保持无 I/O，启动与释放具有显式入口。普通重渲染保留实例；切换、卸载和失败时释放订阅、定时器及请求，迟到结果保持原作用域。释放可重复执行。
+
+Harness 由宿主持有，页面卸载只解除观察。本地启动期限默认 10 秒，正常关闭期限 5 秒，随后最多 5 秒清理自有子进程。启动失败回收已取得资源，模型和脚本使用独立执行期限。测试记录实际耗时与资源清理结果。
+
 ### 调试与恢复
 
 “停止当前工作”调用 Pi 取消；“关闭运行端”保留 Pi 已提交的未完成工作；“恢复环境”重新预检原绑定并打开相同存储。界面使用这三个动作明确表达执行意图。
@@ -333,9 +339,9 @@ Docker 缺失或隔离配置不满足时，脚本能力预检返回阻塞原因�
 ## 组件依据
 
 - [Basalt npm 镜像元数据](https://mirrors.tencent.com/npm/@nocoo%2fbasalt) 与 [CDN 版本目录](https://data.jsdelivr.com/v1/package/npm/@nocoo/basalt)
-- [Basalt 2.2.0 包清单](https://unpkg.com/@nocoo/basalt@2.2.0/package.json)
-- [Basalt 2.2.0 集成指南](https://unpkg.com/@nocoo/basalt@2.2.0/ai/INTEGRATION.md)
-- [Basalt 2.2.0 组件注册表](https://unpkg.com/@nocoo/basalt@2.2.0/ai/registry.json)
-- [Basalt 2.2.0 ChatComposer 类型](https://unpkg.com/@nocoo/basalt@2.2.0/dist/components/chat-composer.d.ts)
+- [Basalt 3.0.0 包清单](https://unpkg.com/@nocoo/basalt@3.0.0/package.json)
+- [Basalt 3.0.0 集成指南](https://unpkg.com/@nocoo/basalt@3.0.0/ai/INTEGRATION.md)
+- [Basalt 3.0.0 组件注册表](https://unpkg.com/@nocoo/basalt@3.0.0/ai/registry.json)
+- [Basalt 3.0.0 ChatComposer 类型](https://unpkg.com/@nocoo/basalt@3.0.0/dist/components/chat-composer.d.ts)
 - [React Flow 12.12.0 包清单](https://unpkg.com/@xyflow/react@12.12.0/package.json)
 - [React Flow 拖放](https://reactflow.dev/examples/interaction/drag-and-drop)与[保存恢复](https://reactflow.dev/examples/interaction/save-and-restore)
