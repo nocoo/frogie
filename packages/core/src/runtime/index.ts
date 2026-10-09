@@ -292,7 +292,7 @@ function workflowTools(
   workflowId?: string,
 ): readonly string[] | undefined {
   if (workflowId === undefined) return undefined;
-  return definition.workflows.find(({ id }) => id === workflowId)?.tools ?? [];
+  return definition.workflows.find(({ id }) => id === workflowId)?.tools;
 }
 
 function conversationBinding(

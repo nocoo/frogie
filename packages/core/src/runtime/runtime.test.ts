@@ -383,10 +383,11 @@ describe("openRuntime", () => {
             }
           : role,
       ),
-      workflows: test.definition.workflows.map((workflow) => ({
-        ...workflow,
-        tools: ["lookup"],
-      })),
+      workflows: test.definition.workflows.flatMap((workflow) => [
+        { ...workflow, tools: ["lookup"] },
+        { ...workflow, id: "review-empty", tools: [] },
+        { ...workflow, id: "review-unrestricted" },
+      ]),
     };
     const runtime = await openRuntime({ ...test.options, definition }, context);
     try {
@@ -420,6 +421,29 @@ describe("openRuntime", () => {
         "extra",
       ]);
       expect(workflowAgent?.tools.map(({ name }) => name)).toEqual(["lookup"]);
+      for (const [workflowId, expectedTools] of [
+        ["review-empty", []],
+        ["review-unrestricted", ["lookup", "extra"]],
+      ] as const) {
+        const conversation = await runtime.service.createConversation(
+          {
+            scope: test.binding.scope,
+            caller: test.caller,
+            input: { roleId: "reviewer", workflowId },
+          },
+          context,
+        );
+        const agent = await (
+          await runtime.harness.conversation(
+            conversation.conversationId,
+            context,
+          )
+        )?.agent(context);
+        expect(
+          agent?.tools.map(({ name }) => name),
+          workflowId,
+        ).toEqual(expectedTools);
+      }
     } finally {
       await runtime.close(context);
     }
