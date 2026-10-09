@@ -7,6 +7,7 @@ import {
 } from "node:http";
 import type { Context } from "@earendil-works/chord";
 import { withAbortSignal } from "@earendil-works/chord/context";
+import { DefinitionError } from "@frogie/core/definitions";
 import type {
   CancelInput,
   CompactInput,
@@ -21,6 +22,7 @@ import type {
 } from "@frogie/core/protocol";
 import { type Static, Type } from "typebox";
 import Value from "typebox/value";
+import type { DefinitionWorkspace } from "./definitions.js";
 import {
   createLocalAuth,
   type LocalAuth,
@@ -43,6 +45,27 @@ const scopeSchema = Type.Object(
   { additionalProperties: false },
 );
 const emptyInput = Type.Object({}, { additionalProperties: false });
+const definitionSquadId = Type.String({ pattern: "^[a-z][a-z0-9-]*$" });
+const definitionListSchema = emptyInput;
+const definitionLoadSchema = Type.Object(
+  { squadId: definitionSquadId },
+  { additionalProperties: false },
+);
+const definitionSaveSchema = Type.Object(
+  {
+    squadId: definitionSquadId,
+    draft: Type.Object(
+      {
+        path: Type.String({ minLength: 1 }),
+        content: Type.String(),
+        baseContent: Type.String(),
+      },
+      { additionalProperties: false },
+    ),
+    requestId: Type.String({ minLength: 1 }),
+  },
+  { additionalProperties: false },
+);
 const exchangeSchema = Type.Object(
   { token: Type.String({ minLength: 1 }) },
   { additionalProperties: false },
@@ -97,6 +120,13 @@ const compactSchema = Type.Object(
   },
   { additionalProperties: false },
 );
+const definitionOperations = {
+  list: definitionListSchema,
+  load: definitionLoadSchema,
+  save: definitionSaveSchema,
+} as const;
+type DefinitionOperation = keyof typeof definitionOperations;
+
 const operationSchemas = {
   describe: emptyInput,
   listConversations: emptyInput,
@@ -124,6 +154,7 @@ export interface LocalServerOptions {
   readonly scope: RuntimeScope;
   readonly service: RuntimeService;
   readonly context: Context;
+  readonly definitions?: DefinitionWorkspace;
   readonly port?: number;
 }
 
@@ -155,6 +186,7 @@ const failures = {
   forbidden: { status: 403, message: "Forbidden" },
   not_found: { status: 404, message: "Not found" },
   binding_mismatch: { status: 409, message: "Runtime scope mismatch" },
+  conflict: { status: 409, message: "Definition changed since it was loaded" },
   capability_missing: {
     status: 400,
     message: "Required capability is unavailable",
@@ -355,6 +387,69 @@ export async function startLocalServer(
       method === "POST" && pathname !== "/__local/auth/exchange"
         ? auth.authorize(authRequest, true)
         : undefined;
+    if (method === "POST" && pathname.startsWith("/__local/definitions/")) {
+      const caller = postCaller;
+      if (!caller) throw fail("unauthenticated");
+      const operation = pathname.slice(
+        "/__local/definitions/".length,
+      ) as DefinitionOperation;
+      if (!Object.hasOwn(definitionOperations, operation)) {
+        sendJson(response, 404, {
+          error: { code: "not_found", message: "Not found", retryable: false },
+        });
+        return;
+      }
+      if (!options.definitions) {
+        sendJson(response, 404, {
+          error: { code: "not_found", message: "Not found", retryable: false },
+        });
+        return;
+      }
+      const input = await readJson(request);
+      if (!Value.Check(definitionOperations[operation], input)) {
+        throw fail("invalid_request");
+      }
+      const fields = input as Record<string, unknown>;
+      try {
+        const value =
+          operation === "list"
+            ? await options.definitions.list()
+            : operation === "load"
+              ? await options.definitions.load(fields.squadId as string)
+              : await options.definitions.save(
+                  fields.squadId as string,
+                  fields.draft as {
+                    path: string;
+                    content: string;
+                    baseContent: string;
+                  },
+                  fields.requestId as string,
+                );
+        sendJson(response, 200, { value });
+      } catch (error) {
+        const code =
+          error instanceof TypeError
+            ? "invalid_request"
+            : error instanceof DefinitionError
+              ? "invalid_definition"
+              : typeof error === "object" &&
+                  error !== null &&
+                  "code" in error &&
+                  typeof error.code === "string" &&
+                  (error.code === "ENOENT" || error.code === "conflict")
+                ? error.code === "ENOENT"
+                  ? "not_found"
+                  : error.code
+                : undefined;
+        if (code === undefined) throw error;
+        const failure = failures[code];
+        sendJson(response, failure.status, {
+          error: { code, message: failure.message, retryable: false },
+        });
+      }
+      return;
+    }
+
     const route = /^\/__local\/instances\/([^/]+)\/operations\/([^/]+)$/u.exec(
       pathname,
     );

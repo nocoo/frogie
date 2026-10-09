@@ -1,4 +1,8 @@
+import { cp, mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import { request as httpRequest } from "node:http";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import type {
   RuntimeDescription,
@@ -6,6 +10,7 @@ import type {
   RuntimeService,
 } from "@frogie/core/protocol";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { createDefinitionWorkspace } from "./definitions.js";
 import { type LocalServer, startLocalServer } from "./localServer.js";
 
 const scope: RuntimeScope = {
@@ -129,8 +134,11 @@ function runtimeService() {
 }
 
 const activeServers: LocalServer[] = [];
+const definitionRoots: string[] = [];
 
-async function launch() {
+async function launch(
+  definitions?: ReturnType<typeof createDefinitionWorkspace>,
+) {
   const runtime = runtimeService();
   const server = await startLocalServer({
     instanceId,
@@ -138,13 +146,16 @@ async function launch() {
     service: runtime.service,
     context: BACKGROUND_CONTEXT,
     port: 0,
+    ...(definitions === undefined ? {} : { definitions }),
   });
   activeServers.push(server);
   return { server, runtime };
 }
 
-async function start() {
-  const { server, runtime } = await launch();
+async function start(
+  definitions?: ReturnType<typeof createDefinitionWorkspace>,
+) {
+  const { server, runtime } = await launch(definitions);
   const token = new URLSearchParams(new URL(server.url).hash.slice(1)).get(
     "token",
   );
@@ -193,6 +204,230 @@ const operationPath = (name: string) =>
 afterEach(async () => {
   const servers = activeServers.splice(0);
   await Promise.all(servers.map((server) => server.close()));
+  for (const root of definitionRoots.splice(0))
+    await rm(root, { recursive: true, force: true });
+});
+
+describe("local definition transport", () => {
+  async function workspace() {
+    const root = await mkdtemp(join(tmpdir(), "frogie-http-definitions-"));
+    definitionRoots.push(root);
+    const squads = join(root, "squads");
+    await mkdir(squads);
+    await cp(
+      fileURLToPath(
+        new URL("../../../../tests/fixtures/minimal-squad", import.meta.url),
+      ),
+      join(squads, "minimal-squad"),
+      { recursive: true },
+    );
+    return { squads, definitions: createDefinitionWorkspace(squads) };
+  }
+
+  it("lists, reads and saves actual MD through the authenticated workspace", async () => {
+    const { squads, definitions } = await workspace();
+    const { server, cookie, credentials } = await start(definitions);
+    const request = (operation: string, input: unknown) =>
+      post(
+        server.origin,
+        `/__local/definitions/${operation}`,
+        cookie,
+        credentials.csrf,
+        input,
+      );
+    const listed = await request("list", {});
+    expect(listed.status).toBe(200);
+    expect(await listed.json()).toMatchObject({
+      value: [{ id: "minimal-squad" }],
+    });
+    const loaded = await request("load", { squadId: "minimal-squad" });
+    expect(loaded.status).toBe(200);
+    expect(await loaded.json()).toEqual({
+      value: await definitions.load("minimal-squad"),
+    });
+    const path = "SQUAD.md";
+    const baseContent = await readFile(
+      join(squads, "minimal-squad", path),
+      "utf8",
+    );
+    const content = `${baseContent}\nHTTP edit.`;
+    const saved = await request("save", {
+      squadId: "minimal-squad",
+      draft: { path, baseContent, content },
+      requestId: "save-http",
+    });
+    expect(saved.status).toBe(200);
+    expect(await saved.json()).toEqual({
+      value: await definitions.load("minimal-squad"),
+    });
+    expect(await readFile(join(squads, "minimal-squad", path), "utf8")).toBe(
+      content,
+    );
+    const conflict = await request("save", {
+      squadId: "minimal-squad",
+      draft: { path, baseContent, content: `${baseContent}\nStale edit.` },
+      requestId: "conflict-http",
+    });
+    expect(conflict.status).toBe(409);
+    expect(await conflict.json()).toMatchObject({
+      error: { code: "conflict" },
+    });
+  });
+
+  it("requires session, exact Origin and CSRF for every definition operation", async () => {
+    const { definitions } = await workspace();
+    const { server, cookie, credentials } = await start(definitions);
+    for (const [operation, input] of [
+      ["list", {}],
+      ["load", { squadId: "minimal-squad" }],
+      ["save", {}],
+    ] as const) {
+      const path = `/__local/definitions/${operation}`;
+      expect(
+        (
+          await post(
+            server.origin,
+            path,
+            "other=value",
+            credentials.csrf,
+            input,
+          )
+        ).status,
+      ).toBe(401);
+      expect(
+        (await post(server.origin, path, cookie, "wrong", input)).status,
+      ).toBe(403);
+      expect(
+        (
+          await post(
+            server.origin,
+            path,
+            cookie,
+            credentials.csrf,
+            input,
+            "https://foreign.example",
+          )
+        ).status,
+      ).toBe(403);
+    }
+  });
+
+  it("rejects extra fields, invalid IDs, paths, unknown operations and absent workspaces", async () => {
+    const { definitions } = await workspace();
+    const { server, cookie, credentials } = await start(definitions);
+    for (const [operation, input] of [
+      ["list", { caller: { id: "forged" } }],
+      ["load", { squadId: "../escape" }],
+      [
+        "save",
+        {
+          squadId: "minimal-squad",
+          draft: { path: "../escape.md", content: "x", baseContent: "" },
+          requestId: "bad",
+        },
+      ],
+      [
+        "save",
+        {
+          squadId: "minimal-squad",
+          draft: { path: "SQUAD.md", content: "x", baseContent: "" },
+        },
+      ],
+    ] as const) {
+      expect(
+        (
+          await post(
+            server.origin,
+            `/__local/definitions/${operation}`,
+            cookie,
+            credentials.csrf,
+            input,
+          )
+        ).status,
+      ).toBe(400);
+    }
+    expect(
+      (
+        await post(
+          server.origin,
+          "/__local/definitions/unknown",
+          cookie,
+          credentials.csrf,
+          {},
+        )
+      ).status,
+    ).toBe(404);
+    const absent = await start();
+    expect(
+      (
+        await post(
+          absent.server.origin,
+          "/__local/definitions/list",
+          absent.cookie,
+          absent.credentials.csrf,
+          {},
+        )
+      ).status,
+    ).toBe(404);
+  });
+
+  it("maps missing files and invalid definitions to public diagnostics", async () => {
+    const { definitions } = await workspace();
+    const { server, cookie, credentials } = await start(definitions);
+    const missing = await post(
+      server.origin,
+      "/__local/definitions/load",
+      cookie,
+      credentials.csrf,
+      { squadId: "missing" },
+    );
+    expect(missing.status).toBe(404);
+    expect(await missing.json()).toMatchObject({
+      error: { code: "not_found" },
+    });
+    const definition = await definitions.load("minimal-squad");
+    const baseContent = definition.files.find(
+      (file) => file.path === "SQUAD.md",
+    )?.content;
+    const invalid = await post(
+      server.origin,
+      "/__local/definitions/save",
+      cookie,
+      credentials.csrf,
+      {
+        squadId: "minimal-squad",
+        draft: { path: "SQUAD.md", baseContent, content: "not a valid squad" },
+        requestId: "invalid-definition",
+      },
+    );
+    expect(invalid.status).toBe(400);
+    expect(await invalid.json()).toMatchObject({
+      error: { code: "invalid_definition" },
+    });
+  });
+
+  it("keeps unexpected workspace failures private", async () => {
+    const { definitions } = await workspace();
+    vi.spyOn(definitions, "list").mockRejectedValueOnce(
+      new Error("secret path and token"),
+    );
+    const { server, cookie, credentials } = await start(definitions);
+    const response = await post(
+      server.origin,
+      "/__local/definitions/list",
+      cookie,
+      credentials.csrf,
+      {},
+    );
+    expect(response.status).toBe(500);
+    expect(await response.json()).toEqual({
+      error: {
+        code: "runtime_unavailable",
+        message: "Runtime operation failed",
+        retryable: false,
+      },
+    });
+  });
 });
 
 describe("startLocalServer", () => {
