@@ -16,7 +16,7 @@
     "format": "biome format --write .",
     "check": "pnpm typecheck && pnpm lint && pnpm test:coverage",
     "build": "pnpm --filter @frogie/dashboard build",
-    "dev": "pnpm --filter @frogie/dashboard dev",
+    "dev": "pnpm build && node --import tsx --input-type=module -e 'import { main } from \"./scripts/dev.ts\"; await main();'",
     "prepare": "husky"
   },
   "devDependencies": {
