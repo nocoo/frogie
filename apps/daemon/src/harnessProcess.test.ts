@@ -9,6 +9,7 @@ import type {
   ConversationView,
   ConversationWatch,
 } from "@earendil-works/pi-durable";
+import type { RuntimeCall } from "@frogie/core/protocol";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   type HarnessConfiguration,
@@ -168,6 +169,87 @@ describe("HarnessProcess", () => {
       expect(await second).toBe("second");
     },
   );
+
+  it("routes four inspection reads through their original scoped calls and preserves independent response and cancellation ownership", async () => {
+    const test = fixture();
+    const operations = [
+      ["inspect", {}],
+      ["listTasks", { conversationId: 17, limit: 50, cursor: "task-cursor" }],
+      ["getTask", { taskId: 42 }],
+      [
+        "listEntries",
+        { conversationId: 17, limit: 100, cursor: "entry-cursor" },
+      ],
+    ] as const;
+    const requests = operations.map(([operation, input]) => {
+      const method = test.process.service[operation] as (
+        input: RuntimeCall<unknown>,
+        requestedContext: typeof context,
+      ) => Promise<unknown>;
+      const original = { ...call, input };
+      const pending = method(original, context);
+      const sent = request(test);
+      expect(sent.operation).toBe(operation);
+      expect(sent.call).toBe(original);
+      expect(sent.call).toEqual({ scope, caller: call.caller, input });
+      return {
+        method,
+        original,
+        pending,
+        id: sent.id,
+        value: { operation, marker: sent.id },
+      };
+    });
+    expect(new Set(requests.map(({ id }) => id)).size).toBe(4);
+    for (const { id, value } of [...requests].reverse())
+      test.emit({ type: "result", id, value });
+    expect(await Promise.all(requests.map(({ pending }) => pending))).toEqual(
+      requests.map(({ value }) => value),
+    );
+    for (const { method, original } of requests) {
+      const abort = new AbortController();
+      const reason = new DOMException(
+        "Inspection read cancelled",
+        "AbortError",
+      );
+      const pending = method(original, withAbortSignal(abort.signal, context));
+      const sent = request(test);
+      expect(sent.call).toBe(original);
+      const rejected = expect(pending).rejects.toBe(reason);
+      abort.abort(reason);
+      await rejected;
+      expect(test.send).toHaveBeenLastCalledWith(
+        { type: "cancel_request", id: sent.id },
+        expect.any(Function),
+      );
+      test.emit({
+        type: "result",
+        id: sent.id,
+        value: "late inspection result",
+      });
+      test.emit({
+        type: "error",
+        id: sent.id,
+        error: {
+          code: "not_found",
+          message: "Late inspection error",
+          retryable: false,
+        },
+      });
+      const sentCount = test.send.mock.calls.length;
+      await expect(
+        method(original, withAbortSignal(abort.signal, context)),
+      ).rejects.toBe(reason);
+      await expect(
+        method(
+          { ...original, scope: { ...scope, harnessId: "foreign-harness" } },
+          context,
+        ),
+      ).rejects.toMatchObject({ code: "binding_mismatch" });
+      expect(test.send).toHaveBeenCalledTimes(sentCount);
+    }
+    expect(test.onFailure).not.toHaveBeenCalled();
+  });
 
   it.each(["projectId", "environmentId", "squadId", "harnessId"] as const)(
     "rejects mismatched %s before crossing IPC",
