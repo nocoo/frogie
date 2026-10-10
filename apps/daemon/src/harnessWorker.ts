@@ -28,13 +28,17 @@ import type {
 import {
   checkBinding,
   openRuntime,
+  type RuntimeConfiguration,
   type RuntimeHandle,
 } from "@frogie/core/runtime";
+import { type ArtifactStore, createArtifactStore } from "./artifacts.js";
 import type {
   HarnessConfiguration,
   WorkerMessage,
   WorkerRequest,
 } from "./harnessProcess.js";
+import { createLocalTools } from "./localTools.js";
+import { checkScriptSandbox, createScriptRunner } from "./scriptRunner.js";
 
 const context = BACKGROUND_CONTEXT;
 export function workerFailure(error: unknown): RuntimeError {
@@ -84,7 +88,8 @@ export async function openHarnessRuntime(
       new Error("Stored binding does not match worker configuration"),
       { code: "binding_mismatch" },
     );
-  const definition = loadDefinition(join(config.directory, "definition"));
+  const definitionDirectory = join(config.directory, "definition");
+  const definition = loadDefinition(definitionDirectory);
   const models = createModels();
   if (config.mode === "e2e") {
     const faux = fauxProvider({
@@ -135,19 +140,72 @@ export async function openHarnessRuntime(
     );
   }
   const registry = createRegistry();
-  const issue = checkBinding(definition, config.binding, {
+  const runtime: RuntimeConfiguration = {
+    runtimeId: config.binding.scope.harnessId,
+    definition,
+    binding: config.binding,
     models,
     registry,
-  }).find((diagnostic) => diagnostic.severity === "error");
+  };
+  let artifacts: ArtifactStore;
+  let scripts: ReturnType<typeof createScriptRunner>;
+  registry.install(
+    createLocalTools({
+      runtime,
+      get artifacts() {
+        return artifacts;
+      },
+      get scripts() {
+        return scripts;
+      },
+    }),
+  );
+  const issue = checkBinding(definition, config.binding, runtime).find(
+    (diagnostic) => diagnostic.severity === "error",
+  );
   if (issue)
     throw Object.assign(new Error(issue.message), { code: issue.code });
+  const approvedScripts = (config.approvedScripts ?? []).filter((approval) =>
+    definition.skills.some((skill) =>
+      skill.scripts.some(
+        (script) =>
+          script.runtime === "node" &&
+          script.replay === "safe" &&
+          approval === `${definition.contentHash}:${skill.id}/${script.id}` &&
+          definition.roles.some(
+            (role) =>
+              role.extensions.includes("frogie") &&
+              role.tools.includes("run_script") &&
+              role.skills.includes(skill.id) &&
+              role.scripts.includes(`${skill.id}/${script.id}`),
+          ),
+      ),
+    ),
+  );
+  if (approvedScripts.length) {
+    try {
+      await checkScriptSandbox(context);
+    } catch {
+      throw Object.assign(new Error("Local script sandbox is unavailable"), {
+        code: "capability_missing",
+      });
+    }
+  }
+  artifacts = await createArtifactStore({
+    directory: join(config.directory, "artifacts"),
+    scope: config.binding.scope,
+  });
+  scripts = createScriptRunner({
+    directory: join(config.directory, "receipts"),
+    definitionDirectory,
+    definition,
+    scope: config.binding.scope,
+    artifacts,
+    approvedScripts,
+  });
   return openRuntime(
     {
-      runtimeId: config.binding.scope.harnessId,
-      definition,
-      binding: config.binding,
-      models,
-      registry,
+      ...runtime,
       storage: await openNodeSqliteStorage(
         join(config.directory, "session.sqlite"),
       ),

@@ -1,14 +1,32 @@
-import { cp, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { type ChildProcess, spawn } from "node:child_process";
+import { EventEmitter } from "node:events";
+import {
+  access,
+  cp,
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { PassThrough } from "node:stream";
 import { fileURLToPath } from "node:url";
 import { BACKGROUND_CONTEXT as context } from "@earendil-works/chord/context";
+import * as piAI from "@earendil-works/pi-ai";
+import {
+  fauxAssistantMessage,
+  fauxProvider,
+  fauxToolCall,
+} from "@earendil-works/pi-ai";
 import type {
   ConversationId,
   ConversationView,
   ConversationWatch,
   WatchEnd,
 } from "@earendil-works/pi-durable";
+import * as sqlite from "@earendil-works/pi-durable/storage/sqlite/node";
 import { DefinitionError, loadDefinition } from "@frogie/core/definitions";
 import type { RuntimeCall } from "@frogie/core/protocol";
 import type { RuntimeHandle } from "@frogie/core/runtime";
@@ -25,6 +43,22 @@ import {
   openHarnessRuntime,
   workerFailure,
 } from "./harnessWorker.js";
+
+vi.mock("node:child_process", () => ({ spawn: vi.fn() }));
+vi.mock("@earendil-works/pi-ai", async (original) => {
+  const actual = await original<typeof import("@earendil-works/pi-ai")>();
+  return { ...actual, createProvider: vi.fn(actual.createProvider) };
+});
+vi.mock("@earendil-works/pi-durable/storage/sqlite/node", async (original) => {
+  const actual =
+    await original<
+      typeof import("@earendil-works/pi-durable/storage/sqlite/node")
+    >();
+  return {
+    ...actual,
+    openNodeSqliteStorage: vi.fn(actual.openNodeSqliteStorage),
+  };
+});
 
 const source = fileURLToPath(
   new URL("../../../tests/fixtures/minimal-squad", import.meta.url),
@@ -131,6 +165,8 @@ afterEach(async () => {
   for (const runtime of runtimes.splice(0)) await runtime.close(context);
   for (const root of roots.splice(0))
     await rm(root, { recursive: true, force: true });
+  vi.restoreAllMocks();
+  vi.clearAllMocks();
 });
 
 async function runtimeConfig(): Promise<HarnessConfiguration> {
@@ -151,6 +187,155 @@ async function runtimeConfig(): Promise<HarnessConfiguration> {
     JSON.stringify(input.binding),
   );
   return input;
+}
+
+async function toolRuntimeConfig(options: {
+  rootTools: readonly string[];
+  reviewerTools?: readonly string[];
+  script?: boolean;
+}): Promise<HarnessConfiguration> {
+  const input = await runtimeConfig();
+  const definitionDirectory = join(input.directory, "definition");
+  for (const [path, tools] of [
+    ["roles/command/ROLE.md", options.rootTools],
+    ["roles/command/reviewer/ROLE.md", options.reviewerTools ?? []],
+  ] as const) {
+    const filename = join(definitionDirectory, path);
+    await writeFile(
+      filename,
+      (await readFile(filename, "utf8"))
+        .replace("extensions: []", "extensions: [frogie]")
+        .replace("tools: []", `tools: [${tools.join(", ")}]`)
+        .replace(
+          "scripts: []",
+          options.script && tools.includes("run_script")
+            ? "scripts: [planning/calculate]"
+            : "scripts: []",
+        ),
+    );
+  }
+  if (options.script) {
+    const skill = join(definitionDirectory, "skills/planning/SKILL.md");
+    await writeFile(
+      skill,
+      (await readFile(skill, "utf8")).replace(
+        "description: Plan and review work from supplied evidence.",
+        "description: Plan and review work from supplied evidence.\nfrogie:\n  scripts:\n    - id: calculate\n      entry: scripts/calculate.mjs\n      runtime: node\n      replay: safe",
+      ),
+    );
+    await mkdir(join(definitionDirectory, "skills/planning/scripts"));
+    await writeFile(
+      join(definitionDirectory, "skills/planning/scripts/calculate.mjs"),
+      "process.stdout.write(JSON.stringify({ result: 5 }));\n",
+    );
+  }
+  const definition = loadDefinition(definitionDirectory);
+  const configured = {
+    ...input,
+    binding: {
+      ...input.binding,
+      definition: { contentHash: definition.contentHash },
+    },
+  };
+  await writeFile(
+    join(input.directory, "binding.json"),
+    JSON.stringify(configured.binding),
+  );
+  return configured;
+}
+
+async function localToolConfig(
+  input: HarnessConfiguration,
+): Promise<HarnessConfiguration> {
+  const configured: HarnessConfiguration = {
+    ...input,
+    mode: "local",
+    model: {
+      baseUrl: "http://127.0.0.1:1/v1",
+      apiKey: "worker-test-secret",
+      modelId: "worker-tool-model",
+      contextWindow: 32_000,
+      maxTokens: 1024,
+      thinkingLevel: "off",
+    },
+    binding: {
+      ...input.binding,
+      environment: {
+        model: { provider: "local-model", modelId: "worker-tool-model" },
+        thinkingLevel: "off",
+      },
+    },
+  };
+  await writeFile(
+    join(input.directory, "binding.json"),
+    JSON.stringify(configured.binding),
+  );
+  return configured;
+}
+
+async function workerTurn(
+  runtime: RuntimeHandle,
+  content: string,
+  requestedScope = scope,
+) {
+  const submission = await runtime.service.submit(
+    {
+      ...call,
+      scope: requestedScope,
+      input: {
+        conversationId: runtime.root.id,
+        submission: { type: "input", content },
+      },
+    },
+    context,
+  );
+  expect(
+    (
+      await (
+        await runtime.harness.submission(submission, context)
+      )?.wait(context)
+    )?.status,
+  ).toBe("done");
+  const watch = await runtime.service.observeConversation(
+    {
+      ...call,
+      scope: requestedScope,
+      input: { conversationId: runtime.root.id },
+    },
+    context,
+  );
+  try {
+    return watch.value;
+  } finally {
+    await watch.stop();
+  }
+}
+
+function scriptedProvider(factory: piAI.FauxResponseFactory) {
+  const faux = fauxProvider({
+    provider: "local-model",
+    models: [{ id: "worker-tool-model", reasoning: true }],
+    tokensPerSecond: 1_000_000,
+  });
+  const reply: piAI.FauxResponseFactory = (...args) => {
+    faux.appendResponses([reply]);
+    return factory(...args);
+  };
+  faux.setResponses([reply]);
+  vi.mocked(piAI.createProvider).mockReturnValueOnce(faux.provider);
+}
+
+function dockerProbe() {
+  const emitter = new EventEmitter();
+  const stdout = new PassThrough();
+  const stderr = new PassThrough();
+  const stdin = new PassThrough();
+  return Object.assign(emitter, {
+    stdout,
+    stderr,
+    stdin,
+    kill: vi.fn(() => true),
+  });
 }
 
 describe("worker failures", () => {
@@ -539,6 +724,314 @@ describe("worker process entry", () => {
       else Reflect.deleteProperty(process, "connected");
       if (previousSend) Object.defineProperty(process, "send", previousSend);
       else Reflect.deleteProperty(process, "send");
+    }
+  });
+});
+
+describe("worker frogie integration", () => {
+  it("installs declared capabilities without giving undeclared tools to the root and keeps ordinary E2E history after reopen", async () => {
+    const input = await toolRuntimeConfig({
+      rootTools: [],
+      reviewerTools: ["write_artifact"],
+    });
+    const runtime = await openHarnessRuntime(input);
+    runtimes.push(runtime);
+    expect(await runtime.service.describe(call, context)).toMatchObject({
+      tools: ["write_artifact"],
+      extensions: ["frogie"],
+    });
+    expect((await runtime.root.agent(context)).tools).toEqual([]);
+    const first = await workerTurn(
+      runtime,
+      "Ordinary E2E chat with local tools registered",
+    );
+    expect(JSON.stringify(first.entries)).toContain("Local Pi test reply");
+    expect(spawn).not.toHaveBeenCalled();
+    await runtime.close(context);
+    const reopened = await openHarnessRuntime(input);
+    runtimes.push(reopened);
+    expect(reopened.root.id).toBe(runtime.root.id);
+    const watch = await reopened.service.observeConversation(
+      { ...call, input: { conversationId: reopened.root.id } },
+      context,
+    );
+    expect(watch.value.entries).toEqual(first.entries);
+    await watch.stop();
+    expect((await reopened.root.agent(context)).tools).toEqual([]);
+  });
+
+  it("runs real delegate, child artifact write and parent artifact read through the worker's model boundary", async () => {
+    const input = await localToolConfig(
+      await toolRuntimeConfig({
+        rootTools: ["delegate", "read_artifact"],
+        reviewerTools: ["write_artifact"],
+      }),
+    );
+    scriptedProvider((transcript) => {
+      const user = JSON.stringify(
+        transcript.messages.filter((message) => message.role === "user"),
+      );
+      const results = transcript.messages.filter(
+        (message) => message.role === "toolResult",
+      );
+      if (user.includes("worker-child-task"))
+        return results.length
+          ? fauxAssistantMessage("Child saved evidence")
+          : fauxAssistantMessage(
+              fauxToolCall("write_artifact", {
+                name: "child-evidence.md",
+                content: "Worker child artifact evidence",
+              }),
+              { stopReason: "toolUse" },
+            );
+      if (!results.length)
+        return fauxAssistantMessage(
+          fauxToolCall("delegate", {
+            roleId: "reviewer",
+            task: "worker-child-task",
+          }),
+          { stopReason: "toolUse" },
+        );
+      const delegated = results.find(
+        (message) => message.toolName === "delegate",
+      );
+      if (
+        delegated &&
+        !results.some((message) => message.toolName === "read_artifact")
+      ) {
+        const value = JSON.parse(
+          delegated.content
+            .filter((block) => block.type === "text")
+            .map((block) => block.text)
+            .join(""),
+        );
+        return fauxAssistantMessage(
+          fauxToolCall("read_artifact", { id: value.artifacts[0].id }),
+          { stopReason: "toolUse" },
+        );
+      }
+      return fauxAssistantMessage("Parent read the real child artifact");
+    });
+    const runtime = await openHarnessRuntime(input);
+    runtimes.push(runtime);
+    const value = await workerTurn(runtime, "Worker parent request");
+    const results = value.entries.flatMap((entry) =>
+      (entry.model ?? []).filter((message) => message.role === "toolResult"),
+    );
+    expect(results.map((message) => message.toolName)).toEqual([
+      "delegate",
+      "read_artifact",
+    ]);
+    expect(results.every((message) => !message.isError)).toBe(true);
+    expect(JSON.stringify(results)).toContain("Worker child artifact evidence");
+    const conversations = await runtime.service.listConversations(
+      { ...call, input: {} },
+      context,
+    );
+    const child = conversations.find(
+      (record) => record.binding.roleId === "reviewer",
+    );
+    if (!child) throw new Error("Worker did not create a delegated child");
+    expect(child.conversation.owner).toMatchObject({
+      conversationId: runtime.root.id,
+      taskId: expect.any(Number),
+    });
+    expect(
+      (await runtime.root.agent(context)).tools.map((tool) => tool.name),
+    ).toEqual(["delegate", "read_artifact"]);
+    expect(
+      (
+        await (
+          await runtime.harness.conversation(child.conversation.id, context)
+        )?.agent(context)
+      )?.tools.map((tool) => tool.name),
+    ).toEqual(["write_artifact"]);
+    expect(spawn).not.toHaveBeenCalled();
+  });
+
+  it("does not preflight or authorize unapproved, stale-hash or unrelated scripts while ordinary chat remains usable", async () => {
+    for (const approval of [
+      "default",
+      "stale",
+      "other-script",
+      "other-project",
+      "unselected",
+    ] as const) {
+      let input = await toolRuntimeConfig({
+        rootTools: approval === "unselected" ? [] : ["run_script"],
+        reviewerTools: [],
+        script: true,
+      });
+      const key = `${input.binding.definition.contentHash}:planning/calculate`;
+      if (approval === "other-project") {
+        const filename = join(input.directory, "definition/SQUAD.md");
+        await writeFile(
+          filename,
+          (await readFile(filename, "utf8")).replace(
+            "projectId: frogie",
+            "projectId: worker-other-project",
+          ),
+        );
+        const definition = loadDefinition(join(input.directory, "definition"));
+        input = {
+          ...input,
+          binding: {
+            ...input.binding,
+            projectId: definition.projectId,
+            scope: { ...input.binding.scope, projectId: definition.projectId },
+            definition: { contentHash: definition.contentHash },
+          },
+        };
+        expect(input.binding.definition.contentHash).not.toBe(
+          key.split(":")[0],
+        );
+      }
+      input = {
+        ...input,
+        ...(approval === "default"
+          ? {}
+          : {
+              approvedScripts: [
+                approval === "stale"
+                  ? `${"0".repeat(64)}:planning/calculate`
+                  : approval === "other-script"
+                    ? `${input.binding.definition.contentHash}:planning/other`
+                    : key,
+              ],
+            }),
+      };
+      input = await localToolConfig(input);
+      scriptedProvider((transcript) => {
+        const user = JSON.stringify(
+          transcript.messages.filter((message) => message.role === "user"),
+        );
+        return user.includes("request-unapproved-script") &&
+          !transcript.messages.some((message) => message.role === "toolResult")
+          ? fauxAssistantMessage(
+              fauxToolCall("run_script", {
+                skillId: "planning",
+                scriptId: "calculate",
+                input: {},
+              }),
+              { stopReason: "toolUse" },
+            )
+          : fauxAssistantMessage("Ordinary worker reply");
+      });
+      const runtime = await openHarnessRuntime(input);
+      runtimes.push(runtime);
+      expect(
+        JSON.stringify(
+          (
+            await workerTurn(
+              runtime,
+              "Ordinary worker chat",
+              input.binding.scope,
+            )
+          ).entries,
+        ),
+      ).toContain("Ordinary worker reply");
+      if (approval !== "unselected") {
+        const value = await workerTurn(
+          runtime,
+          "request-unapproved-script",
+          input.binding.scope,
+        );
+        const result = value.entries
+          .flatMap((entry) =>
+            (entry.model ?? []).filter(
+              (message) => message.role === "toolResult",
+            ),
+          )
+          .at(-1);
+        expect(result?.isError).toBe(true);
+        expect(JSON.stringify(result)).toContain("capability_missing");
+      } else expect((await runtime.root.agent(context)).tools).toEqual([]);
+      await runtime.close(context);
+    }
+    expect(spawn).not.toHaveBeenCalled();
+  });
+
+  it("preflights only the current selected script before SQLite and rejects a failed sandbox without opening storage", async () => {
+    for (const available of [true, false]) {
+      const configuration = await toolRuntimeConfig({
+        rootTools: ["run_script"],
+        script: true,
+      });
+      const input: HarnessConfiguration = {
+        ...configuration,
+        approvedScripts: [
+          `${configuration.binding.definition.contentHash}:planning/calculate`,
+        ],
+      };
+      vi.mocked(sqlite.openNodeSqliteStorage).mockClear();
+      const created = new Map<string, string>();
+      vi.mocked(spawn)
+        .mockClear()
+        .mockImplementation((_command, rawArgs) => {
+          expect(sqlite.openNodeSqliteStorage).not.toHaveBeenCalled();
+          const args = rawArgs as string[];
+          const operation = args[0] === "container" ? args[1] : args[0];
+          const probe = dockerProbe();
+          queueMicrotask(() => {
+            if (!available) {
+              probe.emit("error", new Error("private sandbox diagnostic"));
+              return;
+            }
+            let output = "";
+            if (operation === "info") output = "linux";
+            else if (operation === "create") {
+              const index = args.indexOf("--name");
+              const name = args[index + 1];
+              if (!name) throw new Error("Missing owned probe name");
+              const label =
+                args
+                  .find((value) => value.startsWith("ai.hexly.frogie.owner="))
+                  ?.slice("ai.hexly.frogie.owner=".length) ?? "";
+              created.set(name, label);
+              output = name;
+            } else if (operation === "start")
+              output = JSON.stringify({
+                platform: "linux",
+                arch: "x64",
+                importMetaMain: true,
+              });
+            else if (operation === "ls")
+              output = [...created.keys()].join("\n");
+            else if (operation === "inspect")
+              output = created.get(args.at(-1) ?? "") ?? "";
+            else if (operation === "rm") created.delete(args.at(-1) ?? "");
+            probe.stdout.end(output);
+            probe.emit("close", 0, null);
+          });
+          return probe as unknown as ChildProcess;
+        });
+      const starting = openHarnessRuntime(input);
+      if (available) {
+        const runtime = await starting;
+        runtimes.push(runtime);
+        expect(sqlite.openNodeSqliteStorage).toHaveBeenCalledOnce();
+        const calls = vi
+          .mocked(spawn)
+          .mock.calls.map(([, args]) => args as string[]);
+        const probe = calls.find((args) => args.includes("create"));
+        expect(probe?.join(" ")).toMatch(/node@sha256:[a-f0-9]{64}/);
+        expect(probe?.join(" ")).toContain("import.meta.main");
+        expect(probe).toContain("--read-only");
+        expect(
+          probe?.some((arg) => ["--mount", "--volume", "-v"].includes(arg)),
+        ).toBe(false);
+        expect(calls.some((args) => args.includes("start"))).toBe(true);
+        expect(calls.some((args) => args.includes("rm"))).toBe(true);
+        await runtime.close(context);
+      } else {
+        await expect(starting).rejects.toMatchObject({
+          code: "capability_missing",
+        });
+        expect(sqlite.openNodeSqliteStorage).not.toHaveBeenCalled();
+        await expect(
+          access(join(input.directory, "session.sqlite")),
+        ).rejects.toMatchObject({ code: "ENOENT" });
+      }
     }
   });
 });

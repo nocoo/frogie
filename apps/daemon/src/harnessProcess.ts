@@ -21,6 +21,7 @@ export interface HarnessConfiguration {
   readonly binding: ProjectBinding;
   readonly mode: "local" | "e2e";
   readonly model?: LocalModelConfig;
+  readonly approvedScripts?: readonly string[];
 }
 
 export type WorkerRequest =

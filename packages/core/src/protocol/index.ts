@@ -31,6 +31,17 @@ export interface ProjectBinding {
   readonly authorizationScope?: readonly string[];
 }
 
+export interface ArtifactRef {
+  readonly scope: RuntimeScope;
+  readonly id: string;
+  readonly name: string;
+  readonly mediaType: string;
+  readonly byteLength: number;
+  readonly sha256: string;
+  readonly conversationId: number;
+  readonly taskId?: number;
+}
+
 export interface ConversationBinding {
   readonly conversationId: ConversationId;
   readonly roleId: string;
