@@ -7,6 +7,7 @@ import type {
   Conversation,
   ConversationId,
   Cursor,
+  DocumentReader,
   DocumentRecord,
   Extension,
   HarnessOptions,
@@ -113,6 +114,16 @@ export interface RuntimeOptions {
     context: Context,
   ) => Promise<boolean>;
 }
+
+export type RuntimeConfiguration = Pick<
+  RuntimeOptions,
+  | "runtimeId"
+  | "definition"
+  | "binding"
+  | "models"
+  | "registry"
+  | "roleDefaults"
+>;
 
 export interface RuntimeHandle {
   readonly harness: import("@earendil-works/pi-durable").Harness;
@@ -308,7 +319,7 @@ function workflowTools(
 }
 
 function conversationBinding(
-  options: RuntimeOptions,
+  options: RuntimeConfiguration,
   role: RoleDefinition,
   conversationId: ConversationId,
   workflowId?: string,
@@ -339,7 +350,7 @@ function conversationBinding(
 }
 
 function roleAgentChange(
-  options: RuntimeOptions,
+  options: RuntimeConfiguration,
   role: RoleDefinition,
   workflowId?: string,
 ): AgentChange {
@@ -364,7 +375,7 @@ function roleAgentChange(
 
 function recordRole(
   tx: Tx,
-  options: RuntimeOptions,
+  options: RuntimeConfiguration,
   conversationId: ConversationId,
   role: RoleDefinition,
   workflowId?: string,
@@ -383,14 +394,22 @@ function recordRole(
 
 export async function configureRuntimeRole(
   tx: Tx,
-  options: RuntimeOptions,
+  options: RuntimeConfiguration,
   conversationId: ConversationId,
   roleId: string,
-  change: DefinitionDefaults & { instructions?: string } = {},
+  change: DefinitionDefaults & {
+    instructions?: string;
+    workflowId?: string;
+  } = {},
 ): Promise<void> {
   const source = options.definition.roles.find((role) => role.id === roleId);
   if (!source) throw new RuntimeFailure("not_found", "Role was not found");
-  const configured: RuntimeOptions = {
+  if (
+    change.workflowId !== undefined &&
+    !options.definition.workflows.some(({ id }) => id === change.workflowId)
+  )
+    throw new RuntimeFailure("not_found", "Workflow was not found");
+  const configured: RuntimeConfiguration = {
     ...options,
     roleDefaults: {
       ...options.roleDefaults,
@@ -414,12 +433,39 @@ export async function configureRuntimeRole(
   ).find((item) => item.severity === "error");
   if (issue) throw new RuntimeFailure(issue.code, issue.message);
   await configure(tx, conversationId, {
-    ...roleAgentChange(configured, source),
+    ...roleAgentChange(configured, source, change.workflowId),
     ...(change.instructions === undefined
       ? {}
       : { instructions: change.instructions }),
   });
-  await recordRole(tx, configured, conversationId, source);
+  await recordRole(tx, configured, conversationId, source, change.workflowId);
+}
+
+export async function readRuntimeRole(
+  reader: DocumentReader,
+  options: RuntimeConfiguration,
+  conversationId: ConversationId,
+  context: Context,
+): Promise<ConversationBinding> {
+  const value = await reader.snapshot(RoleDoc, conversationId, context);
+  if (
+    !value ||
+    value.runtimeId !== options.runtimeId ||
+    value.definitionHash !== options.definition.contentHash ||
+    !options.definition.roles.some(({ id }) => id === value.roleId)
+  )
+    throw new RuntimeFailure("not_found", "Conversation role was not found", {
+      scope: options.binding.scope,
+      objectId: String(conversationId),
+    });
+  return {
+    conversationId,
+    roleId: value.roleId,
+    definitionHash: value.definitionHash,
+    configHash: value.configHash,
+    title: value.title,
+    ...(value.workflowId === undefined ? {} : { workflowId: value.workflowId }),
+  };
 }
 
 export function checkBinding(
