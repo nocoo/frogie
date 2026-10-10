@@ -30,6 +30,9 @@
 
 ## 实现
 
+- 目标架构采用本机常驻 daemon，统一托管各项目的 Pi Harness、SQLite、历史和恢复；Dashboard 提供本地管理、聊天、观察与调试。模块与实施阶段按文档索引中的最新设计执行。
+- 业务项目通过公开通信 SDK 接入，本机主动建立认证 WSS；两端基本功能独立于连接。SDK 仅包含协议、客户端及适配，私有定义和 Pi 执行留在 Frogie。
+- 连接状态、Pi 执行状态与业务交付回执分别呈现；本地阶段先验证至少两个独立 Squad，再验证 SDK 和真实业务集成。
 - Dashboard 采用 MVVM，Model、ViewModel、服务和运行逻辑接受四项至少 95% 的覆盖率检查；纯展示 View 可单独排除。
 - TypeScript 使用严格类型检查，Biome 执行零错误、零警告的只读检查。
 - Dashboard 使用 Basalt 3.0.0 发布组件、Tokens 和官方 Recipes。所有容器、按钮与表单优先按参考模板组合；专业画布使用 React Flow，外围和节点内容继续使用 Basalt。
@@ -49,7 +52,7 @@
 
 ## 本地数据
 
-- `pnpm build:core` 构建独立消费的 Core 包；Node 26 下在 `packages/core` 运行 `npm pack` 验证安装产物。业务集成规范见文档索引中的项目集成文档。
+- 当前 `pnpm build:core` 与 `packages/core` 中的 `npm pack` 对应既有嵌入式接入。目标 Core 为 daemon 私有依赖，公开交付范围为后续通信 SDK；精确已实现入口以 `package.json` 和对应代码为准。
 
 - `squads/` 定义和 `seeds/` 初始化源码及输入纳入 Git；生成的本地数据统一放在已忽略的 `data/`。
 - Local、E2E 的数据库分别存放在本机。测试使用本次运行拥有的隔离目录，文件编辑、重置与清理先核对归属，具体约定见文档索引中的 Dashboard 与 Tests。
