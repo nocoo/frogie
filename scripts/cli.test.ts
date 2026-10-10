@@ -88,7 +88,7 @@ function fixture(healthy: boolean): { repository: string; log: string } {
   const root = realpathSync(mkdtempSync(join(tmpdir(), "frogie-cli-test-")));
   temporaryRoots.push(root);
   const repository = join(root, "repository");
-  const log = join(root, "calls.jsonl");
+  const log = join(root, "calls.tsv");
   write(repository, ".gitignore", "node_modules/\ncoverage/\n");
   write(
     repository,
@@ -138,26 +138,24 @@ function fixture(healthy: boolean): { repository: string; log: string } {
     write(
       repository,
       executable,
-      `#!${process.execPath}
-const fs = require("node:fs");
-const {createRequire} = require("node:module");
-const path = require("node:path");
-const tool = ${JSON.stringify(tool)};
-const requireFromDashboard = createRequire(path.join(process.cwd(), tool === "vite" ? "package.json" : "apps/dashboard/package.json"));
-const core = requireFromDashboard("@frogie/core");
-fs.appendFileSync(${JSON.stringify(log)}, JSON.stringify({tool, args:process.argv.slice(2), cwd:process.cwd(), core}) + "\\n");
-if (tool === "tsc" && core === "staged broken") process.exit(2);
-if (tool === "vite" && core === "build broken") process.exit(3);
-if (tool === "vitest") {
-  fs.mkdirSync("coverage", {recursive:true});
-  fs.writeFileSync("coverage/vitest.json", JSON.stringify({numTotalTests:1,numPassedTests:1,numFailedTests:0,numPendingTests:0,numTodoTests:0,success:true}));
-}
+      `#!/bin/sh
+set -eu
+core=$(cat '${tool === "vite" ? "node_modules" : "apps/dashboard/node_modules"}/@frogie/core/index.cjs')
+core=\${core#*\\"}
+core=\${core%\\"*}
+args=''
+for arg do
+  args="$args\t$arg"
+done
+printf '%s\\t%s\\t%s%s\\n' '${tool}' "$PWD" "$core" "$args" >> '${log.replaceAll("'", "'\\''")}'
+${tool === "tsc" ? '[ "$core" != "staged broken" ] || exit 2' : ""}
+${tool === "vite" ? '[ "$core" != "build broken" ] || exit 3' : ""}
+${tool === "vitest" ? `mkdir -p coverage\nprintf '%s' '{"numTotalTests":1,"numPassedTests":1,"numFailedTests":0,"numPendingTests":0,"numTodoTests":0,"success":true}' > coverage/vitest.json` : ""}
 `,
     );
     chmodSync(path, 0o755);
   }
   git(repository, "init", "-q");
-  git(repository, "config", "core.hooksPath", join(root, "no-hooks"));
   git(repository, "add", ".");
   return { repository, log };
 }
@@ -168,7 +166,12 @@ function calls(
   return readFileSync(log, "utf8")
     .trim()
     .split("\n")
-    .map((line) => JSON.parse(line));
+    .map((line) => {
+      const [tool, cwd, core, ...args] = line.split("\t");
+      if (tool === undefined || cwd === undefined || core === undefined)
+        throw new Error("Malformed tool invocation log");
+      return { tool, args, cwd, core };
+    });
 }
 
 afterEach(() => {
