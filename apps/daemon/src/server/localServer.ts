@@ -12,6 +12,7 @@ import type {
   CancelInput,
   CompactInput,
   CreateConversationInput,
+  DaemonDirectory,
   DescribeInput,
   GetSubmissionInput,
   ListConversationsInput,
@@ -73,6 +74,18 @@ const exchangeSchema = Type.Object(
   { token: Type.String({ minLength: 1 }) },
   { additionalProperties: false },
 );
+const projectId = Type.String({ pattern: "^[a-z][a-z0-9-]*$" });
+const projectSchemas = {
+  enabled: Type.Object(
+    { projectId, enabled: Type.Boolean() },
+    { additionalProperties: false },
+  ),
+  register: Type.Object(
+    { squadId: projectId },
+    { additionalProperties: false },
+  ),
+  bind: Type.Object({ projectId }, { additionalProperties: false }),
+} as const;
 const createSchema = Type.Object(
   {
     roleId: Type.String({ minLength: 1 }),
@@ -153,9 +166,7 @@ type AuthorizedCall<T> = {
 type WatchStop = () => Promise<void>;
 
 export interface LocalServerOptions {
-  readonly instanceId: string;
-  readonly scope: RuntimeScope;
-  readonly service: RuntimeService;
+  readonly directory: DaemonDirectory;
   readonly context: Context;
   readonly definitions?: DefinitionWorkspace;
   readonly publicDirectory?: string;
@@ -286,15 +297,6 @@ function isStrictEnvelope(
   );
 }
 
-function sameScope(a: RuntimeScope, b: RuntimeScope): boolean {
-  return (
-    a.projectId === b.projectId &&
-    a.environmentId === b.environmentId &&
-    a.squadId === b.squadId &&
-    a.harnessId === b.harnessId
-  );
-}
-
 export async function startLocalServer(
   options: LocalServerOptions,
 ): Promise<LocalServer> {
@@ -417,15 +419,11 @@ export async function startLocalServer(
     }
 
     if (method === "GET" && pathname === "/__local/context") {
-      const caller = auth.authorize(authRequest, false);
-      const description = await options.service.describe(
-        { scope: options.scope, input: {}, caller },
-        options.context,
-      );
+      auth.authorize(authRequest, false);
       sendJson(response, 200, {
-        instanceId: options.instanceId,
-        scope: options.scope,
-        description,
+        instanceId: options.directory.instanceId,
+        mode: options.directory.mode,
+        projects: await options.directory.listProjects(),
       });
       return;
     }
@@ -434,6 +432,31 @@ export async function startLocalServer(
       method === "POST" && pathname !== "/__local/auth/exchange"
         ? auth.authorize(authRequest, true)
         : undefined;
+    if (method === "POST" && pathname.startsWith("/__local/projects/")) {
+      const operation = pathname.slice(
+        "/__local/projects/".length,
+      ) as keyof typeof projectSchemas;
+      if (!Object.hasOwn(projectSchemas, operation)) throw fail("not_found");
+      const input = await readJson(request);
+      if (!Value.Check(projectSchemas[operation], input))
+        throw fail("invalid_request");
+      const fields = input as {
+        projectId: string;
+        squadId: string;
+        enabled: boolean;
+      };
+      const value =
+        operation === "register"
+          ? await options.directory.registerProject(fields.squadId)
+          : operation === "bind"
+            ? await options.directory.bindDefinition(fields.projectId)
+            : await options.directory.setProjectEnabled(
+                fields.projectId,
+                fields.enabled,
+              );
+      sendJson(response, 200, { value });
+      return;
+    }
     if (method === "POST" && pathname.startsWith("/__local/definitions/")) {
       const caller = postCaller;
       if (!caller) throw fail("unauthenticated");
@@ -512,7 +535,7 @@ export async function startLocalServer(
     } catch {
       throw fail("invalid_request");
     }
-    if (routeInstance !== options.instanceId) {
+    if (routeInstance !== options.directory.instanceId) {
       sendJson(response, 409, {
         error: { code: "binding_mismatch", message: "Runtime scope mismatch" },
       });
@@ -531,72 +554,71 @@ export async function startLocalServer(
     if (!isStrictEnvelope(body) || !Value.Check(scopeSchema, body.scope)) {
       throw fail("invalid_request");
     }
-    if (!sameScope(body.scope as RuntimeScope, options.scope)) {
-      sendJson(response, 409, {
-        error: { code: "binding_mismatch", message: "Runtime scope mismatch" },
-      });
-      return;
-    }
     if (!Value.Check(operationSchemas[operation], body.input)) {
       throw fail("invalid_request");
     }
     const input = body.input as OperationInput<typeof operation>;
+    const scope = body.scope as RuntimeScope;
+    const service = options.directory.runtime(scope);
     if (operation === "observeConversation") {
       await streamObservation(
         response,
+        scope,
+        service,
         caller,
         input as ObserveConversationInput,
       );
       return;
     }
-    const value = await dispatch(operation, {
-      scope: options.scope,
+    const value = await dispatch(service, operation, {
+      scope,
       caller,
       input,
     });
     sendJson(response, 200, {
-      scope: options.scope,
+      scope,
       value: value === undefined ? null : value,
     });
   };
 
   const dispatch = async <K extends Exclude<Operation, "observeConversation">>(
+    service: RuntimeService,
     operation: K,
     call: AuthorizedCall<OperationInput<K>>,
   ): Promise<unknown> => {
     switch (operation) {
       case "describe":
-        return options.service.describe(
+        return service.describe(
           call as AuthorizedCall<DescribeInput>,
           options.context,
         );
       case "listConversations":
-        return options.service.listConversations(
+        return service.listConversations(
           call as AuthorizedCall<ListConversationsInput>,
           options.context,
         );
       case "createConversation":
-        return options.service.createConversation(
+        return service.createConversation(
           call as AuthorizedCall<CreateConversationInput>,
           options.context,
         );
       case "submit":
-        return options.service.submit(
+        return service.submit(
           call as AuthorizedCall<SubmitInput>,
           options.context,
         );
       case "getSubmission":
-        return options.service.getSubmission(
+        return service.getSubmission(
           call as AuthorizedCall<GetSubmissionInput>,
           options.context,
         );
       case "cancel":
-        return options.service.cancel(
+        return service.cancel(
           call as AuthorizedCall<CancelInput>,
           options.context,
         );
       case "compact":
-        return options.service.compact(
+        return service.compact(
           call as AuthorizedCall<CompactInput>,
           options.context,
         );
@@ -605,6 +627,8 @@ export async function startLocalServer(
 
   const streamObservation = async (
     response: ServerResponse,
+    scope: RuntimeScope,
+    service: RuntimeService,
     caller: { readonly id: string },
     input: ObserveConversationInput,
   ): Promise<void> => {
@@ -633,8 +657,8 @@ export async function startLocalServer(
     };
     response.once("close", disconnect);
     try {
-      watch = await options.service.observeConversation(
-        { scope: options.scope, caller, input },
+      watch = await service.observeConversation(
+        { scope, caller, input },
         requestContext,
       );
       if (stopped || closed || response.destroyed || response.writableEnded) {
@@ -653,7 +677,7 @@ export async function startLocalServer(
           return false;
         const frame = `event: ${type}\ndata: ${JSON.stringify({
           type,
-          scope: options.scope,
+          scope,
           conversationId: input.conversationId,
           value,
         })}\n\n`;

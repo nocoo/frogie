@@ -1,4 +1,6 @@
 import type {
+  DaemonContext,
+  DaemonProject,
   RuntimeDescription,
   RuntimeError,
   RuntimeScope,
@@ -25,7 +27,32 @@ const description: RuntimeDescription = {
   extensions: [],
   operations: ["describe", "listConversations", "submit", "getSubmission"],
 };
-const context = { instanceId: "instance-1", scope, description };
+const otherScope: RuntimeScope = {
+  projectId: "other-project",
+  environmentId: "other-environment",
+  squadId: "other-squad",
+  harnessId: "other-harness",
+};
+const project: DaemonProject = {
+  projectId: scope.projectId,
+  title: "Zeppelin",
+  scope,
+  enabled: true,
+  state: "running",
+  definitionHash: "definition-hash",
+  rootConversationId: 17,
+};
+const otherProject: DaemonProject = {
+  ...project,
+  projectId: otherScope.projectId,
+  title: "Other Squad",
+  scope: otherScope,
+};
+const context: DaemonContext = {
+  instanceId: "instance-1",
+  mode: "e2e",
+  projects: [project, otherProject],
+};
 type FetchCall = { input: string | URL | Request; init?: RequestInit };
 type ObserveInput = Parameters<LocalRuntimeClient["observe"]>[0];
 type ObservationFrame = Parameters<
@@ -58,7 +85,7 @@ function fetchFixture(responses: Array<unknown | Response>): {
   const calls: FetchCall[] = [];
   const fetch = vi.fn<typeof globalThis.fetch>(async (input, init) => {
     calls.push({ input, ...(init === undefined ? {} : { init }) });
-    const response = responses.shift();
+    const response = await responses.shift();
     if (response instanceof Response) return response;
     return Response.json(response);
   });
@@ -183,7 +210,7 @@ describe("connectLocalRuntime", () => {
     expect(requestInit(loadContext).redirect).toBe("error");
   });
 
-  it("submits with only the connected scope and input, and injects CSRF headers", async () => {
+  it("submits with only the requested scope and input, and injects CSRF headers", async () => {
     const fixture = fetchFixture([
       { csrf: "csrf-token", caller: { id: "local-user" } },
       context,
@@ -199,7 +226,7 @@ describe("connectLocalRuntime", () => {
       submission: { type: "input" as const, content: "Hello", requestId: "r1" },
     };
 
-    await expect(client.submit(input)).resolves.toBe(29);
+    await expect(client.submit(input, scope)).resolves.toBe(29);
     const call = callAt(fixture.calls, 2);
     expect(requestUrl(call).pathname).toBe(
       "/__local/instances/instance-1/operations/submit",
@@ -232,12 +259,12 @@ describe("connectLocalRuntime", () => {
       fetch: fixture.fetch,
     });
 
-    await expect(client.listConversations({})).resolves.toEqual(rows);
+    await expect(client.listConversations({}, scope)).resolves.toEqual(rows);
     await expect(
-      client.getSubmission({ submissionId: 29 as never }),
+      client.getSubmission({ submissionId: 29 as never }, scope),
     ).resolves.toBeUndefined();
     await expect(
-      client.getSubmission({ submissionId: 29 as never }),
+      client.getSubmission({ submissionId: 29 as never }, scope),
     ).resolves.toEqual(submission);
     expect(
       JSON.parse(String(requestInit(callAt(fixture.calls, 2)).body)),
@@ -259,6 +286,233 @@ describe("connectLocalRuntime", () => {
     });
   });
 
+  it("refreshes project states within the same authenticated daemon session", async () => {
+    const updated = { ...project, enabled: false, state: "stopped" as const };
+    const fixture = fetchFixture([
+      { csrf: "csrf-token", caller: { id: "local-user" } },
+      context,
+      { ...context, projects: [updated, otherProject] },
+      { ...context, projects: [] },
+    ]);
+    const client = await connectLocalRuntime({
+      origin,
+      token: "once",
+      fetch: fixture.fetch,
+    });
+    expect(await client.listProjects()).toEqual([updated, otherProject]);
+    expect(await client.listProjects()).toEqual([]);
+    for (const index of [2, 3]) {
+      const call = callAt(fixture.calls, index);
+      expect(requestUrl(call).pathname).toBe("/__local/context");
+      expect(requestInit(call)).toMatchObject({
+        method: "GET",
+        credentials: "same-origin",
+        redirect: "error",
+      });
+      expect(requestInit(call).body).toBeUndefined();
+    }
+    expect(
+      fixture.calls.filter((call) =>
+        requestUrl(call).pathname.includes("/auth/"),
+      ),
+    ).toHaveLength(1);
+    client.dispose();
+  });
+
+  it.each([
+    { ...context, instanceId: "replacement-instance" },
+    { ...context, mode: "local" },
+    { ...context, projects: [{ ...otherProject, projectId: "forged" }] },
+    {
+      ...context,
+      projects: [{ ...otherProject, scope: { ...otherScope, harnessId: "" } }],
+    },
+    { ...context, projects: [null] },
+    null,
+  ])(
+    "rejects a directory refresh that changes daemon identity or project ownership (%#)",
+    async (response) => {
+      const fixture = fetchFixture([
+        { csrf: "csrf-token", caller: { id: "local-user" } },
+        context,
+        response,
+      ]);
+      const client = await connectLocalRuntime({
+        origin,
+        fetch: fixture.fetch,
+      });
+      await expect(client.listProjects()).rejects.toMatchObject({
+        code: "binding_mismatch",
+      });
+      client.dispose();
+    },
+  );
+
+  it("authenticates project management routes independently of the selected runtime", async () => {
+    const stopped = {
+      ...otherProject,
+      enabled: false,
+      state: "stopped" as const,
+    };
+    const fixture = fetchFixture([
+      { csrf: "csrf-token", caller: { id: "local-user" } },
+      context,
+      { value: stopped },
+      { value: otherProject },
+      { value: { ...project, definitionHash: "new-hash" } },
+    ]);
+    const client = await connectLocalRuntime({
+      origin,
+      token: "startup-secret",
+      fetch: fixture.fetch,
+    });
+    expect(await client.setProjectEnabled(otherScope.projectId, false)).toEqual(
+      stopped,
+    );
+    expect(await client.registerProject(otherScope.squadId)).toEqual(
+      otherProject,
+    );
+    expect(await client.bindDefinition(scope.projectId)).toMatchObject({
+      definitionHash: "new-hash",
+    });
+    for (const [index, route, body] of [
+      [2, "enabled", { projectId: otherScope.projectId, enabled: false }],
+      [3, "register", { squadId: otherScope.squadId }],
+      [4, "bind", { projectId: scope.projectId }],
+    ] as const) {
+      const call = callAt(fixture.calls, index);
+      expect(requestUrl(call).pathname).toBe(`/__local/projects/${route}`);
+      expect(JSON.parse(String(requestInit(call).body))).toEqual(body);
+      expect(requestInit(call)).toMatchObject({
+        method: "POST",
+        credentials: "same-origin",
+        redirect: "error",
+      });
+      expect(headers(call).get("X-Frogie-CSRF")).toBe("csrf-token");
+      expect(headers(call).get("Content-Type")).toBe("application/json");
+      expect(String(requestInit(call).body)).not.toContain("startup-secret");
+    }
+    client.dispose();
+  });
+
+  it.each([
+    null,
+    {},
+    { value: null },
+    { value: [] },
+    { value: { ...project, projectId: "forged" } },
+    { value: { ...project, scope: { ...scope, squadId: "" } } },
+    { value: { ...project, state: "unknown" } },
+  ])(
+    "rejects malformed project management response envelopes (%#)",
+    async (result) => {
+      const fixture = fetchFixture([
+        { csrf: "csrf-token", caller: { id: "local-user" } },
+        context,
+        result,
+        result,
+        result,
+      ]);
+      const client = await connectLocalRuntime({
+        origin,
+        fetch: fixture.fetch,
+      });
+      await expect(
+        client.setProjectEnabled(scope.projectId, false),
+      ).rejects.toMatchObject({ code: "runtime_unavailable" });
+      await expect(client.registerProject(scope.squadId)).rejects.toMatchObject(
+        { code: "runtime_unavailable" },
+      );
+      await expect(
+        client.bindDefinition(scope.projectId),
+      ).rejects.toMatchObject({ code: "runtime_unavailable" });
+      client.dispose();
+    },
+  );
+
+  it("accepts empty directories and stopped or failed projects without a runtime description", async () => {
+    for (const projects of [
+      [],
+      [
+        {
+          ...project,
+          enabled: false,
+          state: "stopped",
+          rootConversationId: undefined,
+        },
+        {
+          ...otherProject,
+          state: "error",
+          rootConversationId: undefined,
+          error: {
+            code: "invalid_definition",
+            message: "Missing role",
+            retryable: false,
+          },
+        },
+      ],
+    ]) {
+      const loaded = { ...context, projects };
+      const fixture = fetchFixture([
+        { csrf: "csrf-token", caller: { id: "local-user" } },
+        loaded,
+      ]);
+      const client = await connectLocalRuntime({
+        origin,
+        fetch: fixture.fetch,
+      });
+      expect(client.context).toEqual(JSON.parse(JSON.stringify(loaded)));
+      client.dispose();
+    }
+  });
+
+  it("routes consecutive operations to distinct projects using each complete scope", async () => {
+    const fixture = fetchFixture([
+      { csrf: "csrf-token", caller: { id: "local-user" } },
+      context,
+      { scope: otherScope, value: { ...description, scope: otherScope } },
+      { scope, value: description },
+    ]);
+    const client = await connectLocalRuntime({ origin, fetch: fixture.fetch });
+    expect(await client.describe({}, otherScope)).toMatchObject({
+      scope: otherScope,
+    });
+    expect(await client.describe({}, scope)).toEqual(description);
+    for (const [index, expected] of [
+      [2, otherScope],
+      [3, scope],
+    ] as const) {
+      const call = callAt(fixture.calls, index);
+      expect(requestUrl(call).pathname).toBe(
+        "/__local/instances/instance-1/operations/describe",
+      );
+      expect(JSON.parse(String(requestInit(call).body))).toEqual({
+        scope: expected,
+        input: {},
+      });
+    }
+    client.dispose();
+  });
+
+  it.each(["projectId", "environmentId", "squadId", "harnessId"] as const)(
+    "rejects an operation response whose %s differs from the requested project",
+    async (field) => {
+      const fixture = fetchFixture([
+        { csrf: "csrf-token", caller: { id: "local-user" } },
+        context,
+        { scope: { ...otherScope, [field]: "forged" }, value: description },
+      ]);
+      const client = await connectLocalRuntime({
+        origin,
+        fetch: fixture.fetch,
+      });
+      await expect(client.describe({}, otherScope)).rejects.toMatchObject({
+        code: "binding_mismatch",
+      });
+      client.dispose();
+    },
+  );
+
   it("uses the global fetch implementation when no fetch adapter is supplied", async () => {
     const fixture = successfulFetch();
     vi.stubGlobal("fetch", fixture.fetch);
@@ -270,6 +524,163 @@ describe("connectLocalRuntime", () => {
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+
+  it("encodes a daemon instance ID in runtime operation URLs", async () => {
+    const fixture = fetchFixture([
+      { csrf: "csrf-token", caller: { id: "local-user" } },
+      { ...context, instanceId: "daemon/name ?#" },
+      { scope, value: description },
+    ]);
+    const client = await connectLocalRuntime({ origin, fetch: fixture.fetch });
+    await client.describe({}, scope);
+    expect(requestUrl(callAt(fixture.calls, 2)).pathname).toBe(
+      "/__local/instances/daemon%2Fname%20%3F%23/operations/describe",
+    );
+    expect(requestUrl(callAt(fixture.calls, 2)).search).toBe("");
+    expect(requestUrl(callAt(fixture.calls, 2)).hash).toBe("");
+    client.dispose();
+  });
+
+  it("keeps observations with identical conversation IDs isolated by their complete project scopes", async () => {
+    const streams = [scope, otherScope].map((scope) => {
+      let enqueue!: (value: ObservationFrame) => void;
+      const cancel = vi.fn();
+      const response = new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            enqueue = (value) =>
+              controller.enqueue(
+                new TextEncoder().encode(
+                  `event: ${value.type}\ndata: ${JSON.stringify(value)}\n\n`,
+                ),
+              );
+          },
+          cancel,
+        }),
+        { headers: { "Content-Type": "text/event-stream" } },
+      );
+      return {
+        scope,
+        response,
+        enqueue,
+        cancel,
+        listener: vi.fn(),
+        onError: vi.fn(),
+      };
+    });
+    const fixture = fetchFixture([
+      { csrf: "csrf-token", caller: { id: "local-user" } },
+      context,
+      ...streams.map((stream) => stream.response),
+    ]);
+    const client = await connectLocalRuntime({ origin, fetch: fixture.fetch });
+    const stops = streams.map((stream) =>
+      client.observe(
+        { conversationId: 17 as ConversationId },
+        stream.listener,
+        stream.onError,
+        stream.scope,
+      ),
+    );
+    try {
+      for (const stream of streams)
+        stream.enqueue(frame("snapshot", { scope: stream.scope }));
+      await vi.waitFor(() => {
+        for (const stream of streams)
+          expect(stream.listener).toHaveBeenCalledOnce();
+      });
+      for (const [index, stream] of streams.entries()) {
+        expect(stream.listener.mock.calls[0]?.[0]).toMatchObject({
+          scope: stream.scope,
+          conversationId: 17,
+        });
+        const call = callAt(fixture.calls, index + 2);
+        expect(JSON.parse(String(requestInit(call).body))).toEqual({
+          scope: stream.scope,
+          input: { conversationId: 17 },
+        });
+        expect(headers(call).get("X-Frogie-CSRF")).toBe("csrf-token");
+        expect(requestInit(call)).toMatchObject({
+          credentials: "same-origin",
+          redirect: "error",
+          method: "POST",
+        });
+      }
+      stops[0]?.();
+      stops[0]?.();
+      await vi.waitFor(() => expect(streams[0]?.cancel).toHaveBeenCalledOnce());
+      streams[1]?.enqueue(
+        frame("update", {
+          scope: otherScope,
+          value: {
+            ...frame("snapshot").value,
+            docs: { marker: { project: "other" } },
+          },
+        }),
+      );
+      await vi.waitFor(() =>
+        expect(streams[1]?.listener).toHaveBeenCalledTimes(2),
+      );
+      expect(streams[0]?.listener).toHaveBeenCalledOnce();
+      expect(requestInit(callAt(fixture.calls, 3)).signal?.aborted).toBe(false);
+      for (const stream of streams)
+        expect(stream.onError).not.toHaveBeenCalled();
+    } finally {
+      for (const stop of stops) stop();
+      client.dispose();
+    }
+  });
+
+  it.each([
+    [
+      Response.json(
+        { error: { code: "forbidden", message: "Not authorized" } },
+        { status: 403 },
+      ),
+      "forbidden",
+    ],
+    [
+      Response.json({ error: { code: "forbidden" } }, { status: 403 }),
+      "runtime_unavailable",
+    ],
+  ] as const)(
+    "preserves project management HTTP errors without accepting malformed error details (%#)",
+    async (response, code) => {
+      const fixture = fetchFixture([
+        { csrf: "csrf-token", caller: { id: "local-user" } },
+        context,
+        response,
+      ]);
+      const client = await connectLocalRuntime({
+        origin,
+        fetch: fixture.fetch,
+      });
+      await expect(
+        client.bindDefinition(otherScope.projectId),
+      ).rejects.toMatchObject({ code });
+      client.dispose();
+    },
+  );
+
+  it("rejects late project directory results after the daemon client is disposed", async () => {
+    let resolve!: (response: Response) => void;
+    const pendingResponse = new Promise<Response>((accept) => {
+      resolve = accept;
+    });
+    const fixture = fetchFixture([
+      { csrf: "csrf-token", caller: { id: "local-user" } },
+      context,
+      pendingResponse,
+    ]);
+    const client = await connectLocalRuntime({ origin, fetch: fixture.fetch });
+    const pending = client.listProjects();
+    client.dispose();
+    expect(requestInit(callAt(fixture.calls, 2)).signal?.aborted).toBe(true);
+    resolve(Response.json(context));
+    await expect(pending).rejects.toMatchObject({
+      code: "runtime_unavailable",
+    });
   });
 
   it("routes createConversation, cancel and compact with their input and null mapping", async () => {
@@ -296,16 +707,19 @@ describe("connectLocalRuntime", () => {
       fetch: fixture.fetch,
     });
     await expect(
-      client.createConversation({ roleId: "reviewer" }),
+      client.createConversation({ roleId: "reviewer" }, scope),
     ).resolves.toEqual(created);
     await expect(
-      client.cancel({ conversationId: 17 as never }),
+      client.cancel({ conversationId: 17 as never }, scope),
     ).resolves.toBeUndefined();
     await expect(
-      client.compact({
-        conversationId: 17 as never,
-        instructions: "Keep decisions",
-      }),
+      client.compact(
+        {
+          conversationId: 17 as never,
+          instructions: "Keep decisions",
+        },
+        scope,
+      ),
     ).resolves.toBe(43);
 
     expect(requestUrl(callAt(fixture.calls, 2)).pathname).toContain(
@@ -384,6 +798,7 @@ describe("connectLocalRuntime", () => {
       { conversationId: 17 as never },
       (value) => frames.push(value),
       (error) => errors.push(error),
+      scope,
     );
     await vi.waitFor(() => expect(frames).toHaveLength(2));
     expect(frames[0]).toEqual(snapshot);
@@ -397,8 +812,31 @@ describe("connectLocalRuntime", () => {
 
   it.each([
     [
-      "scope mismatch",
+      "harness mismatch",
       frame("snapshot", { scope: { ...scope, harnessId: "other" } }),
+    ],
+    [
+      "project mismatch",
+      frame("snapshot", { scope: { ...scope, projectId: "other" } }),
+    ],
+    [
+      "environment mismatch",
+      frame("snapshot", { scope: { ...scope, environmentId: "other" } }),
+    ],
+    [
+      "squad mismatch",
+      frame("snapshot", { scope: { ...scope, squadId: "other" } }),
+    ],
+    [
+      "nested conversation mismatch",
+      frame("snapshot", {
+        value: {
+          ...frame("snapshot").value,
+          conversation: {
+            id: 18 as ConversationId,
+          } as ObservationFrame["value"]["conversation"],
+        },
+      }),
     ],
     [
       "conversation mismatch",
@@ -417,21 +855,21 @@ describe("connectLocalRuntime", () => {
     });
     const listener = vi.fn();
     const onError = vi.fn();
-    client.observe({ conversationId: 17 as never }, listener, onError);
+    client.observe({ conversationId: 17 as never }, listener, onError, scope);
     await vi.waitFor(() => expect(onError).toHaveBeenCalledOnce());
     expect(listener).not.toHaveBeenCalled();
     expect(onError.mock.calls[0]?.[0]).toMatchObject({
-      code: expect.any(String),
+      code: "binding_mismatch",
     });
     client.dispose();
   });
 
   it.each([
-    ["malformed JSON data", sseResponse(["event: snapshot\\ndata: {\\n\\n"])],
+    ["malformed JSON data", sseResponse(["event: snapshot\ndata: {\n\n"])],
     [
       "event/type mismatch",
       sseResponse([
-        `event: update\\ndata: ${JSON.stringify(frame("snapshot"))}\\n\\n`,
+        `event: update\ndata: ${JSON.stringify(frame("snapshot"))}\n\n`,
       ]),
     ],
     [
@@ -457,6 +895,7 @@ describe("connectLocalRuntime", () => {
         { conversationId: 17 as ConversationId },
         listener,
         onError,
+        scope,
       );
       await vi.waitFor(() => expect(onError).toHaveBeenCalledOnce());
       expect(listener).not.toHaveBeenCalled();
@@ -464,6 +903,59 @@ describe("connectLocalRuntime", () => {
       client.dispose();
     },
   );
+
+  it("rejects a successful observation response with the wrong content type and cancels its body", async () => {
+    const cancel = vi.fn();
+    const fixture = fetchFixture([
+      { csrf: "csrf-token", caller: { id: "local-user" } },
+      context,
+      new Response(new ReadableStream<Uint8Array>({ cancel }), {
+        headers: { "Content-Type": "application/json" },
+      }),
+    ]);
+    const client = await connectLocalRuntime({ origin, fetch: fixture.fetch });
+    const listener = vi.fn();
+    const onError = vi.fn();
+    const stop = client.observe(
+      { conversationId: 17 as ConversationId },
+      listener,
+      onError,
+      scope,
+    );
+    await vi.waitFor(() => expect(onError).toHaveBeenCalledOnce());
+    expect(cancel).toHaveBeenCalledOnce();
+    expect(listener).not.toHaveBeenCalled();
+    expect(onError.mock.calls[0]?.[0]).toMatchObject({
+      code: "runtime_unavailable",
+    });
+    stop();
+    client.dispose();
+  });
+
+  it("contains a frame listener exception and aborts that observation", async () => {
+    const fixture = fetchFixture([
+      { csrf: "csrf-token", caller: { id: "local-user" } },
+      context,
+      sseResponse([
+        `event: snapshot\ndata: ${JSON.stringify(frame("snapshot"))}\n\n`,
+      ]),
+    ]);
+    const client = await connectLocalRuntime({ origin, fetch: fixture.fetch });
+    const listener = vi.fn(() => {
+      throw new Error("Consumer frame failure");
+    });
+    const onError = vi.fn();
+    client.observe(
+      { conversationId: 17 as ConversationId },
+      listener,
+      onError,
+      scope,
+    );
+    await vi.waitFor(() => expect(onError).toHaveBeenCalledOnce());
+    expect(listener).toHaveBeenCalledOnce();
+    expect(requestInit(callAt(fixture.calls, 2)).signal?.aborted).toBe(true);
+    client.dispose();
+  });
 
   it("keeps a successful observe stream open until unsubscribe, then cancels its reader", async () => {
     let enqueue!: (chunk: Uint8Array) => void;
@@ -498,6 +990,7 @@ describe("connectLocalRuntime", () => {
       { conversationId: 17 as ConversationId },
       listener,
       onError,
+      scope,
     );
     const snapshotData = new TextEncoder().encode(
       `event: snapshot\ndata: ${JSON.stringify(frame("snapshot"))}\n\n`,
@@ -530,6 +1023,7 @@ describe("connectLocalRuntime", () => {
       { conversationId: 17 as never },
       vi.fn(),
       onError,
+      scope,
     );
     await vi.waitFor(() => expect(onError).toHaveBeenCalledOnce());
     expect(onError.mock.calls[0]?.[0]).toMatchObject({ code: "forbidden" });
@@ -560,6 +1054,7 @@ describe("connectLocalRuntime", () => {
         { conversationId: 17 as never },
         listener,
         onError,
+        scope,
       );
       await vi.waitFor(() => expect(fixture.calls).toHaveLength(3));
       const signal = requestInit(callAt(fixture.calls, 2)).signal;
@@ -600,7 +1095,7 @@ describe("connectLocalRuntime", () => {
       token: "secret",
       fetch,
     });
-    const pending = client.describe({});
+    const pending = client.describe({}, scope);
     await vi.waitFor(() => expect(calls).toHaveLength(3));
     const operationInit = calls[2]?.init;
     const requestSignal = operationInit?.signal;
@@ -657,7 +1152,7 @@ describe("connectLocalRuntime", () => {
         token: "secret",
         fetch: fixture.fetch,
       });
-      await expect(client.describe({})).rejects.toMatchObject({ code });
+      await expect(client.describe({}, scope)).rejects.toMatchObject({ code });
       client.dispose();
     },
   );
@@ -678,7 +1173,7 @@ describe("connectLocalRuntime", () => {
         token: "secret",
         fetch: fixture.fetch,
       });
-      await expect(client.describe({})).rejects.toMatchObject({
+      await expect(client.describe({}, scope)).rejects.toMatchObject({
         code: "binding_mismatch",
       });
       client.dispose();
@@ -699,7 +1194,7 @@ describe("connectLocalRuntime", () => {
       new ReadableStream<Uint8Array>({
         start(controller) {
           controller.enqueue(
-            new TextEncoder().encode("event: snapshot\\ndata: {\\n\\n"),
+            new TextEncoder().encode("event: snapshot\ndata: {\n"),
           );
           controller.close();
         },
@@ -722,6 +1217,7 @@ describe("connectLocalRuntime", () => {
         { conversationId: 17 as ConversationId },
         vi.fn(),
         onError,
+        scope,
       );
       await vi.waitFor(() => expect(onError).toHaveBeenCalledOnce());
       client.dispose();
@@ -741,6 +1237,7 @@ describe("connectLocalRuntime", () => {
         { conversationId: 17 as ConversationId },
         vi.fn(),
         vi.fn(),
+        scope,
       ),
     ).toThrow();
     expect(fixture.fetch).toHaveBeenCalledTimes(2);
@@ -776,7 +1273,12 @@ describe("connectLocalRuntime", () => {
     const onError = vi.fn(() => {
       throw new Error("consumer callback failure");
     });
-    client.observe({ conversationId: 17 as ConversationId }, vi.fn(), onError);
+    client.observe(
+      { conversationId: 17 as ConversationId },
+      vi.fn(),
+      onError,
+      scope,
+    );
     await vi.waitFor(() => expect(fixture.calls).toHaveLength(3));
     enqueue(new TextEncoder().encode("event: snapshot\ndata: {\n\n"));
     await vi.waitFor(() => expect(onError).toHaveBeenCalledOnce());
@@ -786,10 +1288,22 @@ describe("connectLocalRuntime", () => {
     client.dispose();
   });
 
-  it("rejects unsupported protocol versions and mismatched context scope", async () => {
+  it("rejects malformed daemon contexts and mismatched project identities", async () => {
     for (const invalidContext of [
-      { ...context, description: { ...description, protocolVersion: 2 } },
-      { ...context, scope: { ...scope, harnessId: "other" } },
+      null,
+      {},
+      { ...context, instanceId: "" },
+      { ...context, mode: "unknown" },
+      { ...context, projects: {} },
+      {
+        ...context,
+        projects: [{ ...project, scope: { ...scope, projectId: "other" } }],
+      },
+      {
+        ...context,
+        projects: [{ ...project, scope: { ...scope, harnessId: "" } }],
+      },
+      { ...context, projects: [{ ...project, state: "unknown" }] },
     ]) {
       const fixture = fetchFixture([
         { csrf: "csrf-token", caller: { id: "local-user" } },
@@ -811,8 +1325,14 @@ describe("connectLocalRuntime", () => {
     client.dispose();
     client.dispose();
 
-    await expect(client.describe({})).rejects.toThrow();
-    await expect(client.listConversations({})).rejects.toThrow();
+    await expect(client.describe({}, scope)).rejects.toThrow();
+    await expect(client.listConversations({}, scope)).rejects.toThrow();
+    await expect(client.listProjects()).rejects.toThrow();
+    await expect(
+      client.setProjectEnabled(scope.projectId, false),
+    ).rejects.toThrow();
+    await expect(client.registerProject(scope.squadId)).rejects.toThrow();
+    await expect(client.bindDefinition(scope.projectId)).rejects.toThrow();
     expect(fixture.fetch).toHaveBeenCalledTimes(2);
   });
 });

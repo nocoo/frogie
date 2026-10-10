@@ -69,19 +69,20 @@ daemon 的本地管理接口和单个 Harness 启动默认期限各为 10 秒；
 ```text
 data/
   local/
-    daemon.sqlite
-    projects/<project-id>/
-      connectors/<connector-id>/
-        delivery.sqlite
-      environments/<environment-id>/
-        environment.json
-        harnesses/<harness-id>/
-          binding.json
-          definition/
-          session.sqlite
-          artifacts/
-          receipts/
-          evals/<evaluation-id>/
+    daemon/
+      daemon.sqlite
+      projects/<project-id>/
+        connectors/<connector-id>/
+          delivery.sqlite
+        environments/<environment-id>/
+          environment.json
+          harnesses/<harness-id>/
+            binding.json
+            definition/
+            session.sqlite
+            artifacts/
+            receipts/
+            evals/<evaluation-id>/
   e2e/<run-id>/
     owner.json
     workspace/squads/
@@ -90,7 +91,7 @@ data/
     reports/
 ```
 
-`daemon.sqlite` 保存本地项目登记、连接元数据和管理偏好；每个 `session.sqlite` 由 Pi 保存会话、Tasks、Submissions 与 Documents。`delivery.sqlite` 保存对应连接的待投递消息、去重关联、接收回执和持久业务操作状态。Pi 业务操作意图先提交，再由投递器按稳定操作 ID 建立 outbox；启动时扫描未结算意图，修复跨数据库提交窗口。
+Local 默认数据根为 `data/local/daemon/`，旧版运行目录和日志原样保留。`daemon.sqlite` 保存本地项目登记、连接元数据和管理偏好；每个 `session.sqlite` 由 Pi 保存会话、Tasks、Submissions 与 Documents。`delivery.sqlite` 保存对应连接的待投递消息、去重关联、接收回执和持久业务操作状态。Pi 业务操作意图先提交，再由投递器按稳定操作 ID 建立 outbox；启动时扫描未结算意图，修复跨数据库提交窗口。
 
 `binding.json` 与 Pi 绑定 Document 核对作用域、定义摘要和运行版本。冻结定义、产物与回执使用内容摘要，写入采用临时文件与原子落盘；未完成写入不会成为已确认引用。清理已完成投递数据时保留协议规定的去重凭据或墓碑。
 

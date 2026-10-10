@@ -1,16 +1,10 @@
-import { randomUUID } from "node:crypto";
-import { cp, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
-import { createModels, createProvider } from "@earendil-works/pi-ai";
-import { openAICompletionsApi } from "@earendil-works/pi-ai/api/openai-completions.lazy";
-import { createRegistry } from "@earendil-works/pi-durable";
-import { openNodeSqliteStorage } from "@earendil-works/pi-durable/storage/sqlite/node";
-import { loadDefinition } from "@frogie/core/definitions";
-import { openRuntime } from "@frogie/core/runtime";
 import { type Static, Type } from "typebox";
 import Value from "typebox/value";
+import { startDaemon } from "../daemon.js";
 import { createDefinitionWorkspace } from "./definitions.js";
 import { startLocalServer } from "./localServer.js";
 
@@ -68,132 +62,57 @@ export async function loadLocalModel(path: string): Promise<LocalModelConfig> {
   }
 }
 
-export async function startLocal(options: {
+export interface DaemonServerOptions {
   directory: string;
-  model: LocalModelConfig;
+  definitionsDirectory?: string;
   port?: number;
-}): Promise<{ url: string; origin: string; close(): Promise<void> }> {
-  const config = validateModel(options.model);
-  await mkdir(options.directory, { recursive: true });
-  const files = await readdir(options.directory);
-  const metadata = join(options.directory, "runtime.json");
-  const squads = join(options.directory, "squads");
-  let runtimeId: string;
-  if (files.length === 0) {
-    runtimeId = randomUUID();
-    await writeFile(metadata, JSON.stringify({ runtimeId }), {
-      flag: "wx",
-      mode: 0o600,
-    });
-    await cp(
-      fileURLToPath(
-        new URL("../../../../tests/fixtures/minimal-squad", import.meta.url),
-      ),
-      join(squads, "minimal-squad"),
-      { recursive: true, force: false, errorOnExist: true },
-    );
-  } else {
-    const stored: unknown = JSON.parse(await readFile(metadata, "utf8"));
-    if (
-      !Value.Check(
-        Type.Object(
-          {
-            runtimeId: Type.String({
-              pattern:
-                "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
-            }),
-          },
-          { additionalProperties: false },
-        ),
-        stored,
-      )
-    )
-      throw new Error("本地运行目录的身份信息无效。");
-    runtimeId = stored.runtimeId;
-  }
-  const definition = loadDefinition(join(squads, "minimal-squad"));
-  const scope = {
-    projectId: definition.projectId,
-    environmentId: "local",
-    squadId: definition.squadId,
-    harnessId: runtimeId,
-  };
-  const models = createModels();
-  models.setProvider(
-    createProvider({
-      id: "local-model",
-      baseUrl: config.baseUrl,
-      models: [
-        {
-          id: config.modelId,
-          name: config.modelId,
-          provider: "local-model",
-          api: "openai-completions",
-          baseUrl: config.baseUrl,
-          reasoning: true,
-          input: ["text"],
-          contextWindow: config.contextWindow,
-          maxTokens: config.maxTokens,
-          cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-        },
-      ],
-      api: openAICompletionsApi(),
-      auth: {
-        apiKey: {
-          name: "local-model",
-          resolve: async () => ({ auth: { apiKey: config.apiKey } }),
-        },
-      },
-    }),
-  );
-  const runtime = await openRuntime(
-    {
-      runtimeId,
-      definition,
-      binding: {
-        projectId: definition.projectId,
-        scope,
-        definition: { contentHash: definition.contentHash },
-        environment: {
-          model: { provider: "local-model", modelId: config.modelId },
-          thinkingLevel: config.thinkingLevel,
-        },
-      },
-      models,
-      registry: createRegistry(),
-      authorization: async () => true,
-      storage: await openNodeSqliteStorage(
-        join(options.directory, "session.sqlite"),
-      ),
-    },
-    BACKGROUND_CONTEXT,
-  );
+  publicOrigin?: string;
+}
+
+export async function startDaemonServer(
+  options: DaemonServerOptions & {
+    mode: "local" | "e2e";
+    model?: LocalModelConfig;
+  },
+): Promise<{ url: string; origin: string; close(): Promise<void> }> {
+  const definitionsDirectory =
+    options.definitionsDirectory ?? resolve("squads");
+  const daemon = await startDaemon({
+    directory: options.directory,
+    definitionsDirectory,
+    mode: options.mode,
+    ...(options.model === undefined
+      ? {}
+      : { model: validateModel(options.model) }),
+  });
   try {
     const server = await startLocalServer({
-      instanceId: runtimeId,
-      scope,
-      service: runtime.service,
+      directory: daemon,
       context: BACKGROUND_CONTEXT,
-      definitions: createDefinitionWorkspace(squads),
+      definitions: createDefinitionWorkspace(definitionsDirectory),
       publicDirectory: fileURLToPath(
         new URL("../../../dashboard/dist", import.meta.url),
       ),
-      publicOrigin: "https://frogie.dev.hexly.ai",
+      publicOrigin: options.publicOrigin ?? "https://frogie.dev.hexly.ai",
       port: options.port ?? 7033,
     });
     let closing: Promise<void> | undefined;
     return {
       url: server.url,
       origin: server.origin,
-      close: () => {
-        closing ??= server
-          .close()
-          .finally(() => runtime.close(BACKGROUND_CONTEXT));
+      close() {
+        closing ??= server.close().finally(() => daemon.close());
         return closing;
       },
     };
   } catch (error) {
-    await runtime.close(BACKGROUND_CONTEXT);
+    await daemon.close();
     throw error;
   }
+}
+
+export function startLocal(
+  options: DaemonServerOptions & { model: LocalModelConfig },
+) {
+  return startDaemonServer({ ...options, mode: "local" });
 }

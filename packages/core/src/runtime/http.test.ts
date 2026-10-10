@@ -12,6 +12,7 @@ import { createRegistry } from "@earendil-works/pi-durable";
 import { openNodeSqliteStorage } from "@earendil-works/pi-durable/storage/sqlite/node";
 import { expect, it } from "vitest";
 import { startLocalServer } from "../../../../apps/daemon/src/server/localServer.js";
+import { localDirectory } from "../../../../tests/fixtures/local-directory.js";
 import { loadDefinition } from "../definitions/index.js";
 import type { RuntimeScope, SubmitOutput } from "../protocol/index.js";
 import { openRuntime } from "./index.js";
@@ -63,9 +64,7 @@ it("submits through authenticated HTTP and reopens actual SQLite history", async
   let server: Awaited<ReturnType<typeof startLocalServer>> | undefined;
   try {
     server = await startLocalServer({
-      instanceId: "http-instance",
-      scope,
-      service: runtime.service,
+      directory: localDirectory("http-instance", scope, runtime.service),
       context: BACKGROUND_CONTEXT,
     });
     const token = new URLSearchParams(new URL(server.url).hash.slice(1)).get(

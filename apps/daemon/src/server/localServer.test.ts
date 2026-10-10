@@ -5,12 +5,15 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import type {
+  DaemonDirectory,
+  DaemonProject,
   RuntimeDescription,
   RuntimeScope,
   RuntimeService,
 } from "@frogie/core/protocol";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { version } from "../../../../package.json";
+import { localDirectory } from "../../../../tests/fixtures/local-directory.js";
 import { createDefinitionWorkspace } from "./definitions.js";
 import { type LocalServer, startLocalServer } from "./localServer.js";
 
@@ -140,12 +143,11 @@ const definitionRoots: string[] = [];
 
 async function launch(
   definitions?: ReturnType<typeof createDefinitionWorkspace>,
+  directory?: DaemonDirectory,
 ) {
   const runtime = runtimeService();
   const server = await startLocalServer({
-    instanceId,
-    scope,
-    service: runtime.service,
+    directory: directory ?? localDirectory(instanceId, scope, runtime.service),
     context: BACKGROUND_CONTEXT,
     port: 0,
     ...(definitions === undefined ? {} : { definitions }),
@@ -156,8 +158,9 @@ async function launch(
 
 async function start(
   definitions?: ReturnType<typeof createDefinitionWorkspace>,
+  directory?: DaemonDirectory,
 ) {
-  const { server, runtime } = await launch(definitions);
+  const { server, runtime } = await launch(definitions, directory);
   const token = new URLSearchParams(new URL(server.url).hash.slice(1)).get(
     "token",
   );
@@ -193,7 +196,7 @@ async function post(
     headers: {
       Origin: requestOrigin,
       "Content-Type": "application/json",
-      Cookie: cookie,
+      ...(cookie ? { Cookie: cookie } : {}),
       "X-Frogie-CSRF": csrf,
     },
     body: JSON.stringify(body),
@@ -208,6 +211,338 @@ afterEach(async () => {
   await Promise.all(servers.map((server) => server.close()));
   for (const root of definitionRoots.splice(0))
     await rm(root, { recursive: true, force: true });
+});
+
+describe("local project transport", () => {
+  async function directoryFixture() {
+    const first = runtimeService();
+    const second = runtimeService();
+    const otherScope = {
+      ...scope,
+      projectId: "other-project",
+      squadId: "other-squad",
+      harnessId: "other-harness",
+    };
+    const firstDirectory = localDirectory(instanceId, scope, first.service);
+    const secondDirectory = localDirectory(
+      instanceId,
+      otherScope,
+      second.service,
+    );
+    const [otherProject] = await secondDirectory.listProjects();
+    if (!otherProject) throw new Error("Missing fixture project");
+    const listProjects = vi.fn(async () => [
+      ...(await firstDirectory.listProjects()),
+      ...(await secondDirectory.listProjects()),
+    ]);
+    const setProjectEnabled = vi.fn<DaemonDirectory["setProjectEnabled"]>(
+      async (projectId, enabled) => ({
+        ...otherProject,
+        projectId,
+        enabled,
+        state: enabled ? "running" : "stopped",
+      }),
+    );
+    const bindDefinition = vi.fn<DaemonDirectory["bindDefinition"]>(
+      async () => ({
+        ...otherProject,
+        scope: { ...otherScope, harnessId: "new-harness" },
+        definitionHash: "new-definition",
+      }),
+    );
+    const registerProject = vi.fn<DaemonDirectory["registerProject"]>(
+      async () => otherProject,
+    );
+    const runtime = vi.fn<DaemonDirectory["runtime"]>((target) =>
+      (target.projectId === scope.projectId
+        ? firstDirectory
+        : secondDirectory
+      ).runtime(target),
+    );
+    const directory: DaemonDirectory = {
+      ...firstDirectory,
+      listProjects,
+      runtime,
+      setProjectEnabled,
+      bindDefinition,
+      registerProject,
+    };
+    return {
+      directory,
+      first,
+      second,
+      otherScope,
+      listProjects,
+      setProjectEnabled,
+      bindDefinition,
+      registerProject,
+      runtime,
+    };
+  }
+
+  it("refreshes project states without requiring an available Harness", async () => {
+    const test = await directoryFixture();
+    const projects = await test.listProjects();
+    test.listProjects.mockResolvedValueOnce([]);
+    test.listProjects.mockResolvedValueOnce(
+      projects.map((project) => ({
+        ...project,
+        enabled: false,
+        state: "stopped",
+      })),
+    );
+    const { server, cookie } = await start(undefined, test.directory);
+    for (const expectedCount of [0, 2]) {
+      const response = await fetch(`${server.origin}/__local/context`, {
+        headers: { Origin: server.origin, Cookie: cookie },
+      });
+      expect(response.status).toBe(200);
+      const context = (await response.json()) as {
+        instanceId: string;
+        mode: string;
+        projects: DaemonProject[];
+      };
+      expect(context).toMatchObject({ instanceId, mode: "e2e" });
+      expect(context.projects).toHaveLength(expectedCount);
+      for (const project of context.projects)
+        expect(project.state).toBe("stopped");
+    }
+    expect(test.runtime).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["enabled", { projectId: "other-project", enabled: false }],
+    ["register", { squadId: "other-squad" }],
+    ["bind", { projectId: "other-project" }],
+  ] as const)(
+    "authorizes and forwards project %s",
+    async (operation, input) => {
+      const test = await directoryFixture();
+      const { server, cookie, credentials } = await start(
+        undefined,
+        test.directory,
+      );
+      const path = `/__local/projects/${operation}`;
+      for (const [requestCookie, csrf, requestOrigin, status] of [
+        ["", credentials.csrf, server.origin, 401],
+        [cookie, "", server.origin, 403],
+        [cookie, credentials.csrf, "http://localhost:1234", 403],
+      ] as const) {
+        const response = await post(
+          server.origin,
+          path,
+          requestCookie,
+          csrf,
+          input,
+          requestOrigin,
+        );
+        expect(response.status).toBe(status);
+      }
+      expect(test.setProjectEnabled).not.toHaveBeenCalled();
+      expect(test.registerProject).not.toHaveBeenCalled();
+      expect(test.bindDefinition).not.toHaveBeenCalled();
+
+      const response = await post(
+        server.origin,
+        path,
+        cookie,
+        credentials.csrf,
+        input,
+      );
+      expect(response.status).toBe(200);
+      const result = await response.json();
+      expect(result).toMatchObject({
+        value: {
+          projectId: "other-project",
+          scope: {
+            ...test.otherScope,
+            harnessId:
+              operation === "bind" ? "new-harness" : test.otherScope.harnessId,
+          },
+        },
+      });
+      if (operation === "enabled") {
+        expect(test.setProjectEnabled).toHaveBeenCalledExactlyOnceWith(
+          "other-project",
+          false,
+        );
+        expect(result).toMatchObject({
+          value: { enabled: false, state: "stopped" },
+        });
+      } else if (operation === "register") {
+        expect(test.registerProject).toHaveBeenCalledExactlyOnceWith(
+          "other-squad",
+        );
+      } else {
+        expect(test.bindDefinition).toHaveBeenCalledExactlyOnceWith(
+          "other-project",
+        );
+        expect(result).toMatchObject({
+          value: {
+            definitionHash: "new-definition",
+            scope: { harnessId: "new-harness" },
+          },
+        });
+      }
+    },
+  );
+
+  it("rejects unknown project operations and strict input violations before mutation", async () => {
+    const test = await directoryFixture();
+    const { server, cookie, credentials } = await start(
+      undefined,
+      test.directory,
+    );
+    for (const [operation, input, status] of [
+      ["delete", { projectId: "other-project" }, 404],
+      ["enabled", { projectId: "other-project", enabled: "false" }, 400],
+      ["enabled", { projectId: "other-project" }, 400],
+      ["register", { squadId: "../private" }, 400],
+      ["register", { squadId: "other-squad", enabled: true }, 400],
+      ["bind", {}, 400],
+      ["bind", { projectId: "other-project", caller: { id: "owner" } }, 400],
+    ] as const) {
+      const response = await post(
+        server.origin,
+        `/__local/projects/${operation}`,
+        cookie,
+        credentials.csrf,
+        input,
+      );
+      expect(response.status).toBe(status);
+    }
+    expect(test.setProjectEnabled).not.toHaveBeenCalled();
+    expect(test.registerProject).not.toHaveBeenCalled();
+    expect(test.bindDefinition).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["not_found", 404],
+    ["conflict", 409],
+    ["storage_in_use", 409],
+    ["invalid_definition", 400],
+    ["unrecognized", 500],
+  ])("sanitizes project management failure %s", async (code, status) => {
+    const test = await directoryFixture();
+    test.bindDefinition.mockRejectedValueOnce(
+      Object.assign(new Error("private-secret at /private/model.json"), {
+        code,
+      }),
+    );
+    const { server, cookie, credentials } = await start(
+      undefined,
+      test.directory,
+    );
+    const response = await post(
+      server.origin,
+      "/__local/projects/bind",
+      cookie,
+      credentials.csrf,
+      { projectId: "other-project" },
+    );
+    expect(response.status).toBe(status);
+    const text = await response.text();
+    expect(text).not.toContain("private-secret");
+    expect(text).not.toContain("/private/");
+    expect(JSON.parse(text)).toMatchObject({
+      error: {
+        code: code === "unrecognized" ? "runtime_unavailable" : code,
+        retryable: false,
+      },
+    });
+  });
+
+  it("routes overlapping conversation IDs only to their full project scope", async () => {
+    const test = await directoryFixture();
+    const { server, cookie, credentials } = await start(
+      undefined,
+      test.directory,
+    );
+    for (const [target, runtime] of [
+      [scope, test.first],
+      [test.otherScope, test.second],
+    ] as const) {
+      const input = {
+        conversationId,
+        submission: { type: "input", content: target.projectId },
+      };
+      const response = await post(
+        server.origin,
+        operationPath("submit"),
+        cookie,
+        credentials.csrf,
+        { scope: target, input },
+      );
+      expect(response.status).toBe(200);
+      expect(await response.json()).toMatchObject({ scope: target, value: 23 });
+      expect(runtime.calls.submit).toHaveBeenCalledExactlyOnceWith(
+        { scope: target, input, caller: credentials.caller },
+        BACKGROUND_CONTEXT,
+      );
+    }
+    const forged = await post(
+      server.origin,
+      operationPath("submit"),
+      cookie,
+      credentials.csrf,
+      {
+        scope: { ...scope, projectId: test.otherScope.projectId },
+        input: {
+          conversationId,
+          submission: { type: "input", content: "forged" },
+        },
+      },
+    );
+    expect(forged.status).toBe(409);
+    expect(test.first.calls.submit).toHaveBeenCalledOnce();
+    expect(test.second.calls.submit).toHaveBeenCalledOnce();
+  });
+
+  it("keeps project SSE watches independent when one browser unsubscribes", async () => {
+    const test = await directoryFixture();
+    const { server, cookie, credentials } = await start(
+      undefined,
+      test.directory,
+    );
+    const readers: ReadableStreamDefaultReader<Uint8Array>[] = [];
+    try {
+      for (const target of [scope, test.otherScope]) {
+        const response = await post(
+          server.origin,
+          operationPath("observeConversation"),
+          cookie,
+          credentials.csrf,
+          { scope: target, input: { conversationId } },
+        );
+        expect(response.status).toBe(200);
+        if (!response.body) throw new Error("Missing SSE body");
+        const reader = response.body.getReader();
+        readers.push(reader);
+        const first = await withTimeout(reader.read(), 2_000);
+        const data = new TextDecoder()
+          .decode(first.value)
+          .split("\n")
+          .find((line) => line.startsWith("data: "));
+        if (!data) throw new Error("Missing SSE snapshot");
+        expect(JSON.parse(data.slice(6))).toMatchObject({
+          scope: target,
+          conversationId,
+          type: "snapshot",
+        });
+      }
+      const [firstReader] = readers;
+      if (!firstReader) throw new Error("Missing first project stream");
+      await firstReader.cancel();
+      await vi.waitFor(() =>
+        expect(test.first.watch.stop).toHaveBeenCalledOnce(),
+      );
+      expect(test.second.watch.stop).not.toHaveBeenCalled();
+      expect(test.first.calls.cancel).not.toHaveBeenCalled();
+      expect(test.second.calls.cancel).not.toHaveBeenCalled();
+    } finally {
+      await Promise.all(readers.map((reader) => reader.cancel()));
+    }
+  });
 });
 
 describe("local definition transport", () => {
@@ -449,9 +784,7 @@ describe("startLocalServer", () => {
   it("honors an explicit Caddy origin and resumes the cookie session", async () => {
     const publicOrigin = "https://frogie.dev.hexly.ai";
     const server = await startLocalServer({
-      instanceId,
-      scope,
-      service: runtimeService().service,
+      directory: localDirectory(instanceId, scope, runtimeService().service),
       context: BACKGROUND_CONTEXT,
       publicOrigin,
     });
@@ -480,9 +813,7 @@ describe("startLocalServer", () => {
   it("rejects unsupported configured public origins", async () => {
     await expect(
       startLocalServer({
-        instanceId,
-        scope,
-        service: runtimeService().service,
+        directory: localDirectory(instanceId, scope, runtimeService().service),
         context: BACKGROUND_CONTEXT,
         publicOrigin: "https://evil.example",
       }),
@@ -503,9 +834,7 @@ describe("startLocalServer", () => {
     );
     await writeFile(join(root, "private.txt"), "secret");
     const server = await startLocalServer({
-      instanceId,
-      scope,
-      service: runtimeService().service,
+      directory: localDirectory(instanceId, scope, runtimeService().service),
       context: BACKGROUND_CONTEXT,
       publicDirectory: join(root, "dist"),
     });
@@ -550,9 +879,7 @@ describe("startLocalServer", () => {
 
   it("starts on an ephemeral loopback port and exposes only an opaque startup token in the URL fragment", async () => {
     const server = await startLocalServer({
-      instanceId,
-      scope,
-      service: runtimeService().service,
+      directory: localDirectory(instanceId, scope, runtimeService().service),
       context: BACKGROUND_CONTEXT,
       port: 0,
     });
@@ -609,8 +936,12 @@ describe("startLocalServer", () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
       instanceId,
-      scope,
-      description,
+      mode: "e2e",
+      projects: await localDirectory(
+        instanceId,
+        scope,
+        runtimeService().service,
+      ).listProjects(),
     });
   });
 
@@ -1060,9 +1391,7 @@ describe("startLocalServer", () => {
     const { server } = await launch();
     await expect(
       startLocalServer({
-        instanceId,
-        scope,
-        service: runtimeService().service,
+        directory: localDirectory(instanceId, scope, runtimeService().service),
         context: BACKGROUND_CONTEXT,
         port: Number(new URL(server.origin).port),
       }),

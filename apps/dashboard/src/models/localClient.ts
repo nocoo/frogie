@@ -6,6 +6,8 @@ import type {
   CompactOutput,
   CreateConversationInput,
   CreateConversationOutput,
+  DaemonContext,
+  DaemonProject,
   DescribeInput,
   GetSubmissionInput,
   GetSubmissionOutput,
@@ -42,13 +44,38 @@ const authSchema = Type.Object({
   csrf: nonempty,
   caller: Type.Object({ id: nonempty }),
 });
+const projectSchema = Type.Object({
+  projectId: nonempty,
+  title: nonempty,
+  scope: scopeSchema,
+  enabled: Type.Boolean(),
+  state: Type.Union([
+    Type.Literal("starting"),
+    Type.Literal("running"),
+    Type.Literal("stopped"),
+    Type.Literal("error"),
+  ]),
+  definitionHash: Type.String(),
+  rootConversationId: Type.Optional(Type.Integer({ minimum: 1 })),
+  model: Type.Optional(
+    Type.Object({
+      provider: nonempty,
+      modelId: nonempty,
+      thinkingLevel: nonempty,
+    }),
+  ),
+  error: Type.Optional(
+    Type.Object({
+      code: nonempty,
+      message: nonempty,
+      retryable: Type.Boolean(),
+    }),
+  ),
+});
 const contextSchema = Type.Object({
   instanceId: nonempty,
-  scope: scopeSchema,
-  description: Type.Object({
-    protocolVersion: Type.Literal(1),
-    scope: scopeSchema,
-  }),
+  mode: Type.Union([Type.Literal("local"), Type.Literal("e2e")]),
+  projects: Type.Array(projectSchema),
 });
 const safeId = Type.Integer({ minimum: 1, maximum: Number.MAX_SAFE_INTEGER });
 const frameSchema = Type.Object({
@@ -87,14 +114,15 @@ export interface LocalRuntimeOptions {
   readonly fetch?: typeof fetch;
 }
 
-export interface LocalRuntimeContext {
-  readonly instanceId: string;
-  readonly scope: RuntimeScope;
-  readonly description: RuntimeDescription;
-}
-
 export interface LocalRuntimeClient {
-  readonly context: LocalRuntimeContext;
+  readonly context: DaemonContext;
+  listProjects(): Promise<readonly DaemonProject[]>;
+  setProjectEnabled(
+    projectId: string,
+    enabled: boolean,
+  ): Promise<DaemonProject>;
+  registerProject(squadId: string): Promise<DaemonProject>;
+  bindDefinition(projectId: string): Promise<DaemonProject>;
   readonly caller: RuntimeCaller;
   listSquads(): Promise<SquadSummary[]>;
   loadDefinition(squadId: string): Promise<DefinitionBundle>;
@@ -103,21 +131,30 @@ export interface LocalRuntimeClient {
     draft: FileDraft,
     requestId: string,
   ): Promise<DefinitionBundle>;
-  describe(input: DescribeInput): Promise<RuntimeDescription>;
+  describe(
+    input: DescribeInput,
+    scope: RuntimeScope,
+  ): Promise<RuntimeDescription>;
   listConversations(
     input: ListConversationsInput,
+    scope: RuntimeScope,
   ): Promise<readonly RuntimeConversationRecord[]>;
   createConversation(
     input: CreateConversationInput,
+    scope: RuntimeScope,
   ): Promise<CreateConversationOutput>;
-  submit(input: SubmitInput): Promise<SubmitOutput>;
-  getSubmission(input: GetSubmissionInput): Promise<GetSubmissionOutput>;
-  cancel(input: CancelInput): Promise<CancelOutput>;
-  compact(input: CompactInput): Promise<CompactOutput>;
+  submit(input: SubmitInput, scope: RuntimeScope): Promise<SubmitOutput>;
+  getSubmission(
+    input: GetSubmissionInput,
+    scope: RuntimeScope,
+  ): Promise<GetSubmissionOutput>;
+  cancel(input: CancelInput, scope: RuntimeScope): Promise<CancelOutput>;
+  compact(input: CompactInput, scope: RuntimeScope): Promise<CompactOutput>;
   observe(
     input: ObserveConversationInput,
     listener: (frame: ObservationFrame) => void,
     onError: (error: RuntimeError) => void,
+    scope: RuntimeScope,
   ): () => void;
   dispose(): void;
 }
@@ -215,18 +252,23 @@ export async function connectLocalRuntime(
   const loaded = await request("/__local/context");
   if (
     !Value.Check(contextSchema, loaded) ||
-    !sameScope(loaded.scope, loaded.description.scope)
+    loaded.projects.some(
+      (project) => project.projectId !== project.scope.projectId,
+    )
   )
     throw failure("binding_mismatch", "Invalid local runtime context");
   const context = Object.freeze({
-    ...(loaded as LocalRuntimeContext),
-    scope: Object.freeze({ ...loaded.scope }),
+    ...(loaded as unknown as DaemonContext),
   });
   const caller = Object.freeze({ ...auth.caller });
-  const operation = async <T>(name: string, input: unknown): Promise<T> => {
+  const operation = async <T>(
+    name: string,
+    input: unknown,
+    scope: RuntimeScope,
+  ): Promise<T> => {
     const result = await request(
       `/__local/instances/${encodeURIComponent(context.instanceId)}/operations/${name}`,
-      { scope: context.scope, input },
+      { scope, input },
       auth.csrf,
     );
     if (
@@ -234,7 +276,7 @@ export async function connectLocalRuntime(
       result === null ||
       !("scope" in result) ||
       !Value.Check(scopeSchema, result.scope) ||
-      !sameScope(result.scope, context.scope) ||
+      !sameScope(result.scope, scope) ||
       !("value" in result)
     )
       throw failure("binding_mismatch", "Invalid local runtime response scope");
@@ -262,30 +304,68 @@ export async function connectLocalRuntime(
     return result.value as T;
   };
 
+  const projectRequest = async (
+    name: string,
+    input: unknown,
+  ): Promise<DaemonProject> => {
+    const result = await request(`/__local/projects/${name}`, input, auth.csrf);
+    if (
+      typeof result !== "object" ||
+      result === null ||
+      !("value" in result) ||
+      !Value.Check(projectSchema, result.value) ||
+      result.value.projectId !== result.value.scope.projectId
+    )
+      throw failure("runtime_unavailable", "Invalid project response");
+    return result.value as unknown as DaemonProject;
+  };
   return {
     context,
     caller,
+    async listProjects() {
+      const result = await request("/__local/context");
+      if (
+        !Value.Check(contextSchema, result) ||
+        result.instanceId !== context.instanceId ||
+        result.mode !== context.mode ||
+        result.projects.some(
+          (project) => project.projectId !== project.scope.projectId,
+        )
+      )
+        throw failure("binding_mismatch", "Daemon identity changed");
+      return result.projects as unknown as readonly DaemonProject[];
+    },
+    setProjectEnabled: (projectId, enabled) =>
+      projectRequest("enabled", { projectId, enabled }),
+    registerProject: (squadId) => projectRequest("register", { squadId }),
+    bindDefinition: (projectId) => projectRequest("bind", { projectId }),
     listSquads: () => definitionRequest("list", {}),
     loadDefinition: (squadId) => definitionRequest("load", { squadId }),
     saveDefinition: (squadId, draft, requestId) =>
       definitionRequest("save", { squadId, draft, requestId }),
-    describe: (input) => operation("describe", input),
-    listConversations: (input) => operation("listConversations", input),
-    createConversation: (input) => operation("createConversation", input),
-    submit: (input) => operation("submit", input),
-    async getSubmission(input) {
+    describe: (input, scope) => operation("describe", input, scope),
+    listConversations: (input, scope) =>
+      operation("listConversations", input, scope),
+    createConversation: (input, scope) =>
+      operation("createConversation", input, scope),
+    submit: (input, scope) => operation("submit", input, scope),
+    async getSubmission(input, scope) {
       return (
-        (await operation<GetSubmissionOutput | null>("getSubmission", input)) ??
+        (await operation<GetSubmissionOutput | null>(
+          "getSubmission",
+          input,
+          scope,
+        )) ?? undefined
+      );
+    },
+    async cancel(input, scope) {
+      return (
+        (await operation<CancelOutput | null>("cancel", input, scope)) ??
         undefined
       );
     },
-    async cancel(input) {
-      return (
-        (await operation<CancelOutput | null>("cancel", input)) ?? undefined
-      );
-    },
-    compact: (input) => operation("compact", input),
-    observe(input, listener, onError) {
+    compact: (input, scope) => operation("compact", input, scope),
+    observe(input, listener, onError, scope) {
       if (disposed)
         throw failure("runtime_unavailable", "Local runtime disposed");
       const controller = new AbortController();
@@ -319,7 +399,7 @@ export async function connectLocalRuntime(
                 "Content-Type": "application/json",
                 "X-Frogie-CSRF": auth.csrf,
               },
-              body: JSON.stringify({ scope: context.scope, input }),
+              body: JSON.stringify({ scope, input }),
             },
           );
           if (stopped || disposed) {
@@ -375,7 +455,7 @@ export async function connectLocalRuntime(
             if (
               !Value.Check(frameSchema, frame) ||
               value.event !== frame.type ||
-              !sameScope(frame.scope, context.scope) ||
+              !sameScope(frame.scope, scope) ||
               frame.conversationId !== conversationId ||
               frame.value.conversation.id !== conversationId
             )

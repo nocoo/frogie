@@ -43,10 +43,10 @@
 - 本地人工验收入口为 `https://frogie.dev.hexly.ai`，现有 Caddy 转发至 `127.0.0.1:7033`。L2／浏览器端口分别保留 `17033`／`27033`，Vite 辅助端口为 `37033`；隔离测试可以使用临时 loopback 端口。
 - 应用版本以根 `package.json` 为唯一来源，工作区包版本同步；界面显示 `vX.Y.Z`，`/api/live` 返回 `X.Y.Z`。调整版本和发布分别执行，远端操作遵循明确授权。
 - 使用 Node.js 26 与 `pnpm install --frozen-lockfile` 安装锁定依赖；安装后由 Husky 设置 Git hooks。
-- `pnpm dev` 启动 Local Dashboard，从 `data/local-model.json` 或 `FROGIE_MODEL_CONFIG` 读取服务端模型配置，状态保存在 `data/local/dashboard/`。`FROGIE_MODE=e2e pnpm dev` 使用隔离目录和无模型费用的替身。`pnpm build` 构建 Dashboard。
+- `pnpm dev` 启动 Local daemon 与 Dashboard，从 `data/local-model.json` 或 `FROGIE_MODEL_CONFIG` 读取服务端模型配置。daemon 状态保存在 `data/local/daemon/`，各项目拥有独立的 Harness SQLite；旧版 `data/local/dashboard/` 原样保留。`FROGIE_MODE=e2e pnpm dev` 使用隔离目录和无模型费用的替身。`pnpm build` 构建 Dashboard。
 - `pnpm typecheck` 执行严格类型检查；`pnpm lint` 执行 Biome 只读检查并拒绝警告。
 - `pnpm test` 提供单元测试反馈；`pnpm test:coverage` 执行全量单元测试及四项覆盖率门槛；`pnpm check` 顺序执行类型、lint 与覆盖率。
-- `pnpm test:ui` 构建并验证当前 Dashboard 的桌面与移动端布局、主题、对话和定义编辑；使用独立的 `data/e2e/` 数据及 `27033` 端口，截图和失败 trace 存入 `data/e2e/browser-results/`。
+- `pnpm test:ui` 构建并验证当前 Dashboard 的桌面与移动端布局、主题、对话、定义编辑和多项目管理；使用独立的 `data/e2e/` 数据，布局使用 `27033` 端口，多项目用例使用临时 loopback 端口，截图和失败 trace 存入 `data/e2e/browser-results/`。
 - Pre-commit 在临时目录检查暂存快照，Pre-push 检查标准输入指定的提交及构建；工作区与暂存区保持原样。检查复用已安装的锁定依赖，依赖元数据不匹配时先安装对应依赖。
 - 以上命令对应已建立的工程入口；集成测试、完整 E2E 与真实评估按设计文档继续实现，完成证据分别验证。
 

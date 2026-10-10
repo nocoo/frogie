@@ -10,6 +10,12 @@ const scope: RuntimeScope = {
   squadId: "zeppelin",
   harnessId: "test-harness",
 };
+const otherScope: RuntimeScope = {
+  projectId: "other-project",
+  environmentId: "other-environment",
+  squadId: "other-squad",
+  harnessId: "other-harness",
+};
 const origin = "http://127.0.0.1:4321";
 const caller = { id: "untrusted-ignored" };
 const bundle = {
@@ -23,14 +29,23 @@ async function fixture(values: unknown[] = []) {
     { csrf: "csrf", caller: { id: "local-user" } },
     {
       instanceId: "test-instance",
-      scope,
-      description: { protocolVersion: 1, scope },
+      mode: "e2e",
+      projects: [scope, otherScope].map((scope) => ({
+        projectId: scope.projectId,
+        title: scope.squadId,
+        scope,
+        enabled: true,
+        state: "running",
+        definitionHash: "current",
+        rootConversationId: 17,
+      })),
     },
     ...values,
   ];
-  const fetch = vi.fn<typeof globalThis.fetch>(async () =>
-    Response.json(responses.shift()),
-  );
+  const fetch = vi.fn<typeof globalThis.fetch>(async () => {
+    const value = responses.shift();
+    return value instanceof Response ? value : Response.json(value);
+  });
   const client = await connectLocalRuntime({ origin, token: "token", fetch });
   const onError = vi.fn<(error: RuntimeError) => void>();
   return {
@@ -126,47 +141,82 @@ describe("local Dashboard adapter", () => {
     client.dispose();
   });
 
-  it.each(["environmentId", "squadId", "harnessId"] as const)(
-    "rejects every scoped operation after %s changes",
+  it("passes another registered project scope through every runtime and definition operation", async () => {
+    const otherBundle = { ...bundle, squadId: otherScope.squadId };
+    const { api, fetch, client } = await fixture([
+      { value: otherBundle },
+      { value: otherBundle },
+      ...[
+        [],
+        { conversationId: 18, binding: {} },
+        21,
+        { id: 21, status: "done" },
+        null,
+        22,
+      ].map((value) => ({ scope: otherScope, value })),
+    ]);
+    const id = 17 as Parameters<typeof api.cancel>[1];
+    const submissionId = 21 as Parameters<typeof api.getSubmission>[1];
+    const draft = { path: "SQUAD.md", content: "x", baseContent: "y" };
+    expect(await api.loadFiles(otherScope)).toEqual(otherBundle);
+    expect(await api.saveFile(otherScope, draft, "one")).toEqual(otherBundle);
+    expect(await api.listConversations(otherScope)).toEqual([]);
+    expect(
+      await api.createConversation({
+        scope: otherScope,
+        caller,
+        input: { roleId: "reviewer" },
+      }),
+    ).toMatchObject({ conversationId: 18 });
+    expect(
+      await api.submit({
+        scope: otherScope,
+        caller,
+        input: {
+          conversationId: id,
+          submission: { type: "input", content: "hello" },
+        },
+      }),
+    ).toBe(21);
+    expect(await api.getSubmission(otherScope, submissionId)).toMatchObject({
+      id: 21,
+    });
+    await api.cancel(otherScope, id);
+    await api.compact(otherScope, id);
+    expect(JSON.parse(String(fetch.mock.calls[2]?.[1]?.body))).toEqual({
+      squadId: otherScope.squadId,
+    });
+    expect(JSON.parse(String(fetch.mock.calls[3]?.[1]?.body))).toEqual({
+      squadId: otherScope.squadId,
+      draft,
+      requestId: "one",
+    });
+    for (const [, init] of fetch.mock.calls.slice(4))
+      expect(JSON.parse(String(init?.body)).scope).toEqual(otherScope);
+    expect(fetch).toHaveBeenCalledTimes(10);
+    client.dispose();
+  });
+
+  it.each(["projectId", "environmentId", "squadId", "harnessId"] as const)(
+    "preserves the runtime rejection for a forged %s instead of rejecting another scope locally",
     async (key) => {
-      const { api, fetch, client } = await fixture();
-      const other = { ...scope, [key]: "other" };
-      const id = 17 as Parameters<typeof api.cancel>[1];
-      const submissionId = 21 as Parameters<typeof api.getSubmission>[1];
-      const operations: Array<() => unknown> = [
-        () => api.loadFiles(other),
-        () =>
-          api.saveFile(
-            other,
-            { path: "SQUAD.md", content: "x", baseContent: "y" },
-            "one",
-          ),
-        () => api.listConversations(other),
-        () =>
-          api.createConversation({
-            scope: other,
-            caller,
-            input: { roleId: "command" },
-          }),
-        () =>
-          api.submit({
-            scope: other,
-            caller,
-            input: {
-              conversationId: id,
-              submission: { type: "input", content: "hello" },
-            },
-          }),
-        () => api.getSubmission(other, submissionId),
-        () => api.cancel(other, id),
-        () => api.compact(other, id),
-        () => api.observe(other, id, vi.fn()),
-      ];
-      for (const operation of operations)
-        await expect(Promise.resolve().then(operation)).rejects.toMatchObject({
-          code: "binding_mismatch",
-        });
-      expect(fetch).toHaveBeenCalledTimes(2);
+      const other = { ...scope, [key]: "forged" };
+      const { api, fetch, client } = await fixture([
+        Response.json(
+          {
+            error: { code: "binding_mismatch", message: "Scope is not bound" },
+          },
+          { status: 409 },
+        ),
+      ]);
+      await expect(api.listConversations(other)).rejects.toMatchObject({
+        code: "binding_mismatch",
+      });
+      expect(fetch).toHaveBeenCalledTimes(3);
+      expect(JSON.parse(String(fetch.mock.calls[2]?.[1]?.body))).toEqual({
+        scope: other,
+        input: {},
+      });
       client.dispose();
     },
   );
@@ -177,11 +227,12 @@ describe("local Dashboard adapter", () => {
     const stop = vi.fn();
     const observe = vi.spyOn(client, "observe").mockReturnValue(stop);
     const id = 17 as Parameters<typeof api.cancel>[1];
-    expect(api.observe(scope, id, listener)).toBe(stop);
+    expect(api.observe(otherScope, id, listener)).toBe(stop);
     expect(observe).toHaveBeenCalledWith(
       { conversationId: id },
       listener,
       onError,
+      otherScope,
     );
     client.dispose();
   });

@@ -24,7 +24,7 @@ export async function main(
   await mkdir(parent, { recursive: true });
   const directory = resolve(
     parent,
-    mode === "local" ? "dashboard" : `preview-${randomUUID()}`,
+    mode === "local" ? "daemon" : `preview-${randomUUID()}`,
   );
   const preview = model
     ? await startLocal({ directory, model })
@@ -32,7 +32,7 @@ export async function main(
   const shutdown = async () => {
     process.off("SIGINT", shutdown);
     process.off("SIGTERM", shutdown);
-    const timeout = setTimeout(() => process.exit(1), 5_000);
+    const timeout = setTimeout(() => process.exit(1), 16_000);
     try {
       await preview.close();
     } catch (error) {

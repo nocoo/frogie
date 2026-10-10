@@ -74,7 +74,7 @@ it("defaults to the persistent Local runtime, reports its model and shares shutd
   vi.stubEnv("FROGIE_MODE", undefined);
   vi.stubEnv("FROGIE_MODEL_CONFIG", undefined);
   await main();
-  const directory = resolve("data/local/dashboard");
+  const directory = resolve("data/local/daemon");
   expect(loadLocalModel).toHaveBeenCalledWith(resolve("data/local-model.json"));
   expect(startLocal).toHaveBeenCalledWith({ directory, model });
   expect(startPreview).not.toHaveBeenCalled();
@@ -160,11 +160,11 @@ it("reports a close failure, removes listeners and marks failure without leaking
   expect(vi.getTimerCount()).toBe(0);
 });
 
-it("forces exit only when the five-second close deadline expires", async () => {
+it("allows server and Harness cleanup before the shutdown deadline expires", async () => {
   close.mockReturnValueOnce(new Promise(() => undefined));
   await main({});
   handler("SIGINT")();
-  await vi.advanceTimersByTimeAsync(4_999);
+  await vi.advanceTimersByTimeAsync(15_999);
   expect(process.exit).not.toHaveBeenCalled();
   await vi.advanceTimersByTimeAsync(1);
   expect(process.exit).toHaveBeenCalledOnce();

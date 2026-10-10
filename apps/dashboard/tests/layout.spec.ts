@@ -13,6 +13,7 @@ import { openNodeSqliteStorage } from "@earendil-works/pi-durable/storage/sqlite
 import { loadDefinition } from "@frogie/core/definitions";
 import { openRuntime } from "@frogie/core/runtime";
 import { test as base, expect, type Locator } from "@playwright/test";
+import { localDirectory } from "../../../tests/fixtures/local-directory.js";
 import { createDefinitionWorkspace } from "../../daemon/src/server/definitions.js";
 import { startLocalServer } from "../../daemon/src/server/localServer.js";
 
@@ -72,9 +73,7 @@ const test = base.extend<{ local: { url: string; directory: string } }>({
     let server: Awaited<ReturnType<typeof startLocalServer>> | undefined;
     try {
       server = await startLocalServer({
-        instanceId: "layout-test",
-        scope,
-        service: runtime.service,
+        directory: localDirectory("layout-test", scope, runtime.service),
         context: BACKGROUND_CONTEXT,
         definitions: createDefinitionWorkspace(squads),
         publicDirectory: resolve("apps/dashboard/dist"),

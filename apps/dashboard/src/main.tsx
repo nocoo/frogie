@@ -1,7 +1,6 @@
 import "./styles.css";
-import type { SubmitInput } from "@frogie/core/protocol";
+import type { DaemonProject, SubmitInput } from "@frogie/core/protocol";
 import { LayerCard } from "@nocoo/basalt";
-import { ChatMarkdown } from "@nocoo/basalt/components/chat-markdown";
 import { Combobox } from "@nocoo/basalt/components/combobox";
 import type { ReactNode } from "react";
 import { createRoot } from "react-dom/client";
@@ -16,10 +15,12 @@ import {
   createDashboardViewModel,
   type DashboardViewModel,
 } from "./viewmodels/DashboardViewModel.js";
+import { createProjectViewModel } from "./viewmodels/ProjectViewModel.js";
 import { projectChat } from "./viewmodels/projectChat.js";
 import { AppView, type Page } from "./views/AppView.js";
 import { ChatView } from "./views/ChatView.js";
 import { DefinitionView } from "./views/DefinitionView.js";
+import { ProjectOverviewView } from "./views/ProjectOverviewView.js";
 
 const mounted = new WeakMap<HTMLElement, () => void>();
 
@@ -43,15 +44,24 @@ export function mountDashboard(
   let error: string | null = null;
   let client: LocalRuntimeClient | undefined;
   let vm: DashboardViewModel | undefined;
+  let projects: ReturnType<typeof createProjectViewModel> | undefined;
+  let unsubscribeProjects: (() => void) | undefined;
+  let projectPoll: ReturnType<typeof setTimeout> | undefined;
+  let selectedRoleId: string | undefined;
+  const scopedDrafts = new Map<
+    string,
+    Map<SubmitInput["conversationId"] | "new", string>
+  >();
   let unsubscribe: (() => void) | undefined;
   let selectedPath: string | null = null;
   let selectedConversationId: SubmitInput["conversationId"] | undefined;
-  const chatDrafts = new Map<SubmitInput["conversationId"] | "new", string>();
+  let chatDrafts = new Map<SubmitInput["conversationId"] | "new", string>();
   let newConversationId: SubmitInput["conversationId"] | undefined;
   let sending = false;
   let stopping = false;
   let compacting = false;
   let saving = false;
+  let creatingConversation = false;
 
   async function act(
     action: () => Promise<void>,
@@ -70,11 +80,45 @@ export function mountDashboard(
     }
   }
 
+  async function selectProject(project: DaemonProject) {
+    if (
+      !vm ||
+      disposed ||
+      sending ||
+      saving ||
+      compacting ||
+      stopping ||
+      creatingConversation
+    )
+      return;
+    const previous = vm.store.getSnapshot().scope;
+    if (previous) scopedDrafts.set(JSON.stringify(previous), chatDrafts);
+    chatDrafts = scopedDrafts.get(JSON.stringify(project.scope)) ?? new Map();
+    selectedConversationId = undefined;
+    newConversationId = undefined;
+    selectedRoleId = undefined;
+    selectedPath = null;
+    await vm.setScope(project.scope, project.state === "running");
+  }
+
+  async function refreshProjects() {
+    await projects?.refresh();
+    if (!disposed) projectPoll = setTimeout(() => void refreshProjects(), 3000);
+  }
+
   function render() {
     if (disposed) return;
     const snapshot = vm?.store.getSnapshot();
     const definition = snapshot?.definition;
-    const viewError = error ?? snapshot?.error?.message ?? null;
+    const projectSnapshot = projects?.getSnapshot();
+    const allProjects = projectSnapshot?.projects ?? [];
+    const activeProject = allProjects.find(
+      (project) => project.projectId === snapshot?.scope?.projectId,
+    );
+    const runtimeEnabled = activeProject?.state === "running";
+    selectedRoleId ??= definition?.rootRoleId;
+    const viewError =
+      error ?? snapshot?.error?.message ?? projectSnapshot?.error ?? null;
     const files =
       definition?.files.filter(
         (file) => file.encoding === "utf8" && file.path.endsWith(".md"),
@@ -170,16 +214,65 @@ export function mountDashboard(
               }}
             />
           }
+          roleSelector={
+            <Combobox
+              aria-label="选择角色"
+              items={
+                definition?.roles.map((role) => ({
+                  value: role.id,
+                  label: role.title,
+                })) ?? []
+              }
+              value={selectedRoleId ?? ""}
+              disabled={connecting || sending || !runtimeEnabled}
+              onValueChange={(id) => {
+                if (!disposed) {
+                  selectedRoleId = id;
+                  render();
+                }
+              }}
+            />
+          }
+          canCreateConversation={runtimeEnabled && !sending && !snapshot?.busy}
+          onNewConversation={() =>
+            act(async () => {
+              if (
+                !vm ||
+                !selectedRoleId ||
+                !runtimeEnabled ||
+                sending ||
+                snapshot?.busy
+              )
+                return;
+              if (creatingConversation) return;
+              creatingConversation = true;
+              try {
+                selectedConversationId = await vm.createConversation({
+                  roleId: selectedRoleId,
+                });
+              } finally {
+                creatingConversation = false;
+              }
+            })
+          }
           entries={chat.entries}
           draft={chatDrafts.get(draftKey) ?? ""}
           loading={connecting}
           sending={sending}
           running={chat.running}
           compacting={compacting || chat.compacting}
-          canSend={vm !== undefined && definition !== undefined && !sending}
-          canStop={conversationId !== undefined && !stopping}
+          canSend={
+            vm !== undefined &&
+            definition !== undefined &&
+            runtimeEnabled &&
+            !sending
+          }
+          canStop={runtimeEnabled && conversationId !== undefined && !stopping}
           canCompact={
-            conversationId !== undefined && !compacting && !chat.compacting
+            runtimeEnabled &&
+            conversationId !== undefined &&
+            !compacting &&
+            !chat.compacting
           }
           error={viewError}
           onDraftChange={(value) => {
@@ -193,7 +286,7 @@ export function mountDashboard(
           }}
           onSend={(text) =>
             act(async () => {
-              if (!vm || !definition || sending) return;
+              if (!vm || !definition || !runtimeEnabled || sending) return;
               sending = true;
               chatDrafts.set(draftKey, text);
               render();
@@ -201,7 +294,7 @@ export function mountDashboard(
                 const id =
                   conversationId ??
                   (await vm.createConversation({
-                    roleId: definition.rootRoleId,
+                    roleId: selectedRoleId ?? definition.rootRoleId,
                   }));
                 if (draftKey === "new") {
                   newConversationId = id;
@@ -245,26 +338,45 @@ export function mountDashboard(
       );
     } else {
       content =
-        definition && page === "overview" ? (
-          <LayerCard>
-            <LayerCard.Header>{definition.title}</LayerCard.Header>
-            <LayerCard.Body>
-              <ChatMarkdown content={definition.content} />
-            </LayerCard.Body>
-          </LayerCard>
+        page === "overview" && projects ? (
+          <ProjectOverviewView
+            projects={allProjects}
+            selectedProjectId={activeProject?.projectId ?? null}
+            busy={projectSnapshot?.busy === true || connecting || sending}
+            onSelect={(id) => {
+              const project = allProjects.find((item) => item.projectId === id);
+              if (project) void act(() => selectProject(project));
+            }}
+            onToggle={(id, enabled) =>
+              act(async () => {
+                if (!projects) return;
+                await projects.setEnabled(id, enabled);
+                const changed = projects
+                  .getSnapshot()
+                  .projects.find((item) => item.projectId === id);
+                if (changed && id === activeProject?.projectId)
+                  await selectProject(changed);
+              })
+            }
+            onBind={(id) =>
+              act(async () => {
+                if (!projects) return;
+                await projects.bind(id);
+                const changed = projects
+                  .getSnapshot()
+                  .projects.find((item) => item.projectId === id);
+                if (changed && id === activeProject?.projectId)
+                  await selectProject(changed);
+              })
+            }
+          />
         ) : (
           <LayerCard.Empty
-            title={
-              connecting
-                ? "连接中"
-                : page === "workflows" || page === "evals"
-                  ? "功能尚未接入"
-                  : "尚未连接工作区"
-            }
+            title={connecting ? "连接中" : "功能尚未接入"}
             description={
               connecting
-                ? "正在连接本地服务并加载定义与会话。"
-                : "当前仅接入定义编辑与真实对话；未加载假数据。"
+                ? "正在连接本地 daemon。"
+                : "此入口按实际能力逐步接入。"
             }
           />
         );
@@ -274,13 +386,19 @@ export function mountDashboard(
         version={version}
         logoSrc={logoSrc}
         page={page}
-        mode={
-          options?.mode ??
-          (client?.context.scope.environmentId === "e2e" ? "e2e" : "local")
-        }
-        squads={snapshot?.squads.map(({ id, title }) => ({ id, title })) ?? []}
+        mode={options?.mode ?? client?.context.mode ?? "local"}
+        squads={allProjects.map((project) => ({
+          id: project.scope.squadId,
+          title: project.title,
+        }))}
         selectedSquadId={snapshot?.scope?.squadId ?? null}
-        busy={connecting || snapshot?.busy === true}
+        busy={
+          connecting ||
+          sending ||
+          saving ||
+          snapshot?.busy === true ||
+          projectSnapshot?.busy === true
+        }
         error={page === "chat" || page === "definitions" ? null : viewError}
         canCreateSquad={false}
         canChangeMode={false}
@@ -292,10 +410,14 @@ export function mountDashboard(
         }}
         onModeChange={() => undefined}
         onSquadChange={(id) => {
-          if (!disposed && client && id !== client.context.scope.squadId) {
-            error = "当前连接固定到此 Squad，切换需要重新连接本地服务。";
+          if (disposed || id === snapshot?.scope?.squadId) return;
+          const project = allProjects.find((item) => item.scope.squadId === id);
+          if (!project) {
+            error = "项目未登记";
             render();
+            return;
           }
+          void act(() => selectProject(project));
         }}
         onCreateSquad={() => undefined}
       >
@@ -308,6 +430,9 @@ export function mountDashboard(
     if (disposed) return;
     disposed = true;
     unsubscribe?.();
+    unsubscribeProjects?.();
+    clearTimeout(projectPoll);
+    projects?.dispose();
     vm?.dispose();
     client?.dispose();
     root.unmount();
@@ -338,6 +463,8 @@ export function mountDashboard(
         return;
       }
       client = connected;
+      projects = createProjectViewModel(client);
+      unsubscribeProjects = projects.subscribe(render);
       const api = createLocalDashboardApi(client, (failure) => {
         if (!disposed) {
           error = failure.message;
@@ -346,10 +473,16 @@ export function mountDashboard(
       });
       vm = createDashboardViewModel(api, client.caller);
       unsubscribe = vm.store.subscribe(render);
+      const initial =
+        client.context.projects.find(
+          (project) => project.state === "running",
+        ) ?? client.context.projects[0];
       await Promise.all([
         vm.refreshSquads(),
-        vm.setScope(client.context.scope),
+        initial ? selectProject(initial) : Promise.resolve(),
       ]);
+      if (!disposed)
+        projectPoll = setTimeout(() => void refreshProjects(), 3000);
     } finally {
       connecting = false;
     }

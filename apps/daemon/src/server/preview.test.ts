@@ -1,156 +1,65 @@
-import {
-  mkdir,
-  mkdtemp,
-  readdir,
-  readFile,
-  rm,
-  writeFile,
-} from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
-import * as runtimeModule from "@frogie/core/runtime";
+import { join, resolve } from "node:path";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { startLocalServer } from "./localServer.js";
+import { startDaemonServer } from "./localRuntime.js";
 import { startPreview } from "./preview.js";
 
-vi.mock("./localServer.js", () => ({ startLocalServer: vi.fn() }));
-
-const publicOrigin = "https://frogie.dev.hexly.ai";
-const serverClose = vi.fn(async () => undefined);
-const openRuntime = runtimeModule.openRuntime;
-const runtimes: Awaited<ReturnType<typeof openRuntime>>[] = [];
-const previews: Awaited<ReturnType<typeof startPreview>>[] = [];
+vi.mock("./localRuntime.js", () => ({ startDaemonServer: vi.fn() }));
 let root: string;
-
 beforeEach(async () => {
   root = await mkdtemp(join(tmpdir(), "frogie-preview-test-"));
-  serverClose.mockClear();
-  vi.mocked(startLocalServer)
+  vi.mocked(startDaemonServer)
     .mockReset()
     .mockResolvedValue({
-      origin: publicOrigin,
-      url: `${publicOrigin}/#token=preview-test-token`,
-      close: serverClose,
+      origin: "test",
+      url: "test",
+      close: async () => undefined,
     });
-  vi.spyOn(runtimeModule, "openRuntime").mockImplementation(async (...args) => {
-    const runtime = await openRuntime(...args);
-    runtimes.push(runtime);
-    vi.spyOn(runtime, "close");
-    return runtime;
-  });
 });
-
 afterEach(async () => {
-  for (const preview of previews.splice(0)) await preview.close();
-  for (const runtime of runtimes.splice(0))
-    await runtime.close(BACKGROUND_CONTEXT);
-  vi.restoreAllMocks();
   await rm(root, { recursive: true, force: true });
 });
-
-it("runs a no-cost Pi conversation with editable definitions and preserves its SQLite on close", async () => {
-  const directory = join(root, "owned-preview");
-  const preview = await startPreview({ directory });
-  previews.push(preview);
-  expect(preview.origin).toBe(publicOrigin);
-  expect(preview.url).toBe(`${publicOrigin}/#token=preview-test-token`);
-  expect(startLocalServer).toHaveBeenCalledOnce();
-  const options = vi.mocked(startLocalServer).mock.calls[0]?.[0];
-  expect(options).toMatchObject({
-    publicOrigin,
-    port: 7033,
-    scope: { environmentId: "e2e" },
-  });
-  if (!options?.definitions) throw new Error("Expected definition workspace");
-  expect(options.publicDirectory?.replaceAll("\\", "/")).toMatch(
-    /\/apps\/dashboard\/dist$/,
-  );
-  const squads = await options.definitions.list();
-  expect(squads).toHaveLength(1);
-  const squad = squads[0];
-  if (!squad) throw new Error("Expected preview squad");
-  const definition = await options.definitions.load(squad.id);
-  expect(definition.squadId).toBe(options.scope.squadId);
-  expect(definition.roles.length).toBeGreaterThan(0);
-  const call = { scope: options.scope, caller: { id: "local-user" } };
-  const created = await options.service.createConversation(
-    { ...call, input: { roleId: definition.rootRoleId } },
-    options.context,
-  );
-  const submissionId = await options.service.submit(
-    {
-      ...call,
-      input: {
-        conversationId: created.conversationId,
-        submission: { type: "input", content: "Verify preview communication" },
-      },
-    },
-    options.context,
-  );
-  await vi.waitFor(async () => {
-    const submission = await options.service.getSubmission(
-      { ...call, input: { submissionId } },
-      options.context,
-    );
-    expect(submission?.status).toBe("done");
-  });
-  const watch = await options.service.observeConversation(
-    { ...call, input: { conversationId: created.conversationId } },
-    options.context,
-  );
-  try {
-    const answer = JSON.stringify(
-      watch.value.entries.flatMap((entry) =>
-        (entry.model ?? []).filter((message) => message.role === "assistant"),
-      ),
-    );
-    expect(answer).toContain("本地测试模式");
-    expect(answer).toContain("Verify preview communication");
-  } finally {
-    await watch.stop();
-  }
-  await preview.close();
-  await preview.close();
-  expect(serverClose).toHaveBeenCalledOnce();
-  expect(runtimes[0]?.close).toHaveBeenCalledOnce();
-  const files = await readdir(directory, { recursive: true });
-  expect(files.some((file) => file.endsWith(".sqlite"))).toBe(true);
-  expect(files.some((file) => file.endsWith("SQUAD.md"))).toBe(true);
-});
-
-it("passes an explicit port to the loopback server", async () => {
-  const preview = await startPreview({
-    directory: join(root, "custom-port"),
+it("copies tracked definitions into an owned isolated workspace before booting", async () => {
+  const directory = join(root, "preview");
+  await startPreview({
+    directory,
     port: 0,
+    definitionsDirectory: resolve("tests/fixtures"),
   });
-  previews.push(preview);
-  expect(startLocalServer).toHaveBeenCalledWith(
-    expect.objectContaining({ publicOrigin, port: 0 }),
-  );
+  expect(
+    JSON.parse(await readFile(join(directory, "owner.json"), "utf8")),
+  ).toMatchObject({ runId: expect.any(String), root: directory });
+  expect(
+    await readFile(
+      join(directory, "workspace/squads/minimal-squad/SQUAD.md"),
+      "utf8",
+    ),
+  ).toContain("id: minimal-squad");
+  expect(startDaemonServer).toHaveBeenCalledWith({
+    directory,
+    port: 0,
+    definitionsDirectory: join(directory, "workspace/squads"),
+    mode: "e2e",
+  });
 });
-
-it("rejects an existing data directory without altering it", async () => {
+it("copies the repository squads by default", async () => {
+  const directory = join(root, "default");
+  await startPreview({ directory });
+  expect(
+    await readFile(
+      join(directory, "workspace/squads/zeppelin/SQUAD.md"),
+      "utf8",
+    ),
+  ).toContain("id: zeppelin");
+});
+it("preserves a preexisting unowned directory", async () => {
   const directory = join(root, "existing");
   await mkdir(directory);
-  await writeFile(join(directory, "keep.txt"), "Existing user data");
+  await writeFile(join(directory, "keep.txt"), "Keep");
   await expect(startPreview({ directory })).rejects.toMatchObject({
     code: "EEXIST",
   });
-  expect(await readFile(join(directory, "keep.txt"), "utf8")).toBe(
-    "Existing user data",
-  );
-  expect(await readdir(directory)).toEqual(["keep.txt"]);
-  expect(startLocalServer).not.toHaveBeenCalled();
-  expect(runtimeModule.openRuntime).not.toHaveBeenCalled();
-});
-
-it("closes its actual runtime if server startup fails", async () => {
-  const error = new Error("Port unavailable");
-  vi.mocked(startLocalServer).mockRejectedValueOnce(error);
-  await expect(
-    startPreview({ directory: join(root, "failed-start") }),
-  ).rejects.toBe(error);
-  expect(runtimes).toHaveLength(1);
-  expect(runtimes[0]?.close).toHaveBeenCalledOnce();
+  expect(await readFile(join(directory, "keep.txt"), "utf8")).toBe("Keep");
+  expect(startDaemonServer).not.toHaveBeenCalled();
 });

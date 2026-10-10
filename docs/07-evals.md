@@ -44,7 +44,7 @@ CLI 规划入口为 `frogie eval <squad-id> --case <case-id> --allow-real-model`
   -> 确定性断言与 Dashboard 报告
 ```
 
-每次真实评估在 Local 模式下新建独立环境、Harness 和数据库，由 Dashboard 全局切换器选中并观察。数据位于 `data/local/projects/<project-id>/environments/<environment-id>/harnesses/<harness-id>/`，恢复执行项重新打开本次数据库；普通案例之间保持独立。定义快照、原始输入、预期断言与实际输出分别保存并关联。
+每次真实评估在 Local 模式下新建独立环境、Harness 和数据库，由 Dashboard 全局切换器选中并观察。数据位于 `data/local/daemon/projects/<project-id>/environments/<environment-id>/harnesses/<harness-id>/`，恢复执行项重新打开本次数据库；普通案例之间保持独立。定义快照、原始输入、预期断言与实际输出分别保存并关联。
 
 E2E 使用确定性模型与自己的隔离目录；真实评估使用用户明确选择的模型连接。评估入口从 `squads/` 或用户指定的定义导出加载快照，沿用相同解析与绑定规则。
 

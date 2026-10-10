@@ -49,7 +49,7 @@ Frogie 是基于 [Pi Durable](https://github.com/earendil-works/pi/tree/main/pac
 
 ## 本地体验
 
-以下命令对应当前实现。常驻 daemon、多项目管理与公开 SDK 按 [MVP 实施](docs/08-mvp-implementation.md) 分阶段交付，设计能力以对应验收结果为准。
+以下命令对应当前实现。daemon 已提供项目登记、独立 Harness 启停、快照绑定及多项目 Dashboard；完整工具、工作流调试和公开 SDK 按 [MVP 实施](docs/08-mvp-implementation.md) 继续交付，设计能力以对应验收结果为准。
 
 运行 `pnpm dev` 构建并启动 Local，通过终端输出的一次性链接打开 `https://frogie.dev.hexly.ai`。本机 Caddy 将该域名转发到 `127.0.0.1:7033`。
 
@@ -66,7 +66,7 @@ Local 使用真实的 OpenAI-compatible Chat Completions 模型。服务端从 `
 }
 ```
 
-模型地址接受 HTTPS 或 loopback HTTP。Local 在 `data/local/dashboard/` 保存定义副本、运行身份与会话 SQLite，重启继续使用原状态；更换绑定定义或模型时沿用 Core 的一致性校验。点击“对话”发送消息后才调用模型，费用按模型服务计费。
+模型地址接受 HTTPS 或 loopback HTTP。Local 在 `data/local/daemon/` 保存项目登记与运行数据，每个项目的 Harness 拥有独立的冻结定义、运行身份与会话 SQLite。重启使用原绑定，定义编辑后可以显式绑定新快照并保留旧历史；旧版 `data/local/dashboard/` 保持原样。已运行的 Harness 可在“对话”页面选择角色并发送消息，费用按模型服务计费。缺少已声明工具或扩展的项目显示装配错误，定义仍可查看和编辑。
 
 `FROGIE_MODE=e2e pnpm dev` 启动 Pi 官方确定性模型替身，每次在 `data/e2e/` 创建独立目录，不读取 Local 模型配置。当前入口由启动参数固定环境，右上角分段控件显示实际环境。完整 Workflow 画布、真实多角色派发与界面跨环境切换继续按设计文档实现。
 

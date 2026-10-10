@@ -81,7 +81,7 @@ export interface DashboardStore {
 export interface DashboardViewModel {
   readonly store: DashboardStore;
   refreshSquads(): Promise<void>;
-  setScope(scope: DashboardScope): Promise<void>;
+  setScope(scope: DashboardScope, runtimeEnabled?: boolean): Promise<void>;
   editFile(path: string, content: string): void;
   saveFile(path: string): Promise<void>;
   createConversation(input: CreateConversationInput): Promise<ConversationId>;
@@ -216,7 +216,7 @@ export function createDashboardViewModel(
         }
       }
     },
-    async setScope(scope) {
+    async setScope(scope, runtimeEnabled = true) {
       if (disposed) return;
       const token = ++generation;
       releaseObservations();
@@ -234,7 +234,7 @@ export function createDashboardViewModel(
       try {
         const [definition, conversationIds] = await Promise.all([
           api.loadFiles(scope),
-          api.listConversations(scope),
+          runtimeEnabled ? api.listConversations(scope) : Promise.resolve([]),
         ]);
         if (!disposed && token === generation) {
           publish({

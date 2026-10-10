@@ -1,5 +1,9 @@
 import type { DefinitionBundle } from "@frogie/core/definitions";
-import type { RuntimeDescription, RuntimeScope } from "@frogie/core/protocol";
+import type {
+  DaemonProject,
+  RuntimeDescription,
+  RuntimeScope,
+} from "@frogie/core/protocol";
 import { Combobox } from "@nocoo/basalt/components/combobox";
 import { isValidElement, type ReactElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -7,6 +11,7 @@ import type { LocalRuntimeClient } from "./models/localClient.js";
 import { AppView, type AppViewProps } from "./views/AppView.js";
 import { ChatView } from "./views/ChatView.js";
 import { DefinitionView } from "./views/DefinitionView.js";
+import { ProjectOverviewView } from "./views/ProjectOverviewView.js";
 
 const rootMock = vi.hoisted(() => ({
   createRoot: vi.fn(),
@@ -69,16 +74,43 @@ const description: RuntimeDescription = {
   operations: [],
 };
 const conversationId = 17 as ConversationId;
+const otherScope: RuntimeScope = {
+  projectId: "other-project",
+  environmentId: "other-environment",
+  squadId: "other-squad",
+  harnessId: "other-harness",
+};
 
-function definition(): DefinitionBundle {
+function project(selectedScope: RuntimeScope = scope): DaemonProject {
+  return {
+    projectId: selectedScope.projectId,
+    title: selectedScope.squadId === "zeppelin" ? "Zeppelin" : "Other Squad",
+    scope: selectedScope,
+    enabled: true,
+    state: "running",
+    definitionHash: "definition-hash",
+    rootConversationId: conversationId,
+  };
+}
+
+function definition(selectedScope: RuntimeScope = scope): DefinitionBundle {
   return {
     schemaVersion: 1,
-    squadId: "zeppelin",
-    projectId: "frogie",
-    title: "Zeppelin",
+    squadId: selectedScope.squadId,
+    projectId: selectedScope.projectId,
+    title: selectedScope.squadId === "zeppelin" ? "Zeppelin" : "Other Squad",
     rootRoleId: "command",
     content: "Fleet mission.",
-    roles: [],
+    roles: ["command", "reviewer"].map((id) => ({
+      id,
+      title: id === "command" ? "Command" : "Reviewer",
+      parentRoleId: id === "command" ? null : "command",
+      content: "Work on the mission.",
+      skills: [],
+      extensions: [],
+      tools: [],
+      scripts: [],
+    })),
     skills: [],
     workflows: [],
     files: [
@@ -96,13 +128,53 @@ function definition(): DefinitionBundle {
 function createClient(overrides: Partial<LocalRuntimeClient> = {}) {
   const observers = new Map<number, (frame: never) => void>();
   const released: number[] = [];
+  let directory = overrides.context?.projects ?? [project()];
   const client: LocalRuntimeClient = {
-    context: { instanceId: "instance-1", scope, description },
+    context: { instanceId: "instance-1", mode: "local", projects: directory },
+    listProjects: vi.fn(async () => directory),
+    setProjectEnabled: vi.fn(async (id, enabled) => {
+      directory = directory.map((item) =>
+        item.projectId === id
+          ? {
+              ...item,
+              enabled,
+              state: enabled ? ("running" as const) : ("stopped" as const),
+            }
+          : item,
+      );
+      const changed = directory.find((item) => item.projectId === id);
+      if (!changed) throw new Error("Project is not registered");
+      return changed;
+    }),
+    registerProject: vi.fn(async (squadId) => {
+      const registered = project({ ...otherScope, squadId });
+      directory = [...directory, registered];
+      return registered;
+    }),
+    bindDefinition: vi.fn(async (id) => {
+      directory = directory.map((item) =>
+        item.projectId === id
+          ? {
+              ...item,
+              scope: { ...item.scope, harnessId: "rebound-harness" },
+              definitionHash: "rebound-hash",
+            }
+          : item,
+      );
+      const changed = directory.find((item) => item.projectId === id);
+      if (!changed) throw new Error("Project is not registered");
+      return changed;
+    }),
     caller: { id: "local-user" },
     listSquads: vi.fn(async () => [
       { id: "zeppelin", projectId: "frogie", title: "Zeppelin" },
     ]),
-    loadDefinition: vi.fn(async () => definition()),
+    loadDefinition: vi.fn(async (squadId) =>
+      definition(
+        directory.find((item) => item.scope.squadId === squadId)?.scope ??
+          scope,
+      ),
+    ),
     saveDefinition: vi.fn(async (_squadId, draft) => ({
       ...definition(),
       files: definition().files.map((file) =>
@@ -138,11 +210,11 @@ function createClient(overrides: Partial<LocalRuntimeClient> = {}) {
     compact: vi.fn(
       async () => 42 as Awaited<ReturnType<LocalRuntimeClient["compact"]>>,
     ),
-    observe: vi.fn((input, listener) => {
+    observe: vi.fn((input, listener, _onError, requestedScope) => {
       observers.set(input.conversationId, listener as (frame: never) => void);
       listener({
         type: "snapshot",
-        scope,
+        scope: requestedScope,
         conversationId: input.conversationId,
         value: {
           conversation: { id: input.conversationId } as ConversationRecord,
@@ -190,8 +262,12 @@ function findElement<T>(
   const props = node.props as {
     children?: ReactNode;
     conversationSelector?: ReactNode;
+    roleSelector?: ReactNode;
   };
-  return findElement([props.children, props.conversationSelector], component);
+  return findElement(
+    [props.children, props.conversationSelector, props.roleSelector],
+    component,
+  );
 }
 
 const elements: HTMLElement[] = [];
@@ -205,6 +281,7 @@ beforeEach(() => {
 afterEach(() => {
   for (const dispose of disposers.splice(0)) dispose();
   vi.unstubAllGlobals();
+  vi.useRealTimers();
 });
 
 describe("mountDashboard client wiring", () => {
@@ -236,20 +313,17 @@ describe("mountDashboard client wiring", () => {
       }),
     );
     expect(client.loadDefinition).toHaveBeenCalledWith("zeppelin");
-    expect(client.listConversations).toHaveBeenCalledWith({});
+    expect(client.listConversations).toHaveBeenCalledWith({}, scope);
     expect(client.listSquads).toHaveBeenCalledOnce();
   });
 
-  it("shows E2E from the connected runtime scope without a mount override", async () => {
-    const e2eScope = { ...scope, environmentId: "e2e" };
-    const e2eDescription = { ...description, scope: e2eScope };
+  it("shows E2E from daemon mode rather than interpreting the environment ID", async () => {
     const { client } = createClient({
       context: {
         instanceId: "e2e-instance",
-        scope: e2eScope,
-        description: e2eDescription,
+        mode: "e2e",
+        projects: [project()],
       },
-      describe: vi.fn(async () => e2eDescription),
     });
     const root = makeRoot();
     const element = { nodeType: 1 } as HTMLElement;
@@ -359,17 +433,20 @@ describe("mountDashboard client wiring", () => {
     const chat = findElement(currentApp(root.render).props.children, ChatView);
     expect(chat?.props.title).toBe(`会话 ${conversationId}`);
     await chat?.props.onSend("User request");
-    expect(client.submit).toHaveBeenCalledWith({
-      conversationId,
-      submission: expect.objectContaining({
-        type: "input",
-        content: "User request",
-      }),
-    });
+    expect(client.submit).toHaveBeenCalledWith(
+      {
+        conversationId,
+        submission: expect.objectContaining({
+          type: "input",
+          content: "User request",
+        }),
+      },
+      scope,
+    );
     await chat?.props.onStop();
-    expect(client.cancel).toHaveBeenCalledWith({ conversationId });
+    expect(client.cancel).toHaveBeenCalledWith({ conversationId }, scope);
     await chat?.props.onCompact();
-    expect(client.compact).toHaveBeenCalledWith({ conversationId });
+    expect(client.compact).toHaveBeenCalledWith({ conversationId }, scope);
     dispose();
   });
 
@@ -429,7 +506,7 @@ describe("mountDashboard client wiring", () => {
 
   it("retains independent drafts when switching conversations", async () => {
     const { client } = createClient();
-    const records = await client.listConversations({});
+    const records = await client.listConversations({}, scope);
     const first = records[0];
     if (!first) throw new Error("Missing fixture conversation");
     vi.mocked(client.listConversations).mockResolvedValue([
@@ -616,11 +693,15 @@ describe("mountDashboard client wiring", () => {
     expect(chat?.title).toBe("新对话");
     chat?.onDraftChange("First message");
     await chat?.onSend("First message");
-    expect(client.createConversation).toHaveBeenCalledWith({
-      roleId: "command",
-    });
+    expect(client.createConversation).toHaveBeenCalledWith(
+      {
+        roleId: "command",
+      },
+      scope,
+    );
     expect(client.submit).toHaveBeenCalledWith(
       expect.objectContaining({ conversationId }),
+      scope,
     );
     expect(
       findElement(currentApp(root.render).props.children, ChatView)?.props
@@ -690,6 +771,532 @@ describe("mountDashboard client wiring", () => {
     second.reject(new Error("Late network failure"));
     await lateFailure;
     expect(root.render).toHaveBeenCalledTimes(count);
+  });
+
+  it("selects the first running project and shows stopped projects in the global overview", async () => {
+    const stopped = {
+      ...project(otherScope),
+      enabled: false,
+      state: "stopped" as const,
+    };
+    const running = project();
+    const { client } = createClient({
+      context: {
+        instanceId: "daemon-directory",
+        mode: "e2e",
+        projects: [stopped, running],
+      },
+    });
+    const root = makeRoot();
+    mount({ nodeType: 1 } as HTMLElement, { connect: async () => client });
+    await vi.waitFor(() =>
+      expect(currentApp(root.render).props.busy).toBe(false),
+    );
+    const overview = findElement(
+      currentApp(root.render).props.children,
+      ProjectOverviewView,
+    )?.props;
+    expect(overview).toMatchObject({
+      projects: [stopped, running],
+      selectedProjectId: scope.projectId,
+    });
+    expect(currentApp(root.render).props.selectedSquadId).toBe(scope.squadId);
+    expect(client.loadDefinition).toHaveBeenCalledWith(scope.squadId);
+    expect(client.listConversations).toHaveBeenCalledWith({}, scope);
+  });
+
+  it("switches registered projects without reconnecting and keeps drafts separate for colliding Pi conversation IDs", async () => {
+    const { client, released } = createClient({
+      context: {
+        instanceId: "daemon-directory",
+        mode: "local",
+        projects: [project(), project(otherScope)],
+      },
+    });
+    const connect = vi.fn<Connect>().mockResolvedValue(client);
+    const root = makeRoot();
+    mount({ nodeType: 1 } as HTMLElement, { connect });
+    await vi.waitFor(() =>
+      expect(currentApp(root.render).props.busy).toBe(false),
+    );
+    currentApp(root.render).props.onPageChange("chat");
+    const chat = () =>
+      findElement(currentApp(root.render).props.children, ChatView)?.props;
+    chat()?.onDraftChange("Alpha draft");
+    currentApp(root.render).props.onSquadChange(otherScope.squadId);
+    await vi.waitFor(() =>
+      expect(currentApp(root.render).props).toMatchObject({
+        selectedSquadId: otherScope.squadId,
+        busy: false,
+      }),
+    );
+    expect(released).toContain(conversationId);
+    expect(chat()?.draft).toBe("");
+    chat()?.onDraftChange("Beta draft");
+    expect(client.listConversations).toHaveBeenLastCalledWith({}, otherScope);
+    expect(vi.mocked(client.observe).mock.calls.at(-1)?.[3]).toEqual(
+      otherScope,
+    );
+    const oldObservation = vi.mocked(client.observe).mock.calls[0];
+    oldObservation?.[1]({
+      type: "update",
+      scope,
+      conversationId,
+      value: {
+        conversation: { id: conversationId } as ConversationRecord,
+        entries: [
+          {
+            id: 99 as never,
+            conversationId,
+            kind: "pi.user",
+            model: [
+              {
+                role: "user",
+                content: "Old project frame must not leak",
+                timestamp: 1,
+              },
+            ],
+          },
+        ],
+        docs: {},
+      },
+    });
+    expect(chat()?.entries).toEqual([]);
+    currentApp(root.render).props.onSquadChange(scope.squadId);
+    await vi.waitFor(() =>
+      expect(currentApp(root.render).props).toMatchObject({
+        selectedSquadId: scope.squadId,
+        busy: false,
+      }),
+    );
+    expect(chat()?.draft).toBe("Alpha draft");
+    currentApp(root.render).props.onSquadChange(otherScope.squadId);
+    await vi.waitFor(() =>
+      expect(currentApp(root.render).props.busy).toBe(false),
+    );
+    expect(chat()?.draft).toBe("Beta draft");
+    expect(connect).toHaveBeenCalledOnce();
+    expect(client.dispose).not.toHaveBeenCalled();
+    expect(client.cancel).not.toHaveBeenCalled();
+    expect(client.setProjectEnabled).not.toHaveBeenCalled();
+    expect(client.bindDefinition).not.toHaveBeenCalled();
+  });
+
+  it("keeps a pending chat request in its original scope and blocks both project selection routes", async () => {
+    const { client } = createClient({
+      context: {
+        instanceId: "daemon-directory",
+        mode: "local",
+        projects: [project(), project(otherScope)],
+      },
+    });
+    const pending =
+      deferred<Awaited<ReturnType<LocalRuntimeClient["submit"]>>>();
+    vi.mocked(client.submit).mockReturnValueOnce(pending.promise);
+    const root = makeRoot();
+    mount({ nodeType: 1 } as HTMLElement, { connect: async () => client });
+    await vi.waitFor(() =>
+      expect(currentApp(root.render).props.busy).toBe(false),
+    );
+    currentApp(root.render).props.onPageChange("chat");
+    const chat = findElement(
+      currentApp(root.render).props.children,
+      ChatView,
+    )?.props;
+    const sending = chat?.onSend("Do not change projects during submission");
+    currentApp(root.render).props.onSquadChange(otherScope.squadId);
+    currentApp(root.render).props.onPageChange("overview");
+    findElement(
+      currentApp(root.render).props.children,
+      ProjectOverviewView,
+    )?.props.onSelect(otherScope.projectId);
+    expect(client.listConversations).toHaveBeenCalledTimes(1);
+    expect(currentApp(root.render).props.selectedSquadId).toBe(scope.squadId);
+    expect(vi.mocked(client.submit).mock.calls[0]?.[1]).toEqual(scope);
+    pending.resolve(23 as Awaited<ReturnType<LocalRuntimeClient["submit"]>>);
+    await sending;
+    currentApp(root.render).props.onSquadChange(otherScope.squadId);
+    await vi.waitFor(() =>
+      expect(client.listConversations).toHaveBeenLastCalledWith({}, otherScope),
+    );
+  });
+
+  it("opens a stopped project's definitions while keeping all chat execution unavailable", async () => {
+    const stopped = {
+      ...project(otherScope),
+      enabled: false,
+      state: "stopped" as const,
+    };
+    const { client } = createClient({
+      context: {
+        instanceId: "daemon-directory",
+        mode: "local",
+        projects: [project(), stopped],
+      },
+    });
+    const root = makeRoot();
+    mount({ nodeType: 1 } as HTMLElement, { connect: async () => client });
+    await vi.waitFor(() =>
+      expect(currentApp(root.render).props.busy).toBe(false),
+    );
+    findElement(
+      currentApp(root.render).props.children,
+      ProjectOverviewView,
+    )?.props.onSelect(stopped.projectId);
+    await vi.waitFor(() =>
+      expect(currentApp(root.render).props).toMatchObject({
+        selectedSquadId: otherScope.squadId,
+        busy: false,
+      }),
+    );
+    expect(client.loadDefinition).toHaveBeenLastCalledWith(otherScope.squadId);
+    expect(client.listConversations).toHaveBeenCalledOnce();
+    currentApp(root.render).props.onPageChange("definitions");
+    expect(
+      findElement(currentApp(root.render).props.children, DefinitionView)
+        ?.props,
+    ).toMatchObject({
+      files: [{ path: "SQUAD.md" }],
+      markdown: "# Mission\nOriginal body.",
+    });
+    currentApp(root.render).props.onPageChange("chat");
+    const chat = findElement(
+      currentApp(root.render).props.children,
+      ChatView,
+    )?.props;
+    expect(chat).toMatchObject({
+      canSend: false,
+      canStop: false,
+      canCompact: false,
+      canCreateConversation: false,
+    });
+    await chat?.onSend("Cannot execute stopped project");
+    await chat?.onNewConversation?.();
+    await chat?.onStop();
+    await chat?.onCompact();
+    expect(client.submit).not.toHaveBeenCalled();
+    expect(client.createConversation).not.toHaveBeenCalled();
+    expect(client.cancel).not.toHaveBeenCalled();
+    expect(client.compact).not.toHaveBeenCalled();
+  });
+
+  it("creates an independently observed conversation for a selected non-root Role", async () => {
+    const { client } = createClient();
+    const freshId = 18 as ConversationId;
+    vi.mocked(client.createConversation).mockResolvedValueOnce({
+      conversationId: freshId,
+      binding: {
+        conversationId: freshId,
+        roleId: "reviewer",
+        definitionHash: "definition-hash",
+        configHash: "config-hash",
+        title: "Reviewer",
+      },
+    });
+    const root = makeRoot();
+    mount({ nodeType: 1 } as HTMLElement, { connect: async () => client });
+    await vi.waitFor(() =>
+      expect(currentApp(root.render).props.busy).toBe(false),
+    );
+    currentApp(root.render).props.onPageChange("chat");
+    const chat = () =>
+      findElement(currentApp(root.render).props.children, ChatView)?.props;
+    const roleSelector = findElement(chat()?.roleSelector, Combobox)?.props;
+    expect(roleSelector?.items).toEqual([
+      { value: "command", label: "Command" },
+      { value: "reviewer", label: "Reviewer" },
+    ]);
+    roleSelector?.onValueChange?.("reviewer");
+    await chat()?.onNewConversation?.();
+    expect(client.createConversation).toHaveBeenCalledWith(
+      { roleId: "reviewer" },
+      scope,
+    );
+    expect(chat()?.title).toBe("会话 18");
+    expect(client.observe).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(client.observe).mock.calls.at(-1)?.[0]).toEqual({
+      conversationId: freshId,
+    });
+    expect(client.submit).not.toHaveBeenCalled();
+    expect(client.cancel).not.toHaveBeenCalled();
+  });
+
+  it("changes active project availability only through management and refreshes its directory", async () => {
+    const { client } = createClient();
+    const root = makeRoot();
+    mount({ nodeType: 1 } as HTMLElement, { connect: async () => client });
+    await vi.waitFor(() =>
+      expect(currentApp(root.render).props.busy).toBe(false),
+    );
+    const overview = () =>
+      findElement(currentApp(root.render).props.children, ProjectOverviewView)
+        ?.props;
+    await overview()?.onToggle(scope.projectId, false);
+    expect(client.setProjectEnabled).toHaveBeenCalledWith(
+      scope.projectId,
+      false,
+    );
+    expect(client.listProjects).toHaveBeenCalledOnce();
+    expect(overview()?.projects[0]).toMatchObject({
+      enabled: false,
+      state: "stopped",
+      scope,
+    });
+    currentApp(root.render).props.onPageChange("chat");
+    expect(
+      findElement(currentApp(root.render).props.children, ChatView)?.props
+        .canSend,
+    ).toBe(false);
+    currentApp(root.render).props.onPageChange("overview");
+    await overview()?.onToggle(scope.projectId, true);
+    expect(client.listProjects).toHaveBeenCalledTimes(2);
+    expect(client.listConversations).toHaveBeenLastCalledWith({}, scope);
+    currentApp(root.render).props.onPageChange("chat");
+    expect(
+      findElement(currentApp(root.render).props.children, ChatView)?.props
+        .canSend,
+    ).toBe(true);
+  });
+
+  it("saves source before an explicit bind changes the active Harness and leaves another binding untouched", async () => {
+    const { client } = createClient({
+      context: {
+        instanceId: "daemon-directory",
+        mode: "local",
+        projects: [project(), project(otherScope)],
+      },
+    });
+    const root = makeRoot();
+    mount({ nodeType: 1 } as HTMLElement, { connect: async () => client });
+    await vi.waitFor(() =>
+      expect(currentApp(root.render).props.busy).toBe(false),
+    );
+    currentApp(root.render).props.onPageChange("definitions");
+    const definitionView = () =>
+      findElement(currentApp(root.render).props.children, DefinitionView)
+        ?.props;
+    definitionView()?.onDraftChange("# Revised source");
+    await definitionView()?.onSave();
+    expect(client.saveDefinition).toHaveBeenCalledWith(
+      scope.squadId,
+      expect.objectContaining({ content: "# Revised source" }),
+      expect.any(String),
+    );
+    expect(client.bindDefinition).not.toHaveBeenCalled();
+    expect(vi.mocked(client.observe).mock.calls.at(-1)?.[3]).toEqual(scope);
+    currentApp(root.render).props.onPageChange("chat");
+    findElement(
+      currentApp(root.render).props.children,
+      ChatView,
+    )?.props.onDraftChange("Old Harness draft");
+    currentApp(root.render).props.onPageChange("overview");
+    await findElement(
+      currentApp(root.render).props.children,
+      ProjectOverviewView,
+    )?.props.onBind(scope.projectId);
+    expect(client.bindDefinition).toHaveBeenCalledWith(scope.projectId);
+    expect(client.listProjects).toHaveBeenCalledOnce();
+    const rebound = { ...scope, harnessId: "rebound-harness" };
+    expect(client.listConversations).toHaveBeenLastCalledWith({}, rebound);
+    expect(vi.mocked(client.observe).mock.calls.at(-1)?.[3]).toEqual(rebound);
+    const directory = findElement(
+      currentApp(root.render).props.children,
+      ProjectOverviewView,
+    )?.props.projects;
+    expect(
+      directory?.find((item) => item.projectId === otherScope.projectId),
+    ).toEqual(project(otherScope));
+    expect(client.cancel).not.toHaveBeenCalled();
+    expect(client.dispose).not.toHaveBeenCalled();
+    currentApp(root.render).props.onPageChange("chat");
+    expect(
+      findElement(currentApp(root.render).props.children, ChatView)?.props
+        .draft,
+    ).toBe("");
+    await findElement(
+      currentApp(root.render).props.children,
+      ChatView,
+    )?.props.onSend("Bound definition request");
+    expect(vi.mocked(client.submit).mock.calls.at(-1)?.[1]).toEqual(rebound);
+  });
+
+  it("resets the selected conversation when entering another project", async () => {
+    const { client } = createClient({
+      context: {
+        instanceId: "daemon-directory",
+        mode: "local",
+        projects: [project(), project(otherScope)],
+      },
+    });
+    const first = (await client.listConversations({}, scope))[0];
+    if (!first) throw new Error("Missing fixture root");
+    vi.mocked(client.listConversations)
+      .mockClear()
+      .mockImplementation(async (_input, selectedScope) =>
+        selectedScope.projectId === scope.projectId
+          ? [
+              first,
+              {
+                ...first,
+                conversation: {
+                  ...first.conversation,
+                  id: 18 as ConversationId,
+                },
+              },
+            ]
+          : [first],
+      );
+    const root = makeRoot();
+    mount({ nodeType: 1 } as HTMLElement, { connect: async () => client });
+    await vi.waitFor(() =>
+      expect(currentApp(root.render).props.busy).toBe(false),
+    );
+    currentApp(root.render).props.onPageChange("chat");
+    const chat = () =>
+      findElement(currentApp(root.render).props.children, ChatView)?.props;
+    findElement(chat()?.conversationSelector, Combobox)?.props.onValueChange?.(
+      "18",
+    );
+    expect(chat()?.title).toBe("会话 18");
+    currentApp(root.render).props.onSquadChange(otherScope.squadId);
+    await vi.waitFor(() =>
+      expect(currentApp(root.render).props.busy).toBe(false),
+    );
+    expect(chat()?.title).toBe("会话 17");
+  });
+
+  it("blocks project switching while a new Role conversation is being created", async () => {
+    const { client } = createClient({
+      context: {
+        instanceId: "daemon-directory",
+        mode: "local",
+        projects: [project(), project(otherScope)],
+      },
+    });
+    const pending =
+      deferred<Awaited<ReturnType<LocalRuntimeClient["createConversation"]>>>();
+    vi.mocked(client.createConversation).mockReturnValueOnce(pending.promise);
+    const root = makeRoot();
+    mount({ nodeType: 1 } as HTMLElement, { connect: async () => client });
+    await vi.waitFor(() =>
+      expect(currentApp(root.render).props.busy).toBe(false),
+    );
+    currentApp(root.render).props.onPageChange("chat");
+    const initialChat = findElement(
+      currentApp(root.render).props.children,
+      ChatView,
+    )?.props;
+    const running = initialChat?.onNewConversation?.();
+    try {
+      await initialChat?.onNewConversation?.();
+      expect(client.createConversation).toHaveBeenCalledOnce();
+      currentApp(root.render).props.onSquadChange(otherScope.squadId);
+      expect(currentApp(root.render).props.selectedSquadId).toBe(scope.squadId);
+      expect(client.listConversations).toHaveBeenCalledOnce();
+    } finally {
+      pending.resolve({
+        conversationId: 18 as ConversationId,
+        binding: {
+          conversationId: 18 as ConversationId,
+          roleId: "command",
+          title: "Command",
+          definitionHash: "definition-hash",
+          configHash: "config-hash",
+        },
+      });
+      await running;
+    }
+  });
+
+  it("manages an inactive project without resetting the current project's observations or chat draft", async () => {
+    const { client, released } = createClient({
+      context: {
+        instanceId: "daemon-directory",
+        mode: "local",
+        projects: [project(), project(otherScope)],
+      },
+    });
+    const root = makeRoot();
+    mount({ nodeType: 1 } as HTMLElement, { connect: async () => client });
+    await vi.waitFor(() =>
+      expect(currentApp(root.render).props.busy).toBe(false),
+    );
+    currentApp(root.render).props.onPageChange("chat");
+    findElement(
+      currentApp(root.render).props.children,
+      ChatView,
+    )?.props.onDraftChange("Keep current project draft");
+    currentApp(root.render).props.onPageChange("overview");
+    await findElement(
+      currentApp(root.render).props.children,
+      ProjectOverviewView,
+    )?.props.onToggle(otherScope.projectId, false);
+    expect(client.setProjectEnabled).toHaveBeenCalledWith(
+      otherScope.projectId,
+      false,
+    );
+    expect(client.listConversations).toHaveBeenCalledOnce();
+    expect(released).toEqual([]);
+    expect(currentApp(root.render).props.selectedSquadId).toBe(scope.squadId);
+    currentApp(root.render).props.onPageChange("chat");
+    expect(
+      findElement(currentApp(root.render).props.children, ChatView)?.props
+        .draft,
+    ).toBe("Keep current project draft");
+  });
+
+  it("shows a management failure without discarding the selected project or its original binding", async () => {
+    const { client } = createClient();
+    vi.mocked(client.bindDefinition).mockRejectedValueOnce(
+      new Error("Definition is invalid"),
+    );
+    const root = makeRoot();
+    mount({ nodeType: 1 } as HTMLElement, { connect: async () => client });
+    await vi.waitFor(() =>
+      expect(currentApp(root.render).props.busy).toBe(false),
+    );
+    await findElement(
+      currentApp(root.render).props.children,
+      ProjectOverviewView,
+    )?.props.onBind(scope.projectId);
+    expect(currentApp(root.render).props).toMatchObject({
+      selectedSquadId: scope.squadId,
+      busy: false,
+      error: "Definition is invalid",
+    });
+    expect(
+      findElement(currentApp(root.render).props.children, ProjectOverviewView)
+        ?.props.projects,
+    ).toEqual([project()]);
+    expect(client.listProjects).not.toHaveBeenCalled();
+    expect(client.listConversations).toHaveBeenCalledOnce();
+  });
+
+  it("stops directory polling and ignores an in-flight poll after disposal", async () => {
+    vi.useFakeTimers();
+    const { client } = createClient();
+    const root = makeRoot();
+    const dispose = mount({ nodeType: 1 } as HTMLElement, {
+      connect: async () => client,
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(currentApp(root.render).props.busy).toBe(false);
+    expect(client.listProjects).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(client.listProjects).toHaveBeenCalledOnce();
+    const pending = deferred<readonly DaemonProject[]>();
+    vi.mocked(client.listProjects).mockReturnValueOnce(pending.promise);
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(client.listProjects).toHaveBeenCalledTimes(2);
+    dispose();
+    const count = root.render.mock.calls.length;
+    pending.resolve([project(otherScope)]);
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(client.listProjects).toHaveBeenCalledTimes(2);
+    expect(root.render).toHaveBeenCalledTimes(count);
+    expect(client.dispose).toHaveBeenCalledOnce();
+    expect(root.unmount).toHaveBeenCalledOnce();
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it.each([false, true])(

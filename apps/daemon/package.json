@@ -9,6 +9,7 @@
     "@earendil-works/pi-durable": "1.1.0",
     "@frogie/core": "workspace:*",
     "sirv": "3.0.2",
-    "typebox": "1.3.27"
+    "typebox": "1.3.27",
+    "yaml": "2.9.1"
   }
 }

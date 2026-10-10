@@ -83,24 +83,116 @@ body {
   overflow: hidden;
 }
 
+.frogie-chat-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(16rem, 1fr);
+  gap: var(--basalt-space-layout);
+  min-width: 0;
+}
+
 .frogie-island-workspace > .frogie-chat,
+.frogie-island-workspace > .frogie-chat-workspace,
 .frogie-island-workspace > .frogie-definition-split {
   flex: 1;
   min-height: 0;
 }
 
 .frogie-conversation-selector {
-  width: 16rem;
+  width: 100%;
   min-width: 0;
-  flex: 1;
 }
 
 .frogie-chat-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--basalt-space-lg);
+  width: 40rem;
   min-width: 0;
   max-width: 100%;
+}
+
+.frogie-chat-selector {
+  min-width: 0;
+}
+
+.frogie-chat-selector > * {
+  width: 100%;
+  min-width: 0;
+}
+
+.frogie-chat-conversation-slot {
+  flex: 1 1 16rem;
+}
+
+.frogie-chat-role-slot {
+  flex: 1 1 10rem;
+}
+
+.frogie-chat-actions > button {
+  flex-shrink: 0;
+}
+
+.frogie-chat-workspace > .frogie-chat,
+.frogie-chat-details {
+  min-width: 0;
+  min-height: 0;
+}
+
+.frogie-chat-details {
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+}
+
+.frogie-project-table-scroll {
+  min-width: 0;
+}
+
+.frogie-project-table {
+  min-width: 62rem;
+}
+
+.frogie-project-value {
+  display: block;
+  max-width: 16rem;
+  overflow-wrap: anywhere;
+}
+
+.frogie-project-hash {
+  display: block;
+  width: 9rem;
+}
+
+.frogie-project-actions,
+.frogie-project-status,
+.frogie-execution-task-heading {
+  display: flex;
+  align-items: center;
+  gap: var(--basalt-space-content-gap);
+}
+
+.frogie-project-status,
+.frogie-execution-task-heading {
+  flex-wrap: wrap;
+}
+
+.frogie-execution-task-heading {
+  justify-content: space-between;
+}
+
+.frogie-execution-tasks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--basalt-space-layout-sm);
+}
+
+.frogie-execution-detail {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.frogie-execution-usage {
+  justify-content: flex-start;
 }
 
 .frogie-chat-messages {
@@ -174,6 +266,10 @@ body {
 }
 
 @media (min-width: 768px) {
+  .frogie-chat-actions {
+    flex-wrap: nowrap;
+  }
+
   .frogie-environment [role="radio"] {
     min-height: var(--basalt-size-control-inset);
   }
@@ -184,6 +280,25 @@ body {
 }
 
 @media (max-width: 767px) {
+  .frogie-chat-conversation-slot,
+  .frogie-chat-role-slot {
+    flex-basis: calc(50% - var(--basalt-space-lg) / 2);
+  }
+
+  .frogie-chat-workspace {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .frogie-chat-workspace > .frogie-chat {
+    flex: 1;
+  }
+
+  .frogie-chat-details {
+    flex-shrink: 0;
+    max-height: 40%;
+  }
+
   .frogie-app-header {
     flex-wrap: wrap;
     height: auto;
@@ -210,5 +325,134 @@ body {
   .frogie-definition-input {
     min-height: 20rem;
     font-size: 1rem;
+  }
+}
+
+.frogie-workflow-view {
+  display: flex;
+  flex-direction: column;
+  gap: var(--basalt-space-layout);
+  min-width: 0;
+}
+
+.frogie-workflow-toolbar,
+.frogie-workflow-canvas-toolbar {
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--basalt-space-content-gap);
+}
+
+.frogie-workflow-selector,
+.frogie-workflow-role-selector {
+  flex: 1;
+  min-width: 10rem;
+}
+
+.frogie-workflow-editor {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(15rem, 18rem);
+  align-items: start;
+  gap: var(--basalt-space-layout);
+  min-width: 0;
+}
+
+.frogie-workflow-canvas-card,
+.frogie-workflow-inspector {
+  min-width: 0;
+}
+
+.frogie-workflow-canvas {
+  height: min(65vh, 40rem);
+  min-height: 24rem;
+}
+
+.frogie-workflow-view .react-flow {
+  --xy-edge-stroke: hsl(var(--basalt-muted-foreground));
+  --xy-edge-stroke-selected: hsl(var(--basalt-foreground));
+  --xy-connectionline-stroke: hsl(var(--basalt-primary));
+  --xy-background-color: hsl(var(--basalt-secondary));
+  --xy-background-pattern-color: hsl(var(--basalt-border));
+  --xy-handle-background-color: hsl(var(--basalt-primary));
+  --xy-attribution-background-color: hsl(var(--basalt-secondary));
+  --xy-edge-stroke-width: 1.5;
+  --xy-connectionline-stroke-width: 1.5;
+  color: hsl(var(--basalt-foreground));
+}
+
+.frogie-workflow-view .react-flow__node-step {
+  width: 13rem;
+  border-radius: var(--basalt-radius-lg);
+}
+
+.frogie-workflow-view .react-flow__node-step:focus-visible {
+  outline: 2px solid hsl(var(--basalt-ring));
+  outline-offset: 2px;
+}
+
+.frogie-workflow-node {
+  overflow-wrap: anywhere;
+}
+
+.frogie-workflow-view .react-flow__node-step.selected .frogie-workflow-node {
+  background-color: hsl(var(--basalt-selected));
+  color: hsl(var(--basalt-selected-foreground));
+}
+
+.frogie-workflow-view .react-flow__handle {
+  width: var(--basalt-size-icon-sm);
+  height: var(--basalt-size-icon-sm);
+  border-radius: var(--basalt-radius-full);
+}
+
+.frogie-workflow-view .react-flow__edge-text {
+  fill: hsl(var(--basalt-foreground));
+  font-family: var(--basalt-font-sans);
+  font-size: var(--basalt-text-sm);
+}
+
+.frogie-workflow-view .react-flow__edge-textbg {
+  fill: hsl(var(--basalt-bright));
+}
+
+.frogie-workflow-view .react-flow__attribution a {
+  color: hsl(var(--basalt-muted-foreground));
+}
+
+.frogie-workflow-node-heading,
+.frogie-workflow-viewport-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--basalt-space-content-gap);
+}
+
+.frogie-workflow-node-heading {
+  justify-content: space-between;
+}
+
+.frogie-workflow-inspector-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--basalt-space-layout-sm);
+  overflow-wrap: anywhere;
+}
+
+.frogie-workflow-coordinates {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--basalt-space-content-gap);
+}
+
+.frogie-workflow-canvas-empty {
+  pointer-events: none;
+}
+
+@media (max-width: 767px) {
+  .frogie-workflow-editor {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .frogie-workflow-canvas {
+    height: 50vh;
+    min-height: 20rem;
   }
 }
