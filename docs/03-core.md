@@ -4,7 +4,7 @@
 
 `packages/core/` 提供从 Squad 文件到 Pi Harness 的公共接入能力。Dashboard 调试端与集成项目使用同一套解析、装配、权限和观察协议，业务模型、工具实现、认证与运行数据仍归各运行端所有。
 
-首期以 `@earendil-works/pi-durable`、`@earendil-works/pi-ai`、`@earendil-works/chord` 的 `1.1.0` 发布版为接口基线，统一锁定实际依赖版本。Node 运行端满足 Pi 的 `>=22.19.0` 要求。Pi Durable 的实验性接口通过明确版本和接入测试管理，升级作为独立变更验证。
+首期以 `@earendil-works/pi-durable`、`@earendil-works/pi-ai`、`@earendil-works/chord` 的 `1.1.0` 发布版为接口基线，统一锁定实际依赖版本。当前编译包与本地运行端使用 Node 26。Pi Durable 的实验性接口通过明确版本和接入测试管理，升级作为独立变更验证。
 
 Pi Durable 提供持久执行，Pi AI 提供模型接入，Chord 提供状态与携带取消信号的 `Context`。公共异步运行入口沿用该 `Context`。
 
@@ -21,6 +21,8 @@ Pi Durable 提供持久执行，Pi AI 提供模型接入，Chord 提供状态与
 首期在 `src/definitions/`、`src/protocol/`、`src/runtime/` 内组织这些职责。浏览器入口只暴露协议类型与无运行时副作用的状态转换；文件解析和 Pi 宿主入口分别加载。React、Basalt、HTTP 服务和 SQLite 文件位置由应用选择。
 
 公共能力直接使用 Pi 的 `Harness`、`Conversation`、`Submission`、`Task`、`Document`、Tool 与 Extension。界面层的数据投影保留这些身份和语义。
+
+本地业务项目通过 `src/host/` 的 `openAgentHost` 使用已封装的运行接入，宿主无需直接维护 Pi 依赖。它复用本模块的装配与绑定，具体集成契约见 [项目集成](09-project-integration.md)。
 
 ### 最小公共入口
 

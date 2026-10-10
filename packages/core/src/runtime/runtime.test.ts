@@ -20,7 +20,12 @@ import { openNodeSqliteStorage } from "@earendil-works/pi-durable/storage/sqlite
 import { describe, expect, it, vi } from "vitest";
 import { loadDefinition } from "../definitions/index.js";
 import type { ProjectBinding } from "../protocol/index.js";
-import { checkBinding, openRuntime, type RuntimeOptions } from "./index.js";
+import {
+  checkBinding,
+  configureRuntimeRole,
+  openRuntime,
+  type RuntimeOptions,
+} from "./index.js";
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
   let timeout: ReturnType<typeof setTimeout> | undefined;
@@ -282,6 +287,71 @@ describe("checkBinding", () => {
 });
 
 describe("openRuntime", () => {
+  it("applies per-role model defaults and validates explicit reconfiguration atomically", async () => {
+    const test = setup();
+    const options: RuntimeOptions = {
+      ...test.options,
+      roleDefaults: {
+        reviewer: {
+          model: { provider: "fixture", modelId: "test" },
+          thinkingLevel: "high",
+        },
+      },
+    };
+    const runtime = await openRuntime(options, context);
+    try {
+      const created = await runtime.service.createConversation(
+        {
+          scope: test.binding.scope,
+          caller: test.caller,
+          input: { roleId: "reviewer" },
+        },
+        context,
+      );
+      const conversation = await runtime.harness.conversation(
+        created.conversationId,
+        context,
+      );
+      expect((await conversation?.agent(context))?.thinkingLevel).toBe("high");
+      const configureRole = (
+        roleId: string,
+        change: Parameters<typeof configureRuntimeRole>[4] = {},
+      ) =>
+        runtime.harness.commit(
+          (tx) =>
+            configureRuntimeRole(
+              tx,
+              options,
+              created.conversationId,
+              roleId,
+              change,
+            ),
+          context,
+        );
+      await configureRole("reviewer");
+      await expect(configureRole("missing")).rejects.toThrow(
+        "Role was not found",
+      );
+      await expect(
+        configureRole("reviewer", {
+          model: { provider: "fixture", modelId: "missing" },
+        }),
+      ).rejects.toThrow("unavailable");
+      expect((await conversation?.agent(context))?.thinkingLevel).toBe("high");
+      await configureRole("reviewer", {
+        model: { provider: "fixture", modelId: "test" },
+        thinkingLevel: "medium",
+        instructions: "Apply the updated criteria.",
+      });
+      expect(await conversation?.agent(context)).toMatchObject({
+        thinkingLevel: "medium",
+        instructions: "Apply the updated criteria.",
+      });
+      expect((await runtime.root.agent(context)).thinkingLevel).toBe("low");
+    } finally {
+      await runtime.close(context);
+    }
+  });
   it("creates role-scoped conversations and answers a durably admitted input with real Pi", async () => {
     const test = setup();
     test.faux.setResponses([fauxAssistantMessage("Evidence reviewed.")]);

@@ -17,11 +17,11 @@ import type {
   ToolRegistration,
   Tx,
 } from "@earendil-works/pi-durable";
-import { defineDoc, Harness } from "@earendil-works/pi-durable";
+import { configure, defineDoc, Harness } from "@earendil-works/pi-durable";
 import piDurablePackage from "@earendil-works/pi-durable/package.json" with {
   type: "json",
 };
-import corePackage from "../../../../package.json" with { type: "json" };
+import corePackage from "../../package.json" with { type: "json" };
 import type {
   DefinitionDefaults,
   DefinitionModel,
@@ -95,6 +95,7 @@ const RoleDoc = defineDoc<RoleDocument>({
 export interface BindingCapabilities {
   readonly models: Models;
   readonly registry: RegistryReader;
+  readonly roleDefaults?: Readonly<Record<string, DefinitionDefaults>>;
 }
 
 export interface RuntimeOptions {
@@ -104,6 +105,9 @@ export interface RuntimeOptions {
   readonly storage: Storage;
   readonly models: Models;
   readonly registry: RegistryReader;
+  readonly roleDefaults?: Readonly<Record<string, DefinitionDefaults>>;
+  readonly harness?: Pick<HarnessOptions, "env" | "onReport" | "settings">;
+  readonly resume?: boolean;
   readonly authorization: (
     call: RuntimeAuthorizationCall,
     context: Context,
@@ -162,8 +166,15 @@ const bindingHash = (binding: ProjectBinding): string =>
     environment: binding.environment,
     authorizationScope: binding.authorizationScope,
   });
-const configHash = (binding: ProjectBinding): string =>
-  digest(binding.environment ?? {});
+const configHash = (options: RuntimeOptions): string =>
+  digest(
+    options.roleDefaults === undefined
+      ? (options.binding.environment ?? {})
+      : {
+          environment: options.binding.environment,
+          roles: options.roleDefaults,
+        },
+  );
 const scopeMatches = (actual: RuntimeScope, expected: RuntimeScope): boolean =>
   actual.environmentId === expected.environmentId &&
   actual.squadId === expected.squadId &&
@@ -314,7 +325,7 @@ function conversationBinding(
       defaults: effectiveDefaults(
         options.definition,
         role,
-        options.binding.environment,
+        options.roleDefaults?.[role.id] ?? options.binding.environment,
       ),
       extensions: selected.extensions.map(({ name }) => name),
       tools: selected.tools.map(({ name }) => name),
@@ -334,7 +345,7 @@ function roleAgentChange(
   const defaults = effectiveDefaults(
     options.definition,
     role,
-    options.binding.environment,
+    options.roleDefaults?.[role.id] ?? options.binding.environment,
   );
   const selected = roleResources(
     role,
@@ -367,6 +378,47 @@ function recordRole(
     if (workflowId === undefined) delete doc.workflowId;
     else doc.workflowId = workflowId;
   });
+}
+
+export async function configureRuntimeRole(
+  tx: Tx,
+  options: RuntimeOptions,
+  conversationId: ConversationId,
+  roleId: string,
+  change: DefinitionDefaults & { instructions?: string } = {},
+): Promise<void> {
+  const source = options.definition.roles.find((role) => role.id === roleId);
+  if (!source) throw new RuntimeFailure("not_found", "Role was not found");
+  const configured: RuntimeOptions = {
+    ...options,
+    roleDefaults: {
+      ...options.roleDefaults,
+      [roleId]: {
+        ...effectiveDefaults(
+          options.definition,
+          source,
+          options.roleDefaults?.[roleId] ?? options.binding.environment,
+        ),
+        ...(change.model === undefined ? {} : { model: change.model }),
+        ...(change.thinkingLevel === undefined
+          ? {}
+          : { thinkingLevel: change.thinkingLevel }),
+      },
+    },
+  };
+  const issue = checkBinding(
+    { ...options.definition, roles: [source] },
+    options.binding,
+    configured,
+  ).find((item) => item.severity === "error");
+  if (issue) throw new RuntimeFailure(issue.code, issue.message);
+  await configure(tx, conversationId, {
+    ...roleAgentChange(configured, source),
+    ...(change.instructions === undefined
+      ? {}
+      : { instructions: change.instructions }),
+  });
+  await recordRole(tx, configured, conversationId, source);
 }
 
 export function checkBinding(
@@ -403,7 +455,11 @@ export function checkBinding(
     );
   }
   for (const role of definition.roles) {
-    const defaults = effectiveDefaults(definition, role, binding.environment);
+    const defaults = effectiveDefaults(
+      definition,
+      role,
+      capabilities.roleDefaults?.[role.id] ?? binding.environment,
+    );
     const path = `roles.${role.id}`;
     if (!defaults.model) {
       diagnostics.push(
@@ -465,7 +521,7 @@ function assertStoredBinding(
     value.squadId !== options.binding.scope.squadId ||
     value.harnessId !== options.binding.scope.harnessId ||
     value.definitionHash !== options.definition.contentHash ||
-    value.configHash !== configHash(options.binding)
+    value.configHash !== configHash(options)
   ) {
     throw new RuntimeFailure(
       "binding_mismatch",
@@ -538,6 +594,7 @@ export async function openRuntime(
   }
 
   const harnessOptions: HarnessOptions = {
+    ...options.harness,
     models: options.models,
     registry: options.registry,
   };
@@ -565,7 +622,7 @@ export async function openRuntime(
       stored.squadId = options.binding.scope.squadId;
       stored.harnessId = options.binding.scope.harnessId;
       stored.definitionHash = options.definition.contentHash;
-      stored.configHash = configHash(options.binding);
+      stored.configHash = configHash(options);
     }, context);
 
     const rootRole = options.definition.roles.find(
@@ -716,7 +773,8 @@ export async function openRuntime(
                   effectiveDefaults(
                     options.definition,
                     role,
-                    options.binding.environment,
+                    options.roleDefaults?.[role.id] ??
+                      options.binding.environment,
                   ).model,
               )
               .filter((model): model is DefinitionModel => model !== undefined)
@@ -832,7 +890,7 @@ export async function openRuntime(
       },
     };
 
-    harness.resume();
+    if (options.resume !== false) harness.resume();
     return { harness, root, service, close };
   } catch (error) {
     try {

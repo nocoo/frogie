@@ -49,5 +49,7 @@
 
 ## 本地数据
 
+- `pnpm build:core` 构建独立消费的 Core 包；Node 26 下在 `packages/core` 运行 `npm pack` 验证安装产物。业务集成规范见文档索引中的项目集成文档。
+
 - `squads/` 定义和 `seeds/` 初始化源码及输入纳入 Git；生成的本地数据统一放在已忽略的 `data/`。
 - Local、E2E 的数据库分别存放在本机。测试使用本次运行拥有的隔离目录，文件编辑、重置与清理先核对归属，具体约定见文档索引中的 Dashboard 与 Tests。

@@ -65,6 +65,12 @@ Local 使用真实的 OpenAI-compatible Chat Completions 模型。服务端从 `
 
 `FROGIE_MODE=e2e pnpm dev` 启动 Pi 官方确定性模型替身，每次在 `data/e2e/` 创建独立目录，不读取 Local 模型配置。当前入口由启动参数固定环境，右上角分段控件显示实际环境。完整 Workflow 画布、真实多角色派发与界面跨环境切换继续按设计文档实现。
 
+## 项目接入
+
+本地业务项目可通过 `@frogie/core/host` 接入，使用 Frogie 管理的角色定义，提供自己的模型配置、工具、业务状态与界面。his.fm 的角色和完整提示词维护在 `squads/hisfm/`，执行进程、网站审批与音频产物留在 his.fm。
+
+`pnpm build:core` 生成可独立安装的 JavaScript 与类型声明，随后在 `packages/core` 内运行 `npm pack` 打包。接入契约与包更新方式见 [项目集成](docs/09-project-integration.md)。
+
 ## 文档
 
 本项目文档统一使用中文，完整目录见 [文档索引](docs/README.md)。设计文档按编号持续补充，索引随文档更新。

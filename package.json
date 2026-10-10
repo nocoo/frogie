@@ -1,6 +1,6 @@
 {
   "name": "frogie",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "private": true,
   "type": "module",
   "license": "MIT",
@@ -16,9 +16,10 @@
     "lint": "biome check . --error-on-warnings",
     "format": "biome format --write .",
     "check": "pnpm typecheck && pnpm lint && pnpm test:coverage",
-    "build": "pnpm --filter @frogie/dashboard build",
+    "build": "pnpm build:core && pnpm --filter @frogie/dashboard build",
     "dev": "pnpm build && node --import tsx --input-type=module -e 'import { main } from \"./scripts/dev.ts\"; await main();'",
-    "prepare": "husky"
+    "prepare": "husky",
+    "build:core": "node scripts/build-core.mjs"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.15",

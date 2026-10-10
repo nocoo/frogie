@@ -1,6 +1,17 @@
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
+  resolve: {
+    conditions: [
+      "frogie-source",
+      "module",
+      "browser",
+      "development|production",
+    ],
+  },
+  environments: {
+    ssr: { resolve: { conditions: ["frogie-source"] } },
+  },
   test: {
     include: [
       "packages/**/*.test.ts",

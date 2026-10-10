@@ -16,7 +16,8 @@
     "allowImportingTsExtensions": true,
     "noEmit": true,
     "skipLibCheck": true,
-    "types": ["node", "vite/client"]
+    "types": ["node", "vite/client"],
+    "customConditions": ["frogie-source"]
   },
   "include": [
     "packages/core/src",

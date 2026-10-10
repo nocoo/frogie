@@ -14,6 +14,7 @@
 | [06 - Tests](06-tests.md) | 6DQ L1、宿主符合性与恢复、从零搭建 zeppelin 的 E2E 检查点、环境隔离和 TDD 交付顺序 |
 | [07 - Evals](07-evals.md) | 使用完整 E2E 验收快照，在独立 Local 环境按持久预算完成真实模型场景与恢复项的证据闭环 |
 | [08 - MVP 实施](08-mvp-implementation.md) | 独立测试与实现分工、纵向交付顺序、生命周期及完成验收 |
+| [09 - 项目集成](09-project-integration.md) | 编译包交付、本地 Host 接入、职责与恢复边界，以及 his.fm 的角色和执行整合 |
 | [Logo 说明](logo.md) | 图稿、来源记录与衍生文件生成方式 |
 
 ## 维护约定

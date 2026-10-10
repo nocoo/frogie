@@ -5,3 +5,6 @@ coverage/
 playwright-report/
 test-results/
 *.tsbuildinfo
+
+/packages/core/squads/
+/packages/core/LICENSE
