@@ -8,6 +8,7 @@ import {
 } from "@frogie/core/definitions";
 import type {
   DaemonProject,
+  RuntimeBudgetSnapshot,
   RuntimeDescription,
   RuntimeInspection,
   RuntimeScope,
@@ -209,6 +210,10 @@ function createClient(overrides: Partial<LocalRuntimeClient> = {}) {
     listEntries: vi.fn<LocalRuntimeClient["listEntries"]>(async () => ({
       items: [],
       cursor: null,
+    })),
+    extendBudget: vi.fn<LocalRuntimeClient["extendBudget"]>(async () => ({
+      limits: { modelRequests: 12, toolEntries: 24, modelConcurrency: 2 },
+      consumed: { modelRequests: 3, toolEntries: 5 },
     })),
     listConversations: vi.fn(async () => [
       {
@@ -419,6 +424,184 @@ describe("mountDashboard execution wiring", () => {
 });
 
 describe("mountDashboard execution lifecycle", () => {
+  it("budget grant in flight blocks conversation, project and page changes until acknowledgement", async () => {
+    vi.useFakeTimers();
+    const budget: RuntimeBudgetSnapshot = {
+      limits: { modelRequests: 12, toolEntries: 24, modelConcurrency: 2 },
+      consumed: { modelRequests: 3, toolEntries: 5 },
+    };
+    const grant = deferred<RuntimeBudgetSnapshot>();
+    const { client } = createClient({
+      context: {
+        instanceId: "instance-1",
+        mode: "local",
+        projects: [project(), project(otherScope)],
+      },
+      inspect: vi.fn<LocalRuntimeClient["inspect"]>(
+        async (_input, requestedScope) => ({
+          scope: requestedScope,
+          scheduling: "running",
+          graph: { tasks: {} },
+          usage: { models: {}, tools: {} },
+          budget,
+        }),
+      ),
+      extendBudget: vi.fn<LocalRuntimeClient["extendBudget"]>(
+        () => grant.promise,
+      ),
+    });
+    const records = await client.listConversations({}, scope);
+    const first = records[0];
+    if (!first) throw new Error("Missing conversation fixture");
+    vi.mocked(client.listConversations).mockResolvedValue([
+      first,
+      {
+        ...first,
+        conversation: { id: 18 as ConversationId } as ConversationRecord,
+      },
+    ]);
+    const root = makeRoot();
+    mount({ nodeType: 1 } as HTMLElement, { connect: async () => client });
+    await vi.advanceTimersByTimeAsync(0);
+    currentApp(root.render).props.onPageChange("chat");
+    await vi.advanceTimersByTimeAsync(0);
+    const previous = findElement(
+      currentApp(root.render).props.children,
+      ExecutionView,
+    )?.props;
+    if (!previous) throw new Error("Missing budget callbacks");
+    previous.onBudgetDraftChange("modelRequests", "4");
+    const saving = previous.onExtendBudget();
+    try {
+      await vi.advanceTimersByTimeAsync(0);
+      expect(client.extendBudget).toHaveBeenCalledOnce();
+      const app = currentApp(root.render);
+      const chat = findElement(app.props.children, ChatView)?.props;
+      if (!chat) throw new Error("Missing chat while granting budget");
+      expect(chat.canSend).toBe(false);
+      await chat.onSend("Do not submit while the grant is unconfirmed");
+      expect(client.submit).not.toHaveBeenCalled();
+      expect(client.createConversation).not.toHaveBeenCalled();
+      const selector = findElement(chat?.conversationSelector, Combobox)?.props;
+      selector?.onValueChange?.("18");
+      await vi.advanceTimersByTimeAsync(0);
+      expect(
+        findElement(currentApp(root.render).props.children, ExecutionView)
+          ?.props.snapshot.conversationId,
+      ).toBe(conversationId);
+      currentApp(root.render).props.onSquadChange(otherScope.squadId);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(
+        findElement(currentApp(root.render).props.children, ExecutionView)
+          ?.props.snapshot.scope,
+      ).toEqual(scope);
+      currentApp(root.render).props.onPageChange("overview");
+      await vi.advanceTimersByTimeAsync(0);
+      expect(currentApp(root.render).props.page).toBe("chat");
+      expect(
+        findElement(currentApp(root.render).props.children, ExecutionView)
+          ?.props.snapshot.budgetSaving,
+      ).toBe(true);
+      expect(client.submit).not.toHaveBeenCalled();
+      expect(client.createConversation).not.toHaveBeenCalled();
+    } finally {
+      grant.resolve(budget);
+      await saving;
+      await vi.advanceTimersByTimeAsync(0);
+    }
+    expect(
+      findElement(currentApp(root.render).props.children, ExecutionView)?.props
+        .snapshot.budgetDraft,
+    ).toEqual({ modelRequests: "", toolEntries: "", minutes: "" });
+    const chat = findElement(
+      currentApp(root.render).props.children,
+      ChatView,
+    )?.props;
+    findElement(chat?.conversationSelector, Combobox)?.props.onValueChange?.(
+      "18",
+    );
+    await vi.advanceTimersByTimeAsync(0);
+    expect(
+      findElement(currentApp(root.render).props.children, ExecutionView)?.props
+        .snapshot.conversationId,
+    ).toBe(18);
+    currentApp(root.render).props.onSquadChange(otherScope.squadId);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(
+      findElement(currentApp(root.render).props.children, ExecutionView)?.props
+        .snapshot.scope,
+    ).toEqual(otherScope);
+    currentApp(root.render).props.onPageChange("overview");
+    expect(currentApp(root.render).props.page).toBe("overview");
+  });
+  it("budget UI callbacks grant only their rendered target and cannot mutate a replacement scope", async () => {
+    vi.useFakeTimers();
+    const budget: RuntimeBudgetSnapshot = {
+      limits: { modelRequests: 12, toolEntries: 24, modelConcurrency: 2 },
+      consumed: { modelRequests: 3, toolEntries: 5 },
+    };
+    const { client } = createClient({
+      context: {
+        instanceId: "instance-1",
+        mode: "local",
+        projects: [project(), project(otherScope)],
+      },
+      inspect: vi.fn<LocalRuntimeClient["inspect"]>(
+        async (_input, requestedScope) => ({
+          scope: requestedScope,
+          scheduling: "running",
+          graph: { tasks: {} },
+          usage: { models: {}, tools: {} },
+          budget,
+        }),
+      ),
+    });
+    const root = makeRoot();
+    mount({ nodeType: 1 } as HTMLElement, { connect: async () => client });
+    await vi.advanceTimersByTimeAsync(0);
+    currentApp(root.render).props.onPageChange("chat");
+    await vi.advanceTimersByTimeAsync(0);
+    const previous = findElement(
+      currentApp(root.render).props.children,
+      ExecutionView,
+    )?.props;
+    if (!previous) throw new Error("Missing budget view callbacks");
+    previous.onBudgetDraftChange("modelRequests", "4");
+    await previous.onExtendBudget();
+    expect(client.extendBudget).toHaveBeenCalledWith(
+      { requestId: expect.any(String), modelRequests: 4 },
+      scope,
+    );
+    expect(
+      findElement(currentApp(root.render).props.children, ExecutionView)?.props
+        .snapshot.budgetDraft,
+    ).toEqual({ modelRequests: "", toolEntries: "", minutes: "" });
+    currentApp(root.render).props.onSquadChange(otherScope.squadId);
+    await vi.advanceTimersByTimeAsync(0);
+    const current = findElement(
+      currentApp(root.render).props.children,
+      ExecutionView,
+    )?.props;
+    expect(current?.snapshot.scope).toEqual(otherScope);
+    const calls = vi.mocked(client.extendBudget).mock.calls.length;
+    previous.onBudgetDraftChange("toolEntries", "99");
+    await previous.onExtendBudget();
+    expect(client.extendBudget).toHaveBeenCalledTimes(calls);
+    expect(
+      findElement(currentApp(root.render).props.children, ExecutionView)?.props
+        .snapshot.budgetDraft,
+    ).toEqual({ modelRequests: "", toolEntries: "", minutes: "" });
+    current?.onBudgetDraftChange("toolEntries", "2");
+    await current?.onExtendBudget();
+    expect(client.extendBudget).toHaveBeenLastCalledWith(
+      { requestId: expect.any(String), toolEntries: 2 },
+      otherScope,
+    );
+    expect(client.submit).not.toHaveBeenCalled();
+    expect(client.cancel).not.toHaveBeenCalled();
+    expect(client.compact).not.toHaveBeenCalled();
+    expect(client.createConversation).not.toHaveBeenCalled();
+  });
   it("refreshes execution serially and stops polling and late updates on dispose", async () => {
     vi.useFakeTimers();
     const { client, released } = createClient();

@@ -14,6 +14,7 @@ import type {
   CreateConversationInput,
   DaemonDirectory,
   DescribeInput,
+  ExtendBudgetInput,
   GetSubmissionInput,
   GetTaskInput,
   InspectInput,
@@ -163,6 +164,15 @@ const getTaskSchema = Type.Object(
   { taskId: safeId },
   { additionalProperties: false },
 );
+const extendBudgetSchema = Type.Object(
+  {
+    requestId: Type.String({ pattern: "\\S", maxLength: 128 }),
+    modelRequests: Type.Optional(safeId),
+    toolEntries: Type.Optional(safeId),
+    deadlineAt: Type.Optional(safeId),
+  },
+  { additionalProperties: false, minProperties: 2 },
+);
 const operationSchemas = {
   describe: emptyInput,
   listConversations: emptyInput,
@@ -176,6 +186,7 @@ const operationSchemas = {
   listEntries: listEntriesSchema,
   listTasks: listTasksSchema,
   getTask: getTaskSchema,
+  extendBudget: extendBudgetSchema,
 } as const;
 type Operation = keyof typeof operationSchemas;
 type OperationInput<K extends Operation> = Parameters<
@@ -226,7 +237,7 @@ const failures = {
   forbidden: { status: 403, message: "Forbidden" },
   not_found: { status: 404, message: "Not found" },
   binding_mismatch: { status: 409, message: "Runtime scope mismatch" },
-  conflict: { status: 409, message: "Definition changed since it was loaded" },
+  conflict: { status: 409, message: "Request conflicts with stored state" },
   capability_missing: {
     status: 400,
     message: "Required capability is unavailable",
@@ -582,6 +593,12 @@ export async function startLocalServer(
     if (!Value.Check(operationSchemas[operation], body.input)) {
       throw fail("invalid_request");
     }
+    if (
+      operation === "extendBudget" &&
+      Buffer.byteLength((body.input as ExtendBudgetInput).requestId, "utf8") >
+        128
+    )
+      throw fail("invalid_request");
     const input = body.input as OperationInput<typeof operation>;
     const scope = body.scope as RuntimeScope;
     const service = options.directory.runtime(scope);
@@ -665,6 +682,11 @@ export async function startLocalServer(
       case "getTask":
         return service.getTask(
           call as AuthorizedCall<GetTaskInput>,
+          options.context,
+        );
+      case "extendBudget":
+        return service.extendBudget(
+          call as AuthorizedCall<ExtendBudgetInput>,
           options.context,
         );
     }

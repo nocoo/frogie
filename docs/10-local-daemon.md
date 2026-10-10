@@ -19,6 +19,8 @@ daemon 的运行独立于浏览器、Dashboard 静态资源和远端连接。它
 
 `RuntimeScope` 包含 `projectId`、`environmentId`、`squadId`、`harnessId`。存储、操作、缓存、回执和产物都核对完整作用域。模型配置、权限、历史与业务资源引用按项目隔离。
 
+宿主通过 `projectBudgets` 按项目为新绑定提供显式初始预算，保存到 `binding.json` 与环境配置。重启未重复提供预算时使用保存的初始配置；显式配置与原绑定不同时，只阻止对应项目启动。运行中的追加通过 Core `extendBudget` 保存到原 Pi SQLite，重启继续读取有效额度和原消耗。
+
 `deviceId` 标识本机 daemon 安装，`runtimeId` 标识一个 Harness 的持久运行绑定；两者重启保持原值。进程 PID、WebSocket 连接 generation 和订阅 epoch 只标识本次生命周期，不能替代存储身份。
 
 每个数据根只有一个 daemon 所有者，每份 Harness SQLite 只有一个工作进程持有；Local 与各次 E2E 使用不同数据根和端口。一个项目失败、停止或额度耗尽只影响其作用域；共享模型连接的服务故障可以影响多个项目，界面按实际原因分别说明。

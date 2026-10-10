@@ -214,11 +214,18 @@ test("execution inspection shows native delegation, tool results and persisted h
       );
     }
     model = await modelServer();
+    const initialBudget = {
+      modelRequests: 5,
+      toolEntries: 3,
+      modelConcurrency: 1,
+      deadlineAt: Date.now() + 120_000,
+    };
     const configuration = {
       directory: join(root, "daemon"),
       definitionsDirectory,
       mode: "local" as const,
       model: model.model,
+      projectBudgets: { frogie: initialBudget },
     };
     const launch = async () => {
       daemon = await startDaemon(configuration);
@@ -349,6 +356,48 @@ test("execution inspection shows native delegation, tool results and persisted h
       }),
     ).toContainText(artifactContent.trim());
     expect(model.requests).toHaveLength(5);
+    expect(inspection.budget).toEqual({
+      limits: initialBudget,
+      consumed: { modelRequests: 5, toolEntries: 3 },
+    });
+    const budgetTrigger = panel.getByRole("button", {
+      name: "执行预算 · 模型 5 / 5",
+      exact: true,
+    });
+    await budgetTrigger.click();
+    await page.screenshot({ path: testInfo.outputPath("budget-light.png") });
+    await panel
+      .getByRole("spinbutton", { name: "追加模型请求", exact: true })
+      .fill("2");
+    await panel
+      .getByRole("spinbutton", { name: "追加工具进入", exact: true })
+      .fill("1");
+    await panel
+      .getByRole("spinbutton", { name: "延长分钟数", exact: true })
+      .fill("1");
+    await panel
+      .getByRole("button", { name: "确认追加预算", exact: true })
+      .click();
+    await expect(
+      panel.getByRole("button", { name: "执行预算 · 模型 5 / 7", exact: true }),
+    ).toBeVisible();
+    const extendedBudget = {
+      limits: {
+        ...initialBudget,
+        modelRequests: 7,
+        toolEntries: 4,
+        deadlineAt: initialBudget.deadlineAt + 60_000,
+      },
+      consumed: { modelRequests: 5, toolEntries: 3 },
+    };
+    expect(
+      (await service.inspect({ ...call, input: {} }, BACKGROUND_CONTEXT))
+        .budget,
+    ).toEqual(extendedBudget);
+    expect(model.requests).toHaveLength(5);
+    await panel
+      .getByRole("button", { name: "执行预算 · 模型 5 / 7", exact: true })
+      .click();
     await page.reload();
     await expect(
       page.getByRole("combobox", { name: "Squad", exact: true }),
@@ -370,6 +419,10 @@ test("execution inspection shows native delegation, tool results and persisted h
     expect(restored?.scope).toEqual(project.scope);
     expect(restored?.rootConversationId).toBe(conversationId);
     const runtime = reopened.daemon.runtime(project.scope);
+    expect(
+      (await runtime.inspect({ ...call, input: {} }, BACKGROUND_CONTEXT))
+        .budget,
+    ).toEqual(extendedBudget);
     expect(
       await runtime.listEntries(
         { ...call, input: { conversationId } },

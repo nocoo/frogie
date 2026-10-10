@@ -99,7 +99,8 @@ export function mountDashboard(
       saving ||
       compacting ||
       stopping ||
-      creatingConversation
+      creatingConversation ||
+      execution?.getSnapshot().budgetSaving
     )
       return;
     if (workflows?.getSnapshot().dirty || vm.store.getSnapshot().drafts.size) {
@@ -308,11 +309,12 @@ export function mountDashboard(
                 sending ||
                 stopping ||
                 compacting ||
+                executionModel?.getSnapshot().budgetSaving ||
                 !conversations?.size
               }
               placeholder="发送消息创建会话"
               onValueChange={(value) => {
-                if (disposed) return;
+                if (disposed || execution?.getSnapshot().budgetSaving) return;
                 const id = [...(conversations?.keys() ?? [])].find(
                   (id) => String(id) === value,
                 );
@@ -343,7 +345,12 @@ export function mountDashboard(
               }}
             />
           }
-          canCreateConversation={runtimeEnabled && !sending && !snapshot?.busy}
+          canCreateConversation={
+            runtimeEnabled &&
+            !sending &&
+            !snapshot?.busy &&
+            !executionModel?.getSnapshot().budgetSaving
+          }
           onNewConversation={() =>
             act(async () => {
               if (
@@ -351,7 +358,8 @@ export function mountDashboard(
                 !selectedRoleId ||
                 !runtimeEnabled ||
                 sending ||
-                snapshot?.busy
+                snapshot?.busy ||
+                execution?.getSnapshot().budgetSaving
               )
                 return;
               if (creatingConversation) return;
@@ -374,6 +382,8 @@ export function mountDashboard(
                 onSelectTask={executionModel.selectTask}
                 onLoadMoreTasks={executionModel.loadMoreTasks}
                 onLoadMoreEntries={executionModel.loadMoreEntries}
+                onBudgetDraftChange={executionModel.setBudgetDraft}
+                onExtendBudget={executionModel.extendBudget}
               />
             )
           }
@@ -386,7 +396,8 @@ export function mountDashboard(
             vm !== undefined &&
             definition !== undefined &&
             runtimeEnabled &&
-            !sending
+            !sending &&
+            !executionModel?.getSnapshot().budgetSaving
           }
           canStop={runtimeEnabled && conversationId !== undefined && !stopping}
           canCompact={
@@ -407,7 +418,14 @@ export function mountDashboard(
           }}
           onSend={(text) =>
             act(async () => {
-              if (!vm || !definition || !runtimeEnabled || sending) return;
+              if (
+                !vm ||
+                !definition ||
+                !runtimeEnabled ||
+                sending ||
+                execution?.getSnapshot().budgetSaving
+              )
+                return;
               sending = true;
               chatDrafts.set(draftKey, text);
               render();
@@ -517,6 +535,7 @@ export function mountDashboard(
           connecting ||
           sending ||
           saving ||
+          executionModel?.getSnapshot().budgetSaving === true ||
           snapshot?.busy === true ||
           projectSnapshot?.busy === true ||
           workflow?.busy === true
@@ -525,7 +544,7 @@ export function mountDashboard(
         canCreateSquad={false}
         canChangeMode={false}
         onPageChange={(next) => {
-          if (!disposed) {
+          if (!disposed && !execution?.getSnapshot().budgetSaving) {
             if (next === "workflows" && snapshot?.drafts.size) {
               error = "请先保存定义源码，再进入工作流画布。";
               render();

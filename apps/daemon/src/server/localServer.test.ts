@@ -7,6 +7,7 @@ import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import type {
   DaemonDirectory,
   DaemonProject,
+  RuntimeBudgetSnapshot,
   RuntimeDescription,
   RuntimeScope,
   RuntimeService,
@@ -24,6 +25,10 @@ const scope: RuntimeScope = {
   harnessId: "harness-1",
 };
 const instanceId = "instance-1";
+const budget: RuntimeBudgetSnapshot = {
+  limits: { modelRequests: 12, toolEntries: 24, modelConcurrency: 2 },
+  consumed: { modelRequests: 3, toolEntries: 5 },
+};
 type Watch = Awaited<ReturnType<RuntimeService["observeConversation"]>>;
 type View = Watch["value"];
 type ConversationId = Parameters<
@@ -148,6 +153,7 @@ function runtimeService() {
       cursor: null,
     })),
     getTask: vi.fn<RuntimeService["getTask"]>(async () => undefined),
+    extendBudget: vi.fn<RuntimeService["extendBudget"]>(async () => budget),
   };
   const service: RuntimeService = calls;
   return { service, calls, watch };
@@ -779,6 +785,160 @@ describe("local definition transport", () => {
         retryable: false,
       },
     });
+  });
+});
+
+describe("budget transport HTTP", () => {
+  it("forwards authenticated budget increments and returns the complete scoped snapshot", async () => {
+    const test = await start();
+    const input = {
+      requestId: "extend-http",
+      modelRequests: 4,
+      toolEntries: 6,
+      deadlineAt: 2_000_000_000_000,
+    };
+    const response = await post(
+      test.server.origin,
+      operationPath("extendBudget"),
+      test.cookie,
+      test.credentials.csrf,
+      { scope, input },
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ scope, value: budget });
+    expect(test.runtime.calls.extendBudget).toHaveBeenCalledWith(
+      { scope, input, caller: test.credentials.caller },
+      expect.anything(),
+    );
+  });
+  it("rejects unauthenticated, cross-origin, CSRF and incomplete scope grants before mutation", async () => {
+    const test = await start();
+    const input = { requestId: "scope-grant", modelRequests: 1 };
+    for (const [cookie, csrf, origin, status] of [
+      ["", test.credentials.csrf, test.server.origin, 401],
+      [test.cookie, "", test.server.origin, 403],
+      [test.cookie, test.credentials.csrf, "http://untrusted.example", 403],
+    ] as const) {
+      const response = await post(
+        test.server.origin,
+        operationPath("extendBudget"),
+        cookie,
+        csrf,
+        { scope, input },
+        origin,
+      );
+      expect(response.status).toBe(status);
+    }
+    for (const field of [
+      "projectId",
+      "environmentId",
+      "squadId",
+      "harnessId",
+    ] as const) {
+      const response = await post(
+        test.server.origin,
+        operationPath("extendBudget"),
+        test.cookie,
+        test.credentials.csrf,
+        { scope: { ...scope, [field]: "foreign" }, input },
+      );
+      expect(response.status).toBe(409);
+      const { [field]: _missing, ...incomplete } = scope;
+      const absent = await post(
+        test.server.origin,
+        operationPath("extendBudget"),
+        test.cookie,
+        test.credentials.csrf,
+        { scope: incomplete, input },
+      );
+      expect(absent.status).toBe(400);
+    }
+    expect(test.runtime.calls.extendBudget).not.toHaveBeenCalled();
+  });
+  it("enforces UTF-8 request identity and positive safe integer changes without rejecting valid partial increments", async () => {
+    const test = await start();
+    const invalid: unknown[] = [
+      {},
+      { requestId: "no-change" },
+      { requestId: "", modelRequests: 1 },
+      { requestId: " \t\n", modelRequests: 1 },
+      { requestId: "x".repeat(129), modelRequests: 1 },
+      { requestId: "\u00e9".repeat(65), modelRequests: 1 },
+      { requestId: 7, modelRequests: 1 },
+      { requestId: "extra", modelRequests: 1, modelConcurrency: 2 },
+    ];
+    for (const field of ["modelRequests", "toolEntries", "deadlineAt"] as const)
+      for (const value of [
+        0,
+        -1,
+        1.5,
+        Number.MAX_SAFE_INTEGER + 1,
+        "1",
+        null,
+        true,
+      ])
+        invalid.push({ requestId: "invalid-number", [field]: value });
+    for (const input of invalid) {
+      const response = await post(
+        test.server.origin,
+        operationPath("extendBudget"),
+        test.cookie,
+        test.credentials.csrf,
+        { scope, input },
+      );
+      expect(response.status).toBe(400);
+    }
+    expect(test.runtime.calls.extendBudget).not.toHaveBeenCalled();
+    const inputs = [
+      { requestId: "x".repeat(128), modelRequests: Number.MAX_SAFE_INTEGER },
+      { requestId: "\u00e9".repeat(64), toolEntries: 1 },
+      { requestId: " a ", deadlineAt: 1 },
+    ];
+    for (const input of inputs) {
+      const response = await post(
+        test.server.origin,
+        operationPath("extendBudget"),
+        test.cookie,
+        test.credentials.csrf,
+        { scope, input },
+      );
+      expect(response.status).toBe(200);
+      expect(test.runtime.calls.extendBudget).toHaveBeenLastCalledWith(
+        { scope, input, caller: test.credentials.caller },
+        expect.anything(),
+      );
+    }
+    expect(test.runtime.calls.extendBudget).toHaveBeenCalledTimes(
+      inputs.length,
+    );
+  });
+  it("maps budget failures to safe HTTP errors without exposing runtime messages", async () => {
+    const test = await start();
+    for (const [code, status] of [
+      ["budget_exhausted", 429],
+      ["conflict", 409],
+      ["capability_missing", 400],
+    ] as const) {
+      test.runtime.calls.extendBudget.mockRejectedValueOnce(
+        Object.assign(new Error("private-token /private/provider-key.json"), {
+          code,
+        }),
+      );
+      const response = await post(
+        test.server.origin,
+        operationPath("extendBudget"),
+        test.cookie,
+        test.credentials.csrf,
+        { scope, input: { requestId: `error-${code}`, toolEntries: 1 } },
+      );
+      expect(response.status).toBe(status);
+      const text = await response.text();
+      expect(text).not.toContain("private-token");
+      expect(text).not.toContain("/private/");
+      expect(JSON.parse(text)).toMatchObject({
+        error: { code, message: expect.any(String), retryable: false },
+      });
+    }
   });
 });
 

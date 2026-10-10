@@ -55,6 +55,8 @@ export function workerFailure(error: unknown): RuntimeError {
             "forbidden",
             "invalid_request",
             "output_limit",
+            "budget_exhausted",
+            "conflict",
           ].includes(value.code)
         ? value.code
         : "runtime_unavailable";
@@ -74,7 +76,11 @@ export function workerFailure(error: unknown): RuntimeError {
                   ? "Runtime request is invalid"
                   : code === "output_limit"
                     ? "Runtime response exceeds the output limit"
-                    : "Harness operation failed",
+                    : code === "budget_exhausted"
+                      ? "Runtime budget exhausted"
+                      : code === "conflict"
+                        ? "Request conflicts with stored state"
+                        : "Harness operation failed",
     code,
     retryable: false,
   };

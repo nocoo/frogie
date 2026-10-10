@@ -1,7 +1,9 @@
 import type {
+  ExtendBudgetInput,
   GetTaskInput,
   ListEntriesInput,
   ListTasksInput,
+  RuntimeBudgetSnapshot,
   RuntimeEntry,
   RuntimeInspection,
   RuntimePage,
@@ -95,6 +97,15 @@ function fixture() {
         _input: ListEntriesInput,
         _scope: RuntimeScope,
       ): Promise<RuntimePage<RuntimeEntry>> => ({ items: [], cursor: null }),
+    ),
+    extendBudget: vi.fn(
+      async (
+        _input: ExtendBudgetInput,
+        _scope: RuntimeScope,
+      ): Promise<RuntimeBudgetSnapshot> => ({
+        limits: { modelRequests: 12, toolEntries: 24, modelConcurrency: 2 },
+        consumed: { modelRequests: 3, toolEntries: 5 },
+      }),
     ),
   };
   return { api, vm: createExecutionViewModel(api) };
@@ -506,5 +517,306 @@ describe("execution observation ViewModel", () => {
     expect(api.listTasks).toHaveBeenCalledOnce();
     expect(api.listEntries).toHaveBeenCalledOnce();
     expect(api.getTask).not.toHaveBeenCalled();
+  });
+});
+
+describe("execution budget UI contract", () => {
+  const now = 2_000_000_000_000;
+  const budget: RuntimeBudgetSnapshot = {
+    limits: {
+      modelRequests: 12,
+      toolEntries: 24,
+      modelConcurrency: 2,
+      deadlineAt: now + 60_000,
+    },
+    consumed: { modelRequests: 3, toolEntries: 5 },
+    stopped: { reason: "model_requests", at: now - 1 },
+  };
+  async function budgetTarget() {
+    const test = fixture();
+    test.api.inspect.mockResolvedValue({ ...inspection, budget });
+    await test.vm.setTarget(scope, conversationId);
+    return test;
+  }
+
+  it("grants partial positive changes, keeps retry identity after ambiguous failure and updates only budget", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(now);
+    const { api, vm } = await budgetTarget();
+    try {
+      expect(vm.getSnapshot()).toMatchObject({
+        budgetDraft: { modelRequests: "", toolEntries: "", minutes: "" },
+        budgetSaving: false,
+        budgetError: null,
+      });
+      vm.setBudgetDraft("modelRequests", " 4 ");
+      vm.setBudgetDraft("minutes", "2");
+      const before = vm.getSnapshot();
+      api.extendBudget.mockRejectedValueOnce(new Error("Acknowledgement lost"));
+      await expect(vm.extendBudget()).resolves.toBeUndefined();
+      expect(api.extendBudget).toHaveBeenCalledOnce();
+      const first = api.extendBudget.mock.calls[0];
+      expect(first?.[1]).toEqual(scope);
+      expect(first?.[0]).toEqual({
+        requestId: expect.any(String),
+        modelRequests: 4,
+        deadlineAt: now + 180_000,
+      });
+      expect(first?.[0].requestId.trim().length).toBeGreaterThan(0);
+      expect(
+        Buffer.byteLength(first?.[0].requestId ?? "", "utf8"),
+      ).toBeLessThanOrEqual(128);
+      expect(vm.getSnapshot()).toMatchObject({
+        budgetDraft: before.budgetDraft,
+        budgetSaving: false,
+        budgetError: expect.any(String),
+      });
+      const granted: RuntimeBudgetSnapshot = {
+        ...budget,
+        limits: {
+          ...budget.limits,
+          modelRequests: 16,
+          deadlineAt: now + 180_000,
+        },
+      };
+      api.extendBudget.mockResolvedValueOnce(granted);
+      const reads = [
+        api.inspect.mock.calls.length,
+        api.listTasks.mock.calls.length,
+        api.listEntries.mock.calls.length,
+      ];
+      vi.setSystemTime(now + 30_000);
+      vm.setBudgetDraft("modelRequests", " 04 ");
+      vm.setBudgetDraft("toolEntries", " \t ");
+      await vm.extendBudget();
+      expect(api.extendBudget.mock.calls[1]).toEqual(first);
+      expect(vm.getSnapshot()).toMatchObject({
+        budgetDraft: { modelRequests: "", toolEntries: "", minutes: "" },
+        budgetSaving: false,
+        budgetError: null,
+        inspection: { ...before.inspection, budget: granted },
+      });
+      expect(vm.getSnapshot().tasks).toBe(before.tasks);
+      expect(vm.getSnapshot().entries).toBe(before.entries);
+      expect([
+        api.inspect.mock.calls.length,
+        api.listTasks.mock.calls.length,
+        api.listEntries.mock.calls.length,
+      ]).toEqual(reads);
+      vm.setBudgetDraft("toolEntries", "1");
+      await vm.extendBudget();
+      expect(api.extendBudget.mock.calls[2]?.[0]).toEqual({
+        requestId: expect.any(String),
+        toolEntries: 1,
+      });
+      expect(api.extendBudget.mock.calls[2]?.[0].requestId).not.toBe(
+        first?.[0].requestId,
+      );
+      api.inspect.mockResolvedValue({
+        ...inspection,
+        budget: {
+          ...budget,
+          limits: { ...budget.limits, deadlineAt: now - 60_000 },
+        },
+      });
+      await vm.refresh();
+      vm.setBudgetDraft("minutes", "1");
+      vm.setBudgetDraft("modelRequests", " \t ");
+      await vm.extendBudget();
+      expect(api.extendBudget.mock.calls[3]?.[0]).toEqual({
+        requestId: expect.any(String),
+        deadlineAt: now + 90_000,
+      });
+    } finally {
+      vm.dispose();
+      vi.useRealTimers();
+    }
+  });
+
+  it("rejects missing target, absent budgets, invalid integer drafts and deadline overflow without I/O", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(now);
+    const { api, vm } = fixture();
+    try {
+      vm.setBudgetDraft("modelRequests", "1");
+      await vm.extendBudget();
+      expect(vm.getSnapshot().budgetError).not.toBeNull();
+      await vm.setTarget(scope, conversationId);
+      vm.setBudgetDraft("modelRequests", "1");
+      await vm.extendBudget();
+      expect(vm.getSnapshot().budgetError).not.toBeNull();
+      api.inspect.mockResolvedValue({ ...inspection, budget });
+      await vm.refresh();
+      for (const field of ["modelRequests", "toolEntries", "minutes"] as const)
+        for (const value of [
+          "0",
+          "-1",
+          "1.5",
+          "1e3",
+          "Infinity",
+          "NaN",
+          "abc",
+          String(Number.MAX_SAFE_INTEGER + 1),
+        ]) {
+          for (const reset of [
+            "modelRequests",
+            "toolEntries",
+            "minutes",
+          ] as const)
+            vm.setBudgetDraft(reset, "");
+          vm.setBudgetDraft(field, value);
+          await vm.extendBudget();
+          expect(vm.getSnapshot().budgetError).not.toBeNull();
+        }
+      for (const field of ["modelRequests", "toolEntries", "minutes"] as const)
+        vm.setBudgetDraft(field, " \t ");
+      await vm.extendBudget();
+      expect(vm.getSnapshot().budgetError).not.toBeNull();
+      api.inspect.mockResolvedValue({
+        ...inspection,
+        budget: {
+          ...budget,
+          limits: { modelRequests: 12, toolEntries: 24, modelConcurrency: 2 },
+        },
+      });
+      await vm.refresh();
+      vm.setBudgetDraft("minutes", "1");
+      await vm.extendBudget();
+      expect(vm.getSnapshot().budgetError).not.toBeNull();
+      api.inspect.mockResolvedValue({
+        ...inspection,
+        budget: {
+          ...budget,
+          limits: {
+            ...budget.limits,
+            deadlineAt: Number.MAX_SAFE_INTEGER - 10,
+          },
+        },
+      });
+      await vm.refresh();
+      await vm.extendBudget();
+      expect(vm.getSnapshot().budgetError).not.toBeNull();
+      expect(api.extendBudget).not.toHaveBeenCalled();
+    } finally {
+      vm.dispose();
+      vi.useRealTimers();
+    }
+  });
+
+  it("waits for an in-flight read, locks draft and duplicate grant while preventing refresh overlap", async () => {
+    const { api, vm } = await budgetTarget();
+    try {
+      const read = deferred<RuntimeInspection>();
+      api.inspect.mockReturnValueOnce(read.promise);
+      const refreshing = vm.refresh();
+      await vi.waitFor(() => expect(api.inspect).toHaveBeenCalledTimes(2));
+      vm.setBudgetDraft("modelRequests", "2");
+      const grant = deferred<RuntimeBudgetSnapshot>();
+      api.extendBudget.mockReturnValueOnce(grant.promise);
+      const saving = vm.extendBudget();
+      const duplicate = vm.extendBudget();
+      expect(vm.getSnapshot().budgetSaving).toBe(true);
+      vm.setBudgetDraft("modelRequests", "99");
+      expect(vm.getSnapshot().budgetDraft.modelRequests).toBe("2");
+      expect(api.extendBudget).not.toHaveBeenCalled();
+      read.resolve({ ...inspection, budget });
+      await refreshing;
+      await vi.waitFor(() => expect(api.extendBudget).toHaveBeenCalledOnce());
+      const reads = [
+        api.inspect.mock.calls.length,
+        api.listTasks.mock.calls.length,
+        api.listEntries.mock.calls.length,
+      ];
+      const during = vm.refresh();
+      await Promise.resolve();
+      expect([
+        api.inspect.mock.calls.length,
+        api.listTasks.mock.calls.length,
+        api.listEntries.mock.calls.length,
+      ]).toEqual(reads);
+      grant.resolve(budget);
+      await Promise.all([saving, duplicate, during]);
+      expect(api.extendBudget).toHaveBeenCalledOnce();
+      expect(vm.getSnapshot().budgetSaving).toBe(false);
+    } finally {
+      vm.dispose();
+    }
+  });
+
+  it("drops late grants and cancels queued grant I/O after target changes or disposal", async () => {
+    for (const operation of [
+      "switch-success",
+      "switch-error",
+      "dispose-success",
+      "dispose-error",
+      "queued-switch",
+      "queued-dispose",
+    ] as const) {
+      const { api, vm } = await budgetTarget();
+      try {
+        vm.setBudgetDraft("toolEntries", "3");
+        const queued = operation.startsWith("queued");
+        const read = deferred<RuntimeInspection>();
+        let refreshing: Promise<void> | undefined;
+        if (queued) {
+          api.inspect.mockReturnValueOnce(read.promise);
+          refreshing = vm.refresh();
+          await vi.waitFor(() => expect(api.inspect).toHaveBeenCalledTimes(2));
+        }
+        const grant = deferred<RuntimeBudgetSnapshot>();
+        api.extendBudget.mockReturnValueOnce(grant.promise);
+        const saving = vm.extendBudget();
+        if (!queued)
+          await vi.waitFor(() =>
+            expect(api.extendBudget).toHaveBeenCalledOnce(),
+          );
+        if (operation.includes("dispose")) vm.dispose();
+        else
+          await vm.setTarget(
+            { ...scope, harnessId: "new-budget-harness" },
+            conversationId,
+          );
+        const snapshot = vm.getSnapshot();
+        if (queued) read.resolve({ ...inspection, budget });
+        else if (operation.endsWith("error"))
+          grant.reject(new Error("Late grant failure"));
+        else
+          grant.resolve({
+            ...budget,
+            limits: { ...budget.limits, toolEntries: 999 },
+          });
+        await Promise.all([saving, refreshing]);
+        expect(vm.getSnapshot()).toBe(snapshot);
+        expect(api.extendBudget).toHaveBeenCalledTimes(queued ? 0 : 1);
+        const calls = api.extendBudget.mock.calls.length;
+        vm.dispose();
+        await vm.extendBudget();
+        expect(api.extendBudget).toHaveBeenCalledTimes(calls);
+      } finally {
+        vm.dispose();
+      }
+    }
+  });
+  it("waits for a pending task-detail read before granting and does not reset task work", async () => {
+    const { api, vm } = await budgetTarget();
+    const detail = deferred<RuntimeTask | undefined>();
+    api.getTask.mockReturnValueOnce(detail.promise);
+    const reading = vm.selectTask(task(1).id);
+    await vi.waitFor(() => expect(api.getTask).toHaveBeenCalledOnce());
+    vm.setBudgetDraft("toolEntries", "1");
+    const saving = vm.extendBudget();
+    try {
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(api.extendBudget).not.toHaveBeenCalled();
+      detail.resolve(task(1, "terminal"));
+      await Promise.all([reading, saving]);
+      expect(api.extendBudget).toHaveBeenCalledOnce();
+      expect(vm.getSnapshot().selectedTask).toEqual(task(1, "terminal"));
+    } finally {
+      detail.resolve(task(1, "terminal"));
+      await Promise.allSettled([reading, saving]);
+      vm.dispose();
+    }
   });
 });

@@ -14,11 +14,13 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
 import * as definitions from "@frogie/core/definitions";
-import type { RuntimeError } from "@frogie/core/protocol";
+import type { RuntimeBudgetLimits, RuntimeError } from "@frogie/core/protocol";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { HarnessConfiguration } from "./harnessProcess.js";
 
 const workers = vi.hoisted(() => ({
   instances: [] as {
+    config: HarnessConfiguration;
     ready: Promise<number>;
     close: ReturnType<typeof vi.fn>;
     service: object;
@@ -36,11 +38,14 @@ vi.mock("./harnessProcess.js", async (original) => {
       ready: Promise<number>;
       close: ReturnType<typeof vi.fn>;
       service = { marker: "scope-owned-service" };
-      constructor(_config: unknown, onFailure: (error: RuntimeError) => void) {
+      constructor(
+        config: HarnessConfiguration,
+        onFailure: (error: RuntimeError) => void,
+      ) {
         workers.construct.shift()?.(onFailure);
         this.ready = workers.ready.shift()?.() ?? Promise.resolve(17);
         this.close = vi.fn(workers.closing.shift() ?? (async () => undefined));
-        workers.instances.push({ ...this, onFailure });
+        workers.instances.push({ ...this, config, onFailure });
       }
     },
   };
@@ -124,6 +129,135 @@ afterEach(async () => {
 });
 
 describe("daemon lifecycle and registration boundaries", () => {
+  it("persists per-project initial budgets through restart and rebinding while isolating an explicit budget mismatch", async () => {
+    await definition("beta-squad", "beta");
+    const alphaBudget: RuntimeBudgetLimits = {
+      modelRequests: 3,
+      toolEntries: 4,
+      modelConcurrency: 1,
+      deadlineAt: Date.now() + 60_000,
+    };
+    const betaBudget: RuntimeBudgetLimits = {
+      modelRequests: 8,
+      toolEntries: 9,
+      modelConcurrency: 2,
+    };
+    let daemon = await start({
+      projectBudgets: { alpha: alphaBudget, beta: betaBudget },
+    });
+    const original = await listed(daemon);
+    const beta = await listed(daemon, "beta");
+    const workerFor = (projectId: string) =>
+      workers.instances.findLast(
+        (worker) => worker.config.binding.projectId === projectId,
+      );
+    expect(workerFor("alpha")?.config.binding.budget).toEqual(alphaBudget);
+    expect(workerFor("beta")?.config.binding.budget).toEqual(betaBudget);
+    const harnessRoot = (harnessId: string) =>
+      join(
+        directory,
+        "projects",
+        "alpha",
+        "environments",
+        "e2e",
+        "harnesses",
+        harnessId,
+      );
+    const bindingPath = join(
+      harnessRoot(original.scope.harnessId),
+      "binding.json",
+    );
+    const originalBinding = await readFile(bindingPath, "utf8");
+    expect(JSON.parse(originalBinding).budget).toEqual(alphaBudget);
+    const environmentPath = join(
+      directory,
+      "projects",
+      "alpha",
+      "environments",
+      "e2e",
+      "environment.json",
+    );
+    expect(JSON.parse(await readFile(environmentPath, "utf8")).budget).toEqual(
+      alphaBudget,
+    );
+    await daemon.close();
+    daemon = await start();
+    expect(await listed(daemon)).toMatchObject({
+      scope: original.scope,
+      rootConversationId: original.rootConversationId,
+      state: "running",
+    });
+    expect(workerFor("alpha")?.config.binding.budget).toEqual(alphaBudget);
+    await daemon.setProjectEnabled("alpha", false);
+    const rolePath = join(
+      definitionsDirectory,
+      "alpha-squad",
+      "roles",
+      "command",
+      "ROLE.md",
+    );
+    await writeFile(
+      rolePath,
+      `${await readFile(rolePath, "utf8")}\nBudget-preserving definition revision.\n`,
+    );
+    const rebound = await daemon.bindDefinition("alpha");
+    expect(rebound.scope.harnessId).not.toBe(original.scope.harnessId);
+    expect(rebound).toMatchObject({ state: "stopped", enabled: false });
+    expect(
+      JSON.parse(
+        await readFile(
+          join(harnessRoot(rebound.scope.harnessId), "binding.json"),
+          "utf8",
+        ),
+      ).budget,
+    ).toEqual(alphaBudget);
+    expect(await readFile(bindingPath, "utf8")).toBe(originalBinding);
+    expect(JSON.parse(await readFile(environmentPath, "utf8")).budget).toEqual(
+      alphaBudget,
+    );
+    await daemon.setProjectEnabled("alpha", true);
+    expect(workerFor("alpha")?.config.binding).toMatchObject({
+      scope: rebound.scope,
+      budget: alphaBudget,
+    });
+    await daemon.close();
+    for (const requested of [
+      { ...alphaBudget, modelRequests: 4 },
+      { ...alphaBudget, unknown: true },
+    ]) {
+      daemon = await start({ projectBudgets: { alpha: requested } });
+      const rejected = await listed(daemon);
+      expect(rejected).toMatchObject({
+        state: "error",
+        error: { code: "binding_mismatch", scope: rebound.scope },
+      });
+      expect(() => daemon.runtime(rejected.scope)).toThrow(
+        expect.objectContaining({ code: "runtime_unavailable" }),
+      );
+      expect(await listed(daemon, "beta")).toMatchObject({
+        scope: beta.scope,
+        rootConversationId: beta.rootConversationId,
+        state: "running",
+      });
+      expect(daemon.runtime(beta.scope)).toBe(workerFor("beta")?.service);
+      expect(workerFor("beta")?.config.binding.budget).toEqual(betaBudget);
+      expect(
+        JSON.parse(
+          await readFile(
+            join(harnessRoot(rebound.scope.harnessId), "binding.json"),
+            "utf8",
+          ),
+        ).budget,
+      ).toEqual(alphaBudget);
+      await daemon.close();
+    }
+    daemon = await start({ projectBudgets: { alpha: alphaBudget } });
+    expect(await listed(daemon)).toMatchObject({
+      scope: rebound.scope,
+      state: "running",
+    });
+    expect(workerFor("alpha")?.config.binding.budget).toEqual(alphaBudget);
+  });
   it("clones directory projections and does not restart already running projects or rebind identical source", async () => {
     const daemon = await start();
     const project = await listed(daemon);

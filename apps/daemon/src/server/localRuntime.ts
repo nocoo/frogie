@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
+import type { RuntimeBudgetLimits } from "@frogie/core/protocol";
 import { type Static, Type } from "typebox";
 import Value from "typebox/value";
 import { startDaemon } from "../daemon.js";
@@ -67,6 +68,7 @@ export interface DaemonServerOptions {
   definitionsDirectory?: string;
   port?: number;
   publicOrigin?: string;
+  projectBudgets?: Readonly<Record<string, RuntimeBudgetLimits>>;
 }
 
 export async function startDaemonServer(
@@ -81,6 +83,9 @@ export async function startDaemonServer(
     directory: options.directory,
     definitionsDirectory,
     mode: options.mode,
+    ...(options.projectBudgets === undefined
+      ? {}
+      : { projectBudgets: options.projectBudgets }),
     ...(options.model === undefined
       ? {}
       : { model: validateModel(options.model) }),

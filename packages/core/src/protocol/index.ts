@@ -16,6 +16,11 @@ import type {
   DefinitionDefaults,
 } from "../definitions/types.js";
 import type {
+  ExtendBudgetInput,
+  RuntimeBudgetLimits,
+  RuntimeBudgetSnapshot,
+} from "./budget.js";
+import type {
   GetTaskInput,
   InspectInput,
   ListEntriesInput,
@@ -39,6 +44,7 @@ export interface ProjectBinding {
   readonly definition: { readonly contentHash: string };
   readonly environment?: DefinitionDefaults;
   readonly authorizationScope?: readonly string[];
+  readonly budget?: RuntimeBudgetLimits;
 }
 
 export interface ArtifactRef {
@@ -98,7 +104,8 @@ export type RuntimeAuthorizationCall =
   | (RuntimeCall<InspectInput> & { readonly operation: "inspect" })
   | (RuntimeCall<ListEntriesInput> & { readonly operation: "listEntries" })
   | (RuntimeCall<ListTasksInput> & { readonly operation: "listTasks" })
-  | (RuntimeCall<GetTaskInput> & { readonly operation: "getTask" });
+  | (RuntimeCall<GetTaskInput> & { readonly operation: "getTask" })
+  | (RuntimeCall<ExtendBudgetInput> & { readonly operation: "extendBudget" });
 
 export interface RuntimeDescription {
   readonly protocolVersion: 1;
@@ -220,9 +227,14 @@ export interface RuntimeService {
     call: RuntimeCall<GetTaskInput>,
     context: Context,
   ): Promise<RuntimeTask | undefined>;
+  extendBudget(
+    call: RuntimeCall<ExtendBudgetInput>,
+    context: Context,
+  ): Promise<RuntimeBudgetSnapshot>;
 }
 
 export type RuntimeDefinition = DefinitionBundle;
 
+export type * from "./budget.js";
 export type * from "./daemon.js";
 export type * from "./inspection.js";

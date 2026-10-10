@@ -9,7 +9,7 @@ import type {
   ConversationView,
   ConversationWatch,
 } from "@earendil-works/pi-durable";
-import type { RuntimeCall } from "@frogie/core/protocol";
+import type { RuntimeBudgetSnapshot, RuntimeCall } from "@frogie/core/protocol";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   type HarnessConfiguration,
@@ -118,6 +118,101 @@ afterEach(async () => {
 });
 
 describe("HarnessProcess", () => {
+  it("budget transport preserves the original call, cancellation reason and late acknowledgement ownership", async () => {
+    const test = fixture();
+    const budget: RuntimeBudgetSnapshot = {
+      limits: { modelRequests: 12, toolEntries: 24, modelConcurrency: 2 },
+      consumed: { modelRequests: 3, toolEntries: 5 },
+    };
+    const original = {
+      ...call,
+      input: {
+        requestId: "extend-ipc",
+        modelRequests: 4,
+        toolEntries: 6,
+        deadlineAt: 2_000_000_000_000,
+      },
+    };
+    const pending = test.process.service.extendBudget(original, context);
+    const sent = request(test);
+    expect(sent.operation).toBe("extendBudget");
+    expect(sent.call).toBe(original);
+    test.emit({ type: "result", id: sent.id, value: budget });
+    expect(await pending).toEqual(budget);
+    const abort = new AbortController();
+    const cancelled = test.process.service.extendBudget(
+      original,
+      withAbortSignal(abort.signal, context),
+    );
+    const cancelledId = request(test).id;
+    const reason = new DOMException("Budget extension cancelled", "AbortError");
+    const rejected = expect(cancelled).rejects.toBe(reason);
+    abort.abort(reason);
+    await rejected;
+    expect(test.send).toHaveBeenLastCalledWith(
+      { type: "cancel_request", id: cancelledId },
+      expect.any(Function),
+    );
+    test.emit({ type: "result", id: cancelledId, value: budget });
+    test.emit({
+      type: "error",
+      id: cancelledId,
+      error: {
+        code: "conflict",
+        message: "Late budget result",
+        retryable: false,
+      },
+    });
+    const sentCount = test.send.mock.calls.length;
+    await expect(
+      test.process.service.extendBudget(
+        original,
+        withAbortSignal(abort.signal, context),
+      ),
+    ).rejects.toBe(reason);
+    expect(test.send).toHaveBeenCalledTimes(sentCount);
+    for (const field of [
+      "projectId",
+      "environmentId",
+      "squadId",
+      "harnessId",
+    ] as const)
+      await expect(
+        test.process.service.extendBudget(
+          { ...original, scope: { ...scope, [field]: "foreign" } },
+          context,
+        ),
+      ).rejects.toMatchObject({ code: "binding_mismatch" });
+    expect(test.send).toHaveBeenCalledTimes(sentCount);
+    const first = test.process.service.extendBudget(original, context);
+    const firstId = request(test).id;
+    const secondCall = {
+      ...original,
+      input: { requestId: "independent-grant", toolEntries: 1 },
+    };
+    const second = test.process.service.extendBudget(secondCall, context);
+    const secondId = request(test).id;
+    expect(secondId).not.toBe(firstId);
+    expect(request(test).call).toBe(secondCall);
+    const failed = expect(first).rejects.toMatchObject({
+      code: "conflict",
+      message: "Request conflicts with stored state",
+      retryable: false,
+    });
+    test.emit({ type: "result", id: secondId, value: budget });
+    test.emit({
+      type: "error",
+      id: firstId,
+      error: {
+        code: "conflict",
+        message: "Request conflicts with stored state",
+        retryable: false,
+      },
+    });
+    expect(await second).toEqual(budget);
+    await failed;
+    expect(test.onFailure).not.toHaveBeenCalled();
+  });
   it("forks a source worker with private IPC, initializes it and preserves ready root identity", async () => {
     const test = fixture();
     expect(await test.process.ready).toBe(17);

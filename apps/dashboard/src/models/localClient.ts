@@ -9,6 +9,7 @@ import type {
   DaemonContext,
   DaemonProject,
   DescribeInput,
+  ExtendBudgetInput,
   GetSubmissionInput,
   GetSubmissionOutput,
   GetTaskInput,
@@ -18,6 +19,7 @@ import type {
   ListTasksInput,
   ObservationFrame,
   ObserveConversationInput,
+  RuntimeBudgetSnapshot,
   RuntimeCaller,
   RuntimeConversationRecord,
   RuntimeDescription,
@@ -86,6 +88,38 @@ const contextSchema = Type.Object({
   projects: Type.Array(projectSchema),
 });
 const safeId = Type.Integer({ minimum: 1, maximum: Number.MAX_SAFE_INTEGER });
+const count = Type.Integer({ minimum: 0, maximum: Number.MAX_SAFE_INTEGER });
+const budgetSchema = Type.Object(
+  {
+    limits: Type.Object(
+      {
+        modelRequests: count,
+        toolEntries: count,
+        modelConcurrency: safeId,
+        deadlineAt: Type.Optional(safeId),
+      },
+      { additionalProperties: false },
+    ),
+    consumed: Type.Object(
+      { modelRequests: count, toolEntries: count },
+      { additionalProperties: false },
+    ),
+    stopped: Type.Optional(
+      Type.Object(
+        {
+          reason: Type.Union([
+            Type.Literal("model_requests"),
+            Type.Literal("tool_entries"),
+            Type.Literal("deadline"),
+          ]),
+          at: safeId,
+        },
+        { additionalProperties: false },
+      ),
+    ),
+  },
+  { additionalProperties: false },
+);
 const frameSchema = Type.Object({
   type: Type.Union([Type.Literal("snapshot"), Type.Literal("update")]),
   scope: scopeSchema,
@@ -217,7 +251,16 @@ const inspectionSchema = Type.Object({
     models: Type.Record(Type.String(), usageSchema),
     tools: Type.Record(Type.String(), usageSchema),
   }),
+  budget: Type.Optional(budgetSchema),
 });
+
+function validBudget(value: unknown): value is RuntimeBudgetSnapshot {
+  return (
+    Value.Check(budgetSchema, value) &&
+    value.consumed.modelRequests <= value.limits.modelRequests &&
+    value.consumed.toolEntries <= value.limits.toolEntries
+  );
+}
 
 function failure(
   code = "runtime_unavailable",
@@ -281,6 +324,10 @@ export interface LocalRuntimeClient {
   cancel(input: CancelInput, scope: RuntimeScope): Promise<CancelOutput>;
   compact(input: CompactInput, scope: RuntimeScope): Promise<CompactOutput>;
   inspect(input: InspectInput, scope: RuntimeScope): Promise<RuntimeInspection>;
+  extendBudget(
+    input: ExtendBudgetInput,
+    scope: RuntimeScope,
+  ): Promise<RuntimeBudgetSnapshot>;
   listEntries(
     input: ListEntriesInput,
     scope: RuntimeScope,
@@ -512,10 +559,17 @@ export async function connectLocalRuntime(
       const result = await operation("inspect", input, scope);
       if (
         !Value.Check(inspectionSchema, result) ||
-        !sameScope(result.scope, scope)
+        !sameScope(result.scope, scope) ||
+        (result.budget !== undefined && !validBudget(result.budget))
       )
         throw failure("binding_mismatch", "Invalid runtime inspection");
       return result as unknown as RuntimeInspection;
+    },
+    async extendBudget(input, scope) {
+      const result = await operation("extendBudget", input, scope);
+      if (!validBudget(result))
+        throw failure("binding_mismatch", "Invalid runtime budget");
+      return result;
     },
     async listTasks(input, scope) {
       const result = await operation("listTasks", input, scope);

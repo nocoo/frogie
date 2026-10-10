@@ -39,6 +39,8 @@ import type {
   RuntimeScope,
   RuntimeService,
 } from "../protocol/index.js";
+import { createRuntimeBudget, validBudgetLimits } from "./budget.js";
+import { budgetModels, budgetRegistry } from "./budgetAdapters.js";
 import { createRuntimeInspection } from "./inspection.js";
 
 interface BindingDocument extends JsonObject {
@@ -177,6 +179,7 @@ const bindingHash = (binding: ProjectBinding): string =>
     definitionHash: binding.definition.contentHash,
     environment: binding.environment,
     authorizationScope: binding.authorizationScope,
+    ...(binding.budget === undefined ? {} : { budget: binding.budget }),
   });
 const configHash = (options: RuntimeOptions): string =>
   digest(
@@ -475,6 +478,15 @@ export function checkBinding(
   capabilities: BindingCapabilities,
 ): readonly BindingDiagnostic[] {
   const diagnostics: BindingDiagnostic[] = [];
+  if (binding.budget !== undefined && !validBudgetLimits(binding.budget)) {
+    diagnostics.push(
+      errorDiagnostic(
+        "invalid_request",
+        "Runtime budget limits are invalid",
+        "budget",
+      ),
+    );
+  }
   if (
     binding.projectId !== definition.projectId ||
     binding.scope.projectId !== binding.projectId
@@ -639,30 +651,59 @@ export async function openRuntime(
         stored?.value as Partial<BindingDocument> | undefined,
         options,
       );
+    } else {
+      const orphanBudget = await options.storage
+        .findDocument(
+          { kind: "frogie.budget", scope: { kind: "session" } },
+          "current",
+          context,
+        )
+        .catch(() => {
+          throw new RuntimeFailure(
+            "binding_mismatch",
+            "Stored runtime budget could not be verified",
+            { scope: options.binding.scope },
+          );
+        });
+      if (orphanBudget)
+        throw new RuntimeFailure(
+          "binding_mismatch",
+          "Runtime budget has no matching stored binding",
+          { scope: options.binding.scope },
+        );
     }
   } catch (error) {
     return closeStorage(options.storage, context, error);
   }
 
+  const budget =
+    options.binding.budget === undefined
+      ? undefined
+      : createRuntimeBudget(options.binding.budget, options.binding.scope);
   const harnessOptions: HarnessOptions = {
     ...options.harness,
-    models: options.models,
-    registry: options.registry,
+    models: budget ? budgetModels(options.models, budget) : options.models,
+    registry: budget
+      ? budgetRegistry(options.registry, budget)
+      : options.registry,
   };
   let harness: import("@earendil-works/pi-durable").Harness;
   try {
     harness = await Harness.open(options.storage, harnessOptions, context);
   } catch (error) {
+    budget?.close();
     return closeStorage(options.storage, context, error);
   }
 
   let closePromise: Promise<void> | undefined;
   const close = (closeContext: Context): Promise<void> => {
+    budget?.close();
     closePromise ??= harness.close(withoutAbortSignal(closeContext));
     return closePromise;
   };
 
   try {
+    await budget?.attach(harness, record !== undefined, context);
     await harness.commit(async (tx) => {
       const stored = await tx.doc(BindingDoc);
       if (stored.bindingHash) assertStoredBinding(stored, options);
@@ -766,7 +807,20 @@ export async function openRuntime(
     const service: RuntimeService = {
       inspect: async (call, callContext) => {
         await authorize("inspect", call, callContext);
-        return inspection.inspect(callContext);
+        const result = await inspection.inspect(callContext);
+        return budget
+          ? { ...result, budget: await budget.read(callContext) }
+          : result;
+      },
+      extendBudget: async (call, callContext) => {
+        await authorize("extendBudget", call, callContext);
+        if (!budget)
+          throw new RuntimeFailure(
+            "capability_missing",
+            "This runtime has no execution budget",
+            { scope: options.binding.scope },
+          );
+        return budget.extend(call.input, call.caller.id, callContext);
       },
       listEntries: async (call, callContext) => {
         await authorize("listEntries", call, callContext);
@@ -833,6 +887,7 @@ export async function openRuntime(
           call.input.conversationId,
           callContext,
         );
+        await budget?.check(callContext);
         return (await conversation.submit(call.input.submission, callContext))
           .id;
       },
@@ -889,6 +944,7 @@ export async function openRuntime(
           "listEntries",
           "listTasks",
           "getTask",
+          "extendBudget",
         ];
         return {
           protocolVersion: 1,
@@ -974,6 +1030,7 @@ export async function openRuntime(
           call.input.conversationId,
           callContext,
         );
+        await budget?.check(callContext);
         return conversation.compact(call.input.instructions, callContext);
       },
     };

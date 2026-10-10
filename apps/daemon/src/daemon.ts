@@ -20,6 +20,7 @@ import type {
   DaemonDirectory,
   DaemonProject,
   ProjectBinding,
+  RuntimeBudgetLimits,
   RuntimeError,
   RuntimeScope,
 } from "@frogie/core/protocol";
@@ -189,6 +190,7 @@ export async function startDaemon(options: {
   definitionsDirectory: string;
   mode: "local" | "e2e";
   model?: LocalModelConfig;
+  projectBudgets?: Readonly<Record<string, RuntimeBudgetLimits>>;
 }): Promise<DaemonDirectory & { close(): Promise<void> }> {
   const directory = resolve(options.directory);
   const definitionsDirectory = resolve(options.definitionsDirectory);
@@ -289,6 +291,31 @@ export async function startDaemon(options: {
     let worker: HarnessProcess | undefined;
     let startupFailure: RuntimeError | undefined;
     try {
+      const requestedBudget = options.projectBudgets?.[entry.project.projectId];
+      const savedBudget = entry.binding.budget;
+      if (
+        requestedBudget !== undefined &&
+        (requestedBudget === null ||
+          typeof requestedBudget !== "object" ||
+          Object.keys(requestedBudget).some(
+            (key) =>
+              ![
+                "modelRequests",
+                "toolEntries",
+                "modelConcurrency",
+                "deadlineAt",
+              ].includes(key),
+          ) ||
+          savedBudget === undefined ||
+          requestedBudget.modelRequests !== savedBudget.modelRequests ||
+          requestedBudget.toolEntries !== savedBudget.toolEntries ||
+          requestedBudget.modelConcurrency !== savedBudget.modelConcurrency ||
+          requestedBudget.deadlineAt !== savedBudget.deadlineAt)
+      )
+        throw runtimeFailure(
+          "binding_mismatch",
+          "Initial execution budget does not match the stored binding",
+        );
       worker = new HarnessProcess(
         {
           directory: harnessDirectory(entry.project.scope),
@@ -358,6 +385,11 @@ export async function startDaemon(options: {
       scope,
       definition: { contentHash: definition?.contentHash ?? "" },
       environment,
+      ...(options.projectBudgets?.[metadata.projectId] === undefined
+        ? {}
+        : {
+            budget: structuredClone(options.projectBudgets[metadata.projectId]),
+          }),
     };
     const entry: StoredProject = {
       project: {
@@ -384,6 +416,7 @@ export async function startDaemon(options: {
       environmentId: scope.environmentId,
       mode: options.mode,
       ...environment,
+      ...(binding.budget === undefined ? {} : { budget: binding.budget }),
     });
     await atomicJSON(join(target, "binding.json"), binding);
     if (definition) await freezeDefinition(target, definition);

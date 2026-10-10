@@ -6,6 +6,7 @@ import type {
   TaskId,
   UsageState,
 } from "@earendil-works/pi-durable";
+import type { RuntimeBudgetSnapshot } from "./budget.js";
 import type { RuntimeScope } from "./index.js";
 
 export interface RuntimeMessage {
@@ -73,6 +74,7 @@ export interface RuntimeInspection {
   readonly scheduling: "paused" | "running" | "closing";
   readonly graph: TaskGraph;
   readonly usage: UsageState;
+  readonly budget?: RuntimeBudgetSnapshot;
 }
 
 export interface RuntimePage<T> {

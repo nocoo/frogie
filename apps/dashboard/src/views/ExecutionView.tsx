@@ -1,5 +1,13 @@
 import type { RuntimeEntry, RuntimeTask } from "@frogie/core/protocol";
-import { Badge, Button, DescriptionList, LayerCard, Text } from "@nocoo/basalt";
+import {
+  Badge,
+  Button,
+  DescriptionList,
+  Field,
+  Input,
+  LayerCard,
+  Text,
+} from "@nocoo/basalt";
 import { Banner } from "@nocoo/basalt/components/banner";
 import { CodeBlock } from "@nocoo/basalt/components/code";
 import {
@@ -8,7 +16,10 @@ import {
   CollapsibleTrigger,
 } from "@nocoo/basalt/components/collapsible";
 import { ScrollArea } from "@nocoo/basalt/components/scroll-area";
-import type { ExecutionSnapshot } from "../viewmodels/ExecutionViewModel.js";
+import type {
+  BudgetDraft,
+  ExecutionSnapshot,
+} from "../viewmodels/ExecutionViewModel.js";
 
 export interface ExecutionViewProps {
   snapshot: ExecutionSnapshot;
@@ -16,6 +27,8 @@ export interface ExecutionViewProps {
   onSelectTask(id: RuntimeTask["id"]): void | Promise<void>;
   onLoadMoreTasks(): void | Promise<void>;
   onLoadMoreEntries(): void | Promise<void>;
+  onBudgetDraftChange(field: keyof BudgetDraft, value: string): void;
+  onExtendBudget(): void | Promise<void>;
 }
 
 function TaskDetails({ task }: { task: RuntimeTask }) {
@@ -208,7 +221,11 @@ export function ExecutionView({ snapshot, ...actions }: ExecutionViewProps) {
         <Button
           size="sm"
           variant="outline"
-          disabled={snapshot.busy || snapshot.scope === undefined}
+          disabled={
+            snapshot.busy ||
+            snapshot.budgetSaving ||
+            snapshot.scope === undefined
+          }
           onClick={actions.onRefresh}
         >
           刷新
@@ -263,6 +280,118 @@ export function ExecutionView({ snapshot, ...actions }: ExecutionViewProps) {
                     : `${Object.keys(inspection.graph.tasks).length} 个 live task`}
                 </Badge>
               </div>
+              {inspection.budget === undefined ? (
+                <Text size="sm" tone="muted">
+                  当前 Harness 未配置执行预算。
+                </Text>
+              ) : (
+                <Collapsible>
+                  <CollapsibleTrigger>
+                    执行预算 · 模型 {inspection.budget.consumed.modelRequests} /{" "}
+                    {inspection.budget.limits.modelRequests}
+                  </CollapsibleTrigger>
+                  <CollapsibleContent
+                    unstyled
+                    className="frogie-execution-stack"
+                  >
+                    {inspection.budget.stopped !== undefined && (
+                      <Banner
+                        variant="alert"
+                        title="执行预算已停止准入"
+                        description={
+                          inspection.budget.stopped.reason === "deadline"
+                            ? "已到截止时间。"
+                            : inspection.budget.stopped.reason ===
+                                "model_requests"
+                              ? "模型请求额度已耗尽。"
+                              : "工具进入额度已耗尽。"
+                        }
+                      />
+                    )}
+                    <DescriptionList columns={2}>
+                      <DescriptionList.Item term="模型请求">
+                        {inspection.budget.consumed.modelRequests} /{" "}
+                        {inspection.budget.limits.modelRequests}
+                      </DescriptionList.Item>
+                      <DescriptionList.Item term="工具进入">
+                        {inspection.budget.consumed.toolEntries} /{" "}
+                        {inspection.budget.limits.toolEntries}
+                      </DescriptionList.Item>
+                      <DescriptionList.Item term="模型并发上限">
+                        {inspection.budget.limits.modelConcurrency}
+                      </DescriptionList.Item>
+                      <DescriptionList.Item term="截止时间">
+                        {inspection.budget.limits.deadlineAt === undefined
+                          ? "未设置"
+                          : new Date(
+                              inspection.budget.limits.deadlineAt,
+                            ).toLocaleString()}
+                      </DescriptionList.Item>
+                    </DescriptionList>
+                    <Text size="sm" tone="muted">
+                      计数覆盖本 Harness
+                      的全部会话、重试和压缩。追加保留原消耗，已终止任务保持终态。
+                    </Text>
+                    <form
+                      aria-label="追加执行预算"
+                      className="frogie-execution-stack"
+                      onSubmit={(event) => {
+                        event.preventDefault();
+                        void actions.onExtendBudget();
+                      }}
+                    >
+                      {(
+                        [
+                          ["modelRequests", "追加模型请求"],
+                          ["toolEntries", "追加工具进入"],
+                          ["minutes", "延长分钟数"],
+                        ] as const
+                      ).map(([field, label]) => (
+                        <Field
+                          key={field}
+                          label={label}
+                          htmlFor={`budget-${field}`}
+                        >
+                          <Input
+                            id={`budget-${field}`}
+                            type="number"
+                            min={1}
+                            step={1}
+                            value={snapshot.budgetDraft[field]}
+                            disabled={
+                              snapshot.budgetSaving ||
+                              (field === "minutes" &&
+                                inspection.budget?.limits.deadlineAt ===
+                                  undefined)
+                            }
+                            onChange={(event) =>
+                              actions.onBudgetDraftChange(
+                                field,
+                                event.currentTarget.value,
+                              )
+                            }
+                          />
+                        </Field>
+                      ))}
+                      {snapshot.budgetError !== null && (
+                        <Banner
+                          role="alert"
+                          variant="error"
+                          title="预算追加失败"
+                          description={snapshot.budgetError}
+                        />
+                      )}
+                      <Button
+                        type="submit"
+                        variant="outline"
+                        disabled={snapshot.budgetSaving}
+                      >
+                        {snapshot.budgetSaving ? "正在追加" : "确认追加预算"}
+                      </Button>
+                    </form>
+                  </CollapsibleContent>
+                </Collapsible>
+              )}
               <Collapsible>
                 <CollapsibleTrigger>Harness live TaskGraph</CollapsibleTrigger>
                 <CollapsibleContent unstyled className="frogie-execution-stack">
@@ -356,7 +485,7 @@ export function ExecutionView({ snapshot, ...actions }: ExecutionViewProps) {
                         ? "default"
                         : "ghost"
                     }
-                    disabled={snapshot.busy}
+                    disabled={snapshot.busy || snapshot.budgetSaving}
                     aria-pressed={snapshot.selectedTask?.id === task.id}
                     onClick={() => actions.onSelectTask(task.id)}
                   >
@@ -393,7 +522,7 @@ export function ExecutionView({ snapshot, ...actions }: ExecutionViewProps) {
           {snapshot.taskCursor !== null && (
             <Button
               variant="outline"
-              disabled={snapshot.busy}
+              disabled={snapshot.busy || snapshot.budgetSaving}
               onClick={actions.onLoadMoreTasks}
             >
               加载更多 Tasks
@@ -427,7 +556,7 @@ export function ExecutionView({ snapshot, ...actions }: ExecutionViewProps) {
           {snapshot.entryCursor !== null && (
             <Button
               variant="outline"
-              disabled={snapshot.busy}
+              disabled={snapshot.busy || snapshot.budgetSaving}
               onClick={actions.onLoadMoreEntries}
             >
               加载更多 Entries

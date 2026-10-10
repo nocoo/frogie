@@ -346,6 +346,8 @@ describe("worker failures", () => {
     "forbidden",
     "invalid_request",
     "output_limit",
+    "budget_exhausted",
+    "conflict",
     "unknown",
   ])(
     "retains only safe classifications and never exposes error details (%s)",

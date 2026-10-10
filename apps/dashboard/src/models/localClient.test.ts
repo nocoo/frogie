@@ -1,6 +1,7 @@
 import type {
   DaemonContext,
   DaemonProject,
+  RuntimeBudgetSnapshot,
   RuntimeDescription,
   RuntimeEntry,
   RuntimeError,
@@ -183,6 +184,255 @@ const entryFixture: RuntimeEntry = {
   kind: "pi.user",
   messages: [{ role: "user", content: "Public entry" }],
 };
+const budgetFixture: RuntimeBudgetSnapshot = {
+  limits: { modelRequests: 12, toolEntries: 24, modelConcurrency: 2 },
+  consumed: { modelRequests: 3, toolEntries: 5 },
+};
+
+describe("budget transport client", () => {
+  it("posts a complete target scope and preserves the validated budget snapshot", async () => {
+    const fixture = fetchFixture([
+      { csrf: "csrf-token", caller: { id: "local-user" } },
+      context,
+      { scope: otherScope, value: budgetFixture },
+    ]);
+    const client = await connectLocalRuntime({ origin, fetch: fixture.fetch });
+    try {
+      const input = {
+        requestId: "extend-client",
+        modelRequests: 4,
+        toolEntries: 6,
+        deadlineAt: 2_000_000_000_000,
+      };
+      expect(await client.extendBudget(input, otherScope)).toEqual(
+        budgetFixture,
+      );
+      const call = callAt(fixture.calls, 2);
+      expect(requestUrl(call).pathname).toBe(
+        "/__local/instances/instance-1/operations/extendBudget",
+      );
+      expect(JSON.parse(String(requestInit(call).body))).toEqual({
+        scope: otherScope,
+        input,
+      });
+      expect(requestInit(call).method).toBe("POST");
+      expect(requestInit(call).credentials).toBe("same-origin");
+      expect(headers(call).get("X-Frogie-CSRF")).toBe("csrf-token");
+    } finally {
+      client.dispose();
+    }
+  });
+  it("accepts optional inspection budgets and complete zero, deadline and stopped snapshots", async () => {
+    const zero = {
+      limits: { modelRequests: 0, toolEntries: 0, modelConcurrency: 1 },
+      consumed: { modelRequests: 0, toolEntries: 0 },
+    };
+    const snapshots = [
+      zero,
+      ...(["model_requests", "tool_entries", "deadline"] as const).map(
+        (reason) => ({
+          ...budgetFixture,
+          limits: {
+            ...budgetFixture.limits,
+            deadlineAt: Number.MAX_SAFE_INTEGER,
+          },
+          stopped: { reason, at: 1 },
+        }),
+      ),
+    ];
+    const fixture = fetchFixture([
+      { csrf: "csrf-token", caller: { id: "local-user" } },
+      context,
+      { scope, value: inspectionFixture },
+      ...snapshots.flatMap((budget) => [
+        { scope, value: { ...inspectionFixture, budget } },
+        { scope, value: budget },
+      ]),
+    ]);
+    const client = await connectLocalRuntime({ origin, fetch: fixture.fetch });
+    try {
+      expect(await client.inspect({}, scope)).toEqual(inspectionFixture);
+      for (const budget of snapshots) {
+        expect((await client.inspect({}, scope)).budget).toEqual(budget);
+        expect(
+          await client.extendBudget(
+            { requestId: "boundary-client", toolEntries: 1 },
+            scope,
+          ),
+        ).toEqual(budget);
+      }
+    } finally {
+      client.dispose();
+    }
+  });
+  it("rejects incomplete or malformed budget DTOs both in inspection and extension responses", async () => {
+    const invalid: unknown[] = [
+      null,
+      {},
+      { limits: budgetFixture.limits },
+      { consumed: budgetFixture.consumed },
+      { ...budgetFixture, extra: true },
+      { ...budgetFixture, limits: { ...budgetFixture.limits, extra: true } },
+      {
+        ...budgetFixture,
+        consumed: { ...budgetFixture.consumed, extra: true },
+      },
+    ];
+    for (const field of [
+      "modelRequests",
+      "toolEntries",
+      "modelConcurrency",
+      "deadlineAt",
+    ] as const) {
+      for (const value of [
+        -1,
+        1.5,
+        Number.MAX_SAFE_INTEGER + 1,
+        "1",
+        null,
+        true,
+        ...(field === "modelConcurrency" || field === "deadlineAt" ? [0] : []),
+      ])
+        invalid.push({
+          ...budgetFixture,
+          limits: { ...budgetFixture.limits, [field]: value },
+        });
+      if (field !== "deadlineAt") {
+        const { [field]: _missing, ...limits } = budgetFixture.limits;
+        invalid.push({ ...budgetFixture, limits });
+      }
+    }
+    for (const field of ["modelRequests", "toolEntries"] as const) {
+      for (const value of [
+        -1,
+        1.5,
+        Number.MAX_SAFE_INTEGER + 1,
+        "1",
+        null,
+        true,
+      ])
+        invalid.push({
+          ...budgetFixture,
+          consumed: { ...budgetFixture.consumed, [field]: value },
+        });
+      const { [field]: _missing, ...consumed } = budgetFixture.consumed;
+      invalid.push({ ...budgetFixture, consumed });
+    }
+    for (const stopped of [
+      {},
+      { reason: "unknown", at: 1 },
+      { reason: "deadline" },
+      { reason: "deadline", at: 0 },
+      { reason: "deadline", at: -1 },
+      { reason: "deadline", at: 1.5 },
+      { reason: "deadline", at: Number.MAX_SAFE_INTEGER + 1 },
+      { reason: "deadline", at: "1" },
+      { reason: "deadline", at: 1, secret: "private" },
+      null,
+    ])
+      invalid.push({ ...budgetFixture, stopped });
+    const fixture = fetchFixture([
+      { csrf: "csrf-token", caller: { id: "local-user" } },
+      context,
+      ...invalid.flatMap((budget) => [
+        { scope, value: { ...inspectionFixture, budget } },
+        { scope, value: budget },
+      ]),
+    ]);
+    const client = await connectLocalRuntime({ origin, fetch: fixture.fetch });
+    try {
+      for (const _budget of invalid) {
+        await expect(client.inspect({}, scope)).rejects.toThrow();
+        await expect(
+          client.extendBudget(
+            { requestId: "invalid-response", modelRequests: 1 },
+            scope,
+          ),
+        ).rejects.toThrow();
+      }
+    } finally {
+      client.dispose();
+    }
+  });
+  it("rejects absent extension snapshots and each mismatched response scope", async () => {
+    const values = [
+      { scope, value: null },
+      { scope },
+      ...(["projectId", "environmentId", "squadId", "harnessId"] as const).map(
+        (field) => ({
+          scope: { ...scope, [field]: "foreign" },
+          value: budgetFixture,
+        }),
+      ),
+    ];
+    const fixture = fetchFixture([
+      { csrf: "csrf-token", caller: { id: "local-user" } },
+      context,
+      ...values,
+    ]);
+    const client = await connectLocalRuntime({ origin, fetch: fixture.fetch });
+    try {
+      for (const _value of values)
+        await expect(
+          client.extendBudget(
+            { requestId: "scope-check", toolEntries: 1 },
+            scope,
+          ),
+        ).rejects.toMatchObject({ code: "binding_mismatch" });
+    } finally {
+      client.dispose();
+    }
+  });
+  it("preserves safe budget error codes and aborts late extension responses after disposal", async () => {
+    const failures = [
+      ["budget_exhausted", 429, "Runtime budget exhausted"],
+      ["conflict", 409, "Request conflicts with stored state"],
+      ["capability_missing", 400, "Required capability is unavailable"],
+    ] as const;
+    let resolve!: (response: Response) => void;
+    const late = new Promise<Response>((accept) => {
+      resolve = accept;
+    });
+    const fixture = fetchFixture([
+      { csrf: "csrf-token", caller: { id: "local-user" } },
+      context,
+      ...failures.map(([code, status, message]) =>
+        Response.json(
+          { error: { code, message, retryable: false } },
+          { status },
+        ),
+      ),
+      late,
+    ]);
+    const client = await connectLocalRuntime({ origin, fetch: fixture.fetch });
+    try {
+      for (const [code, _status, message] of failures)
+        await expect(
+          client.extendBudget(
+            { requestId: `error-${code}`, modelRequests: 1 },
+            scope,
+          ),
+        ).rejects.toMatchObject({ code, message, retryable: false });
+      const pending = client.extendBudget(
+        { requestId: "late-response", toolEntries: 1 },
+        scope,
+      );
+      const rejected = expect(pending).rejects.toMatchObject({
+        code: "runtime_unavailable",
+      });
+      client.dispose();
+      expect(requestInit(callAt(fixture.calls, 5)).signal?.aborted).toBe(true);
+      resolve(Response.json({ scope, value: budgetFixture }));
+      await rejected;
+      await expect(
+        client.extendBudget({ requestId: "disposed", toolEntries: 1 }, scope),
+      ).rejects.toMatchObject({ code: "runtime_unavailable" });
+      expect(fixture.calls).toHaveLength(6);
+    } finally {
+      client.dispose();
+    }
+  });
+});
 
 describe("execution inspection client", () => {
   it("rejects each outer scope mismatch and an inconsistent inspection inner scope", async () => {

@@ -1,8 +1,10 @@
 import type {
+  ExtendBudgetInput,
   GetTaskInput,
   InspectInput,
   ListEntriesInput,
   ListTasksInput,
+  RuntimeBudgetSnapshot,
   RuntimeEntry,
   RuntimeInspection,
   RuntimePage,
@@ -15,6 +17,10 @@ type TaskId = GetTaskInput["taskId"];
 
 export interface ExecutionApi {
   inspect(input: InspectInput, scope: RuntimeScope): Promise<RuntimeInspection>;
+  extendBudget(
+    input: ExtendBudgetInput,
+    scope: RuntimeScope,
+  ): Promise<RuntimeBudgetSnapshot>;
   listTasks(
     input: ListTasksInput,
     scope: RuntimeScope,
@@ -29,6 +35,10 @@ export interface ExecutionApi {
   ): Promise<RuntimePage<RuntimeEntry>>;
 }
 
+export type BudgetDraft = Readonly<
+  Record<"modelRequests" | "toolEntries" | "minutes", string>
+>;
+
 export interface ExecutionSnapshot {
   readonly scope: RuntimeScope | undefined;
   readonly conversationId: ConversationId | undefined;
@@ -40,6 +50,9 @@ export interface ExecutionSnapshot {
   readonly selectedTask: RuntimeTask | undefined;
   readonly busy: boolean;
   readonly error: string | null;
+  readonly budgetDraft: BudgetDraft;
+  readonly budgetSaving: boolean;
+  readonly budgetError: string | null;
 }
 
 export interface ExecutionViewModel {
@@ -53,6 +66,8 @@ export interface ExecutionViewModel {
   loadMoreTasks(): Promise<void>;
   selectTask(id: TaskId): Promise<void>;
   loadMoreEntries(): Promise<void>;
+  setBudgetDraft(field: keyof BudgetDraft, value: string): void;
+  extendBudget(): Promise<void>;
   dispose(): void;
 }
 
@@ -79,6 +94,9 @@ export function createExecutionViewModel(
     selectedTask: undefined,
     busy: false,
     error: null,
+    budgetDraft: { modelRequests: "", toolEntries: "", minutes: "" },
+    budgetSaving: false,
+    budgetError: null,
   };
   const listeners = new Set<() => void>();
   let disposed = false;
@@ -86,6 +104,9 @@ export function createExecutionViewModel(
   let selection = 0;
   let active = 0;
   let pending: Promise<void> | undefined;
+  const reads = new Set<Promise<void>>();
+  let budgetPending: Promise<void> | undefined;
+  let budgetIntent: ExtendBudgetInput | undefined;
   let pagedTasks = false;
   let pagedEntries = false;
 
@@ -103,6 +124,7 @@ export function createExecutionViewModel(
     selectedGeneration = selection,
   ): Promise<void> => {
     if (disposed || snapshot.scope === undefined) return Promise.resolve();
+    if (snapshot.budgetSaving) return budgetPending ?? Promise.resolve();
     if (exclusive && pending) return pending;
     const current = generation;
     const scope = snapshot.scope;
@@ -131,12 +153,14 @@ export function createExecutionViewModel(
           });
       })
       .finally(() => {
+        reads.delete(request);
         if (!disposed && current === generation) {
           active--;
           if (exclusive) pending = undefined;
           publish({ busy: active > 0 });
         }
       });
+    reads.add(request);
     if (exclusive) pending = request;
     publish({ busy: true, error: null });
     return request;
@@ -185,6 +209,94 @@ export function createExecutionViewModel(
       };
     });
 
+  const extendBudget = (): Promise<void> => {
+    if (disposed) return Promise.resolve();
+    if (snapshot.scope === undefined) {
+      publish({ budgetError: "请先选择 Harness。" });
+      return Promise.resolve();
+    }
+    if (budgetPending) return budgetPending;
+    const budget = snapshot.inspection?.budget;
+    try {
+      if (!budget) throw new Error("当前 Harness 未配置执行预算。");
+      if (!budgetIntent) {
+        const positive = (field: keyof BudgetDraft): number | undefined => {
+          const value = snapshot.budgetDraft[field].trim();
+          if (!value) return undefined;
+          const number = Number(value);
+          if (
+            !/^\d+$/u.test(value) ||
+            !Number.isSafeInteger(number) ||
+            number <= 0
+          )
+            throw new Error("追加额度与分钟数必须是正整数。");
+          return number;
+        };
+        const modelRequests = positive("modelRequests");
+        const toolEntries = positive("toolEntries");
+        const minutes = positive("minutes");
+        if (minutes !== undefined && budget.limits.deadlineAt === undefined)
+          throw new Error("当前预算没有截止时间。");
+        const deadlineAt =
+          minutes === undefined
+            ? undefined
+            : Math.max(budget.limits.deadlineAt ?? 0, Date.now()) +
+              minutes * 60_000;
+        if (
+          (deadlineAt !== undefined && !Number.isSafeInteger(deadlineAt)) ||
+          (modelRequests === undefined &&
+            toolEntries === undefined &&
+            deadlineAt === undefined)
+        )
+          throw new Error("请填写有效的追加额度或延长时间。");
+        budgetIntent = {
+          requestId: crypto.randomUUID(),
+          ...(modelRequests === undefined ? {} : { modelRequests }),
+          ...(toolEntries === undefined ? {} : { toolEntries }),
+          ...(deadlineAt === undefined ? {} : { deadlineAt }),
+        };
+      }
+    } catch (error) {
+      publish({ budgetError: (error as Error).message });
+      return Promise.resolve();
+    }
+    const scope = snapshot.scope;
+    const current = generation;
+    const input = budgetIntent;
+    const reading = [...reads];
+    const request = Promise.resolve()
+      .then(async () => {
+        await Promise.all(reading);
+        if (disposed || current !== generation) return;
+        const budget = await api.extendBudget(input, scope);
+        if (disposed || current !== generation) return;
+        budgetIntent = undefined;
+        publish({
+          ...(snapshot.inspection === undefined
+            ? {}
+            : { inspection: { ...snapshot.inspection, budget } }),
+          budgetDraft: { modelRequests: "", toolEntries: "", minutes: "" },
+          budgetError: null,
+        });
+      })
+      .catch((error: unknown) => {
+        if (!disposed && current === generation)
+          publish({
+            budgetError:
+              error instanceof Error ? error.message : "预算追加失败",
+          });
+      })
+      .finally(() => {
+        if (!disposed && current === generation) {
+          budgetPending = undefined;
+          publish({ budgetSaving: false });
+        }
+      });
+    budgetPending = request;
+    publish({ budgetSaving: true, budgetError: null });
+    return request;
+  };
+
   return {
     getSnapshot: () => snapshot,
     subscribe(listener) {
@@ -206,6 +318,9 @@ export function createExecutionViewModel(
       selection++;
       active = 0;
       pending = undefined;
+      reads.clear();
+      budgetPending = undefined;
+      budgetIntent = undefined;
       pagedTasks = false;
       pagedEntries = false;
       publish({
@@ -219,10 +334,32 @@ export function createExecutionViewModel(
         selectedTask: undefined,
         busy: false,
         error: null,
+        budgetDraft: { modelRequests: "", toolEntries: "", minutes: "" },
+        budgetSaving: false,
+        budgetError: null,
       });
       return refresh();
     },
     refresh,
+    setBudgetDraft(field, value) {
+      if (
+        disposed ||
+        snapshot.budgetSaving ||
+        snapshot.budgetDraft[field] === value
+      )
+        return;
+      const normalize = (value: string): string => {
+        const trimmed = value.trim();
+        return /^\d+$/u.test(trimmed) ? String(Number(trimmed)) : trimmed;
+      };
+      if (normalize(snapshot.budgetDraft[field]) !== normalize(value))
+        budgetIntent = undefined;
+      publish({
+        budgetDraft: { ...snapshot.budgetDraft, [field]: value },
+        budgetError: null,
+      });
+    },
+    extendBudget,
     loadMoreTasks() {
       const cursor = snapshot.taskCursor;
       const current = generation;
@@ -273,6 +410,7 @@ export function createExecutionViewModel(
       disposed = true;
       generation++;
       pending = undefined;
+      reads.clear();
       listeners.clear();
     },
   };

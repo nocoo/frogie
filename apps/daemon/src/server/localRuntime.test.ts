@@ -175,6 +175,55 @@ it("passes isolated definitions and test origin without a paid model", async () 
   await local.close();
 });
 
+it("forwards project budgets to the daemon without changing the selected model or HTTP configuration", async () => {
+  const projectBudgets = {
+    alpha: {
+      modelRequests: 3,
+      toolEntries: 4,
+      modelConcurrency: 1,
+      deadlineAt: Date.now() + 60_000,
+    },
+    beta: { modelRequests: 8, toolEntries: 9, modelConcurrency: 2 },
+  };
+  const local = await startLocal({
+    directory: root,
+    definitionsDirectory: "/owned/squads",
+    model,
+    projectBudgets,
+    port: 0,
+  });
+  expect(startDaemon).toHaveBeenCalledWith({
+    directory: root,
+    definitionsDirectory: "/owned/squads",
+    mode: "local",
+    model,
+    projectBudgets,
+  });
+  expect(startLocalServer).toHaveBeenCalledWith(
+    expect.objectContaining({
+      port: 0,
+      publicOrigin: "https://frogie.dev.hexly.ai",
+    }),
+  );
+  await local.close();
+  vi.mocked(startDaemon).mockClear();
+  const preview = await startDaemonServer({
+    directory: root,
+    definitionsDirectory: "/owned/e2e-squads",
+    mode: "e2e",
+    projectBudgets,
+    port: 0,
+  });
+  expect(startDaemon).toHaveBeenCalledWith({
+    directory: root,
+    definitionsDirectory: "/owned/e2e-squads",
+    mode: "e2e",
+    projectBudgets,
+  });
+  expect(vi.mocked(startDaemon).mock.calls[0]?.[0]).not.toHaveProperty("model");
+  await preview.close();
+});
+
 it("closes the daemon if the HTTP server fails to start", async () => {
   const error = new Error("Port unavailable");
   vi.mocked(startLocalServer).mockRejectedValueOnce(error);
