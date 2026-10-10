@@ -130,6 +130,32 @@ afterEach(() => {
   for (const vm of models.splice(0)) vm.dispose();
 });
 
+it("adopts a saved definition only in its current scope without dropping drafts or observations", async () => {
+  const { api, vm } = fixture();
+  await vm.setScope(scopeA);
+  vm.observe(conversation);
+  vm.editFile("SQUAD.md", "Retained source draft");
+  const before = vm.store.getSnapshot();
+  const saved = { ...definition(), contentHash: "saved-workflow" };
+  vm.adoptDefinition(scopeA, saved);
+  const adopted = vm.store.getSnapshot();
+  expect(adopted.definition).toEqual(saved);
+  expect(adopted.drafts).toBe(before.drafts);
+  expect(adopted.conversations).toBe(before.conversations);
+  expect(api.loadFiles).toHaveBeenCalledOnce();
+  expect(api.observe).toHaveBeenCalledOnce();
+  for (const target of [scopeB, { ...scopeA, projectId: "other-project" }]) {
+    vm.adoptDefinition(target, definition(target));
+    expect(vm.store.getSnapshot()).toBe(adopted);
+  }
+  vm.adoptDefinition(scopeA, { ...saved, projectId: "other-project" });
+  vm.adoptDefinition(scopeA, { ...saved, squadId: "other-squad" });
+  expect(vm.store.getSnapshot()).toBe(adopted);
+  vm.dispose();
+  vm.adoptDefinition(scopeA, definition());
+  expect(vm.store.getSnapshot()).toBe(adopted);
+});
+
 describe("DashboardViewModel", () => {
   it("constructs an idle stable snapshot without IO", () => {
     const { api, vm } = fixture();

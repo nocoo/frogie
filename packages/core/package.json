@@ -12,6 +12,14 @@
       "types": "./dist/definitions/index.d.ts",
       "import": "./dist/definitions/index.js"
     },
+    "./workflows": {
+      "frogie-source": {
+        "types": "./src/definitions/serializeWorkflow.ts",
+        "default": "./src/definitions/serializeWorkflow.ts"
+      },
+      "types": "./dist/definitions/serializeWorkflow.d.ts",
+      "import": "./dist/definitions/serializeWorkflow.js"
+    },
     "./protocol": {
       "frogie-source": {
         "types": "./src/protocol/index.ts",

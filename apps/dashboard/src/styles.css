@@ -338,7 +338,7 @@ body {
 .frogie-workflow-toolbar,
 .frogie-workflow-canvas-toolbar {
   flex-wrap: wrap;
-  align-items: center;
+  align-items: flex-end;
   gap: var(--basalt-space-content-gap);
 }
 
@@ -367,6 +367,7 @@ body {
 }
 
 .frogie-workflow-view .react-flow {
+  --basalt-primary: inherit;
   --xy-edge-stroke: hsl(var(--basalt-muted-foreground));
   --xy-edge-stroke-selected: hsl(var(--basalt-foreground));
   --xy-connectionline-stroke: hsl(var(--basalt-primary));

@@ -1,4 +1,11 @@
-import type { DefinitionBundle } from "@frogie/core/definitions";
+import { cp, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import {
+  type DefinitionBundle,
+  loadDefinition,
+} from "@frogie/core/definitions";
 import type {
   DaemonProject,
   RuntimeDescription,
@@ -12,6 +19,7 @@ import { AppView, type AppViewProps } from "./views/AppView.js";
 import { ChatView } from "./views/ChatView.js";
 import { DefinitionView } from "./views/DefinitionView.js";
 import { ProjectOverviewView } from "./views/ProjectOverviewView.js";
+import { WorkflowView } from "./views/WorkflowView.js";
 
 const rootMock = vi.hoisted(() => ({
   createRoot: vi.fn(),
@@ -38,6 +46,9 @@ type ConversationRecord = Awaited<
 >[number]["conversation"];
 type MountOptions = { connect?: Connect; mode?: "local" | "e2e" };
 const origin = "http://127.0.0.1:4321";
+const workflowFixture = fileURLToPath(
+  new URL("../../../tests/fixtures/minimal-squad", import.meta.url),
+);
 
 function mount(element: HTMLElement, options?: MountOptions): () => void {
   const dispose = mountDashboard(element, options);
@@ -617,24 +628,36 @@ describe("mountDashboard client wiring", () => {
     expect(rootMock.createRoot).toHaveBeenCalledTimes(2);
   });
 
-  it("exposes connection failures and keeps unfinished pages honest", async () => {
+  it("preserves connection failures in an empty Workflow view and keeps unfinished evals honest", async () => {
     const root = makeRoot();
     mount({ nodeType: 1 } as HTMLElement, {
       connect: async () => {
-        throw "offline";
+        throw new Error("offline");
       },
     });
     await vi.waitFor(() =>
-      expect(currentApp(root.render).props.error).toBeTruthy(),
+      expect(currentApp(root.render).props.error).toBe("offline"),
     );
     currentApp(root.render).props.onPageChange("workflows");
-    expect(JSON.stringify(currentApp(root.render).props.children)).toContain(
-      "功能尚未接入",
-    );
+    const workflow = findElement(
+      currentApp(root.render).props.children,
+      WorkflowView,
+    )?.props;
+    expect(workflow).toMatchObject({
+      workflow: undefined,
+      workflows: [],
+      roles: [],
+      selectedNodeId: null,
+      busy: false,
+      dirty: false,
+      error: "offline",
+    });
+    expect(currentApp(root.render).props.error).toBe("offline");
     currentApp(root.render).props.onPageChange("evals");
     expect(JSON.stringify(currentApp(root.render).props.children)).toContain(
       "功能尚未接入",
     );
+    expect(currentApp(root.render).props.error).toBe("offline");
     currentApp(root.render).props.onPageChange("chat");
     const chat = findElement(
       currentApp(root.render).props.children,
@@ -1318,4 +1341,219 @@ describe("mountDashboard client wiring", () => {
       }
     },
   );
+});
+
+describe("mountDashboard Workflow wiring", () => {
+  async function workflowMount() {
+    let bundle = {
+      ...loadDefinition(workflowFixture),
+      squadId: scope.squadId,
+      projectId: scope.projectId,
+    };
+    const { client, released } = createClient({
+      context: {
+        instanceId: "workflow-directory",
+        mode: "local",
+        projects: [project(), project(otherScope)],
+      },
+      loadDefinition: vi.fn(async () => bundle),
+      saveDefinition: vi.fn(async (_squadId, draft) => {
+        const directory = await mkdtemp(
+          join(tmpdir(), "frogie-main-workflow-"),
+        );
+        try {
+          await cp(workflowFixture, directory, { recursive: true });
+          for (const file of bundle.files)
+            if (file.encoding === "utf8")
+              await writeFile(join(directory, file.path), file.content);
+          await writeFile(join(directory, draft.path), draft.content);
+          bundle = {
+            ...loadDefinition(directory),
+            squadId: scope.squadId,
+            projectId: scope.projectId,
+          };
+          return bundle;
+        } finally {
+          await rm(directory, { recursive: true });
+        }
+      }),
+    });
+    const root = makeRoot();
+    const dispose = mount({ nodeType: 1 } as HTMLElement, {
+      connect: async () => client,
+    });
+    await vi.waitFor(() =>
+      expect(currentApp(root.render).props.busy).toBe(false),
+    );
+    const app = () => currentApp(root.render).props;
+    const workflow = () => {
+      const view = findElement(app().children, WorkflowView);
+      if (!view) throw new Error("Missing public WorkflowView");
+      return view.props;
+    };
+    const source = () => {
+      const view = findElement(app().children, DefinitionView);
+      if (!view) throw new Error("Missing public DefinitionView");
+      return view.props;
+    };
+    app().onPageChange("workflows");
+    return {
+      client,
+      released,
+      dispose,
+      app,
+      workflow,
+      source,
+      getBundle: () => bundle,
+    };
+  }
+
+  it("ignores an unknown Role and releases old graph callbacks on disposal", async () => {
+    const { client, app, workflow, dispose } = await workflowMount();
+    const callbacks = workflow();
+    callbacks.onEditRole("missing-role");
+    expect(app().page).toBe("workflows");
+    expect(workflow().error).toBeNull();
+    dispose();
+    callbacks.onEditRole("reviewer");
+    callbacks.onMoveNode("inspect", { x: 30, y: 40 });
+    callbacks.onAddNode("reviewer");
+    await callbacks.onSave();
+    expect(client.saveDefinition).not.toHaveBeenCalled();
+    expect(client.dispose).toHaveBeenCalledOnce();
+  });
+
+  it("routes public graph callbacks through the real Workflow VM and saves the original file base without rebinding conversations", async () => {
+    const { client, released, app, workflow, source, getBundle } =
+      await workflowMount();
+    expect(workflow()).toMatchObject({
+      workflow: getBundle().workflows[0],
+      workflows: getBundle().workflows,
+      roles: getBundle().roles,
+      selectedNodeId: null,
+      dirty: false,
+    });
+    const original = getBundle().files.find(
+      (file) => file.path === "workflows/review.md",
+    );
+    workflow().onSelectWorkflow("review");
+    workflow().onSelectNode("inspect");
+    expect(workflow().selectedNodeId).toBe("inspect");
+    workflow().onMoveNode("inspect", { x: 220, y: 80 });
+    workflow().onConnect("report", "inspect");
+    workflow().onAddNode("reviewer");
+    const added = workflow().workflow?.nodes.find(
+      (node) => !["inspect", "report"].includes(node.id),
+    );
+    if (!added) throw new Error("Missing public add callback result");
+    workflow().onRemoveNode(added.id);
+    expect(workflow().workflow?.nodes).toHaveLength(2);
+    expect(workflow().workflow?.edges).toContainEqual({
+      source: "report",
+      target: "inspect",
+    });
+    const graph = structuredClone(workflow().workflow);
+    vi.mocked(client.saveDefinition).mockRejectedValueOnce(
+      new Error("Workflow save interrupted"),
+    );
+    await Promise.resolve(workflow().onSave()).catch(() => undefined);
+    await vi.waitFor(() =>
+      expect(workflow()).toMatchObject({
+        busy: false,
+        dirty: true,
+        error: "Workflow save interrupted",
+      }),
+    );
+    expect(workflow().workflow).toEqual(graph);
+    await workflow().onSave();
+    await vi.waitFor(() => expect(workflow().dirty).toBe(false));
+    const calls = vi.mocked(client.saveDefinition).mock.calls;
+    expect(calls).toHaveLength(2);
+    expect(calls[0]).toEqual([
+      scope.squadId,
+      {
+        path: "workflows/review.md",
+        content: expect.any(String),
+        baseContent: original?.content,
+      },
+      expect.any(String),
+    ]);
+    expect(calls[1]?.[2]).toBe(calls[0]?.[2]);
+    expect(
+      getBundle().workflows[0]?.nodes.find((node) => node.id === "inspect")
+        ?.position,
+    ).toEqual({ x: 220, y: 80 });
+    app().onPageChange("definitions");
+    source().onFileSelect("workflows/review.md");
+    expect(source().draft).toBe(calls[1]?.[1].content);
+    expect(source().dirty).toBe(false);
+    expect(client.bindDefinition).not.toHaveBeenCalled();
+    expect(client.listConversations).toHaveBeenCalledOnce();
+    expect(client.observe).toHaveBeenCalledOnce();
+    expect(released).toEqual([]);
+  });
+
+  it("keeps graph drafts while opening the exact nested Role source and blocks both cross-project selection routes", async () => {
+    const { client, app, workflow, source } = await workflowMount();
+    workflow().onMoveNode("inspect", { x: 200, y: 80 });
+    workflow().onEditRole("reviewer");
+    expect(app().page).toBe("definitions");
+    expect(source()).toMatchObject({
+      selectedPath: "roles/command/reviewer/ROLE.md",
+    });
+    expect(source().draft).toContain("id: reviewer");
+    app().onPageChange("workflows");
+    expect(workflow()).toMatchObject({ dirty: true });
+    expect(
+      workflow().workflow?.nodes.find((node) => node.id === "inspect")
+        ?.position,
+    ).toEqual({ x: 200, y: 80 });
+    app().onSquadChange(otherScope.squadId);
+    await Promise.resolve();
+    expect(app().selectedSquadId).toBe(scope.squadId);
+    app().onPageChange("overview");
+    findElement(app().children, ProjectOverviewView)?.props.onSelect(
+      otherScope.projectId,
+    );
+    await Promise.resolve();
+    expect(app().selectedSquadId).toBe(scope.squadId);
+    expect(client.loadDefinition).toHaveBeenCalledOnce();
+    expect(client.listConversations).toHaveBeenCalledOnce();
+    expect(client.bindDefinition).not.toHaveBeenCalled();
+  });
+
+  it("blocks unsaved source-to-graph navigation, then adopts saved label changes without clearing same-hash selection on message renders", async () => {
+    const { client, app, workflow, source } = await workflowMount();
+    app().onPageChange("definitions");
+    source().onFileSelect("workflows/review.md");
+    source().onDraftChange(
+      source().draft.replace("Return evidence", "Reviewed evidence"),
+    );
+    app().onPageChange("workflows");
+    expect(app().page).toBe("definitions");
+    expect(source().dirty).toBe(true);
+    await source().onSave();
+    app().onPageChange("workflows");
+    expect(workflow().workflow?.edges).toContainEqual({
+      source: "inspect",
+      target: "report",
+      label: "Reviewed evidence",
+    });
+    workflow().onSelectNode("inspect");
+    const graph = workflow().workflow;
+    vi.mocked(client.observe).mock.calls[0]?.[1]({
+      type: "update",
+      scope,
+      conversationId,
+      value: {
+        conversation: { id: conversationId } as ConversationRecord,
+        entries: [],
+        docs: {},
+      },
+    });
+    expect(workflow().selectedNodeId).toBe("inspect");
+    expect(workflow().workflow).toBe(graph);
+    expect(client.listConversations).toHaveBeenCalledOnce();
+    expect(client.bindDefinition).not.toHaveBeenCalled();
+  });
 });

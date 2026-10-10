@@ -17,10 +17,12 @@ import {
 } from "./viewmodels/DashboardViewModel.js";
 import { createProjectViewModel } from "./viewmodels/ProjectViewModel.js";
 import { projectChat } from "./viewmodels/projectChat.js";
+import { createWorkflowViewModel } from "./viewmodels/WorkflowViewModel.js";
 import { AppView, type Page } from "./views/AppView.js";
 import { ChatView } from "./views/ChatView.js";
 import { DefinitionView } from "./views/DefinitionView.js";
 import { ProjectOverviewView } from "./views/ProjectOverviewView.js";
+import { WorkflowView } from "./views/WorkflowView.js";
 
 const mounted = new WeakMap<HTMLElement, () => void>();
 
@@ -45,6 +47,8 @@ export function mountDashboard(
   let client: LocalRuntimeClient | undefined;
   let vm: DashboardViewModel | undefined;
   let projects: ReturnType<typeof createProjectViewModel> | undefined;
+  let workflows: ReturnType<typeof createWorkflowViewModel> | undefined;
+  let unsubscribeWorkflows: (() => void) | undefined;
   let unsubscribeProjects: (() => void) | undefined;
   let projectPoll: ReturnType<typeof setTimeout> | undefined;
   let selectedRoleId: string | undefined;
@@ -91,6 +95,10 @@ export function mountDashboard(
       creatingConversation
     )
       return;
+    if (workflows?.getSnapshot().dirty || vm.store.getSnapshot().drafts.size) {
+      error = "请先保存当前定义草稿，再切换项目。";
+      return;
+    }
     const previous = vm.store.getSnapshot().scope;
     if (previous) scopedDrafts.set(JSON.stringify(previous), chatDrafts);
     chatDrafts = scopedDrafts.get(JSON.stringify(project.scope)) ?? new Map();
@@ -139,6 +147,7 @@ export function mountDashboard(
     const chat = conversation
       ? projectChat(conversation)
       : { entries: [], running: false, compacting: false };
+    const workflow = workflows?.getSnapshot();
     let content: ReactNode;
     if (page === "definitions") {
       content = (
@@ -177,6 +186,44 @@ export function mountDashboard(
             })
           }
           onCreate={() => undefined}
+        />
+      );
+    } else if (page === "workflows") {
+      content = (
+        <WorkflowView
+          workflow={definition ? workflow?.workflow : undefined}
+          workflows={definition ? (workflow?.workflows ?? []) : []}
+          roles={definition?.roles ?? []}
+          selectedNodeId={workflow?.selectedNodeId ?? null}
+          busy={
+            connecting || snapshot?.busy === true || workflow?.busy === true
+          }
+          dirty={workflow?.dirty === true}
+          error={viewError ?? workflow?.error ?? null}
+          onSelectWorkflow={(id) => workflows?.selectWorkflow(id)}
+          onSelectNode={(id) => workflows?.selectNode(id)}
+          onMoveNode={(id, position) => workflows?.moveNode(id, position)}
+          onConnect={(source, target) => workflows?.connect(source, target)}
+          onAddNode={(roleId) => workflows?.addNode(roleId)}
+          onRemoveNode={(id) => workflows?.removeNode(id)}
+          onSave={() =>
+            act(async () => {
+              await workflows?.save();
+            })
+          }
+          onEditRole={(roleId) => {
+            if (disposed) return;
+            const path = files.find(
+              (item) =>
+                item.path.startsWith("roles/") &&
+                item.path.endsWith(`/${roleId}/ROLE.md`),
+            )?.path;
+            if (path) {
+              selectedPath = path;
+              page = "definitions";
+              render();
+            }
+          }}
         />
       );
     } else if (page === "chat") {
@@ -397,13 +444,19 @@ export function mountDashboard(
           sending ||
           saving ||
           snapshot?.busy === true ||
-          projectSnapshot?.busy === true
+          projectSnapshot?.busy === true ||
+          workflow?.busy === true
         }
         error={page === "chat" || page === "definitions" ? null : viewError}
         canCreateSquad={false}
         canChangeMode={false}
         onPageChange={(next) => {
           if (!disposed) {
+            if (next === "workflows" && snapshot?.drafts.size) {
+              error = "请先保存定义源码，再进入工作流画布。";
+              render();
+              return;
+            }
             page = next;
             render();
           }
@@ -431,8 +484,10 @@ export function mountDashboard(
     disposed = true;
     unsubscribe?.();
     unsubscribeProjects?.();
+    unsubscribeWorkflows?.();
     clearTimeout(projectPoll);
     projects?.dispose();
+    workflows?.dispose();
     vm?.dispose();
     client?.dispose();
     root.unmount();
@@ -472,7 +527,20 @@ export function mountDashboard(
         }
       });
       vm = createDashboardViewModel(api, client.caller);
-      unsubscribe = vm.store.subscribe(render);
+      workflows = createWorkflowViewModel({
+        async saveFile(scope, draft, requestId) {
+          const definition = await api.saveFile(scope, draft, requestId);
+          vm?.adoptDefinition(scope, definition);
+          return definition;
+        },
+      });
+      unsubscribeWorkflows = workflows.subscribe(render);
+      unsubscribe = vm.store.subscribe(() => {
+        const snapshot = vm?.store.getSnapshot();
+        if (snapshot?.scope && snapshot.definition)
+          workflows?.setDefinition(snapshot.scope, snapshot.definition);
+        render();
+      });
       const initial =
         client.context.projects.find(
           (project) => project.state === "running",

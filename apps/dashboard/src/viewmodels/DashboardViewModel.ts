@@ -82,6 +82,7 @@ export interface DashboardViewModel {
   readonly store: DashboardStore;
   refreshSquads(): Promise<void>;
   setScope(scope: DashboardScope, runtimeEnabled?: boolean): Promise<void>;
+  adoptDefinition(scope: DashboardScope, definition: DefinitionBundle): void;
   editFile(path: string, content: string): void;
   saveFile(path: string): Promise<void>;
   createConversation(input: CreateConversationInput): Promise<ConversationId>;
@@ -256,6 +257,17 @@ export function createDashboardViewModel(
       } finally {
         changeBusy(-1, token);
       }
+    },
+    adoptDefinition(scope, definition) {
+      if (
+        disposed ||
+        !snapshot.scope ||
+        !sameScope(snapshot.scope, scope) ||
+        definition.projectId !== scope.projectId ||
+        definition.squadId !== scope.squadId
+      )
+        return;
+      publish({ definition });
     },
     editFile(path, content) {
       if (disposed || !snapshot.definition) return;
