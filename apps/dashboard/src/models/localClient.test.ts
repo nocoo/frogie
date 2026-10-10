@@ -2,8 +2,11 @@ import type {
   DaemonContext,
   DaemonProject,
   RuntimeDescription,
+  RuntimeEntry,
   RuntimeError,
+  RuntimeInspection,
   RuntimeScope,
+  RuntimeTask,
 } from "@frogie/core/protocol";
 import { describe, expect, it, vi } from "vitest";
 import { connectLocalRuntime, type LocalRuntimeClient } from "./localClient.js";
@@ -152,6 +155,324 @@ function frame(
     ...overrides,
   };
 }
+
+const inspectionFixture: RuntimeInspection = {
+  scope,
+  scheduling: "paused",
+  graph: { tasks: {} },
+  usage: { models: {}, tools: {} },
+};
+const taskFixture: RuntimeTask = {
+  id: 42 as never,
+  conversationId: 17 as never,
+  kind: "pi.tool",
+  background: false,
+  abortRequested: false,
+  state: { status: "terminal", outcome: "completed" },
+  tool: {
+    callId: "call-1",
+    name: "read_artifact",
+    arguments: { id: "artifact" },
+    argumentsSource: "requested",
+    output: "Public tool output",
+  },
+};
+const entryFixture: RuntimeEntry = {
+  id: 1 as never,
+  conversationId: 17 as never,
+  kind: "pi.user",
+  messages: [{ role: "user", content: "Public entry" }],
+};
+
+describe("execution inspection client", () => {
+  it("rejects each outer scope mismatch and an inconsistent inspection inner scope", async () => {
+    const values = [
+      ...(["projectId", "environmentId", "squadId", "harnessId"] as const).map(
+        (field) => ({
+          scope: { ...scope, [field]: "forged" },
+          value: inspectionFixture,
+        }),
+      ),
+      { scope, value: { ...inspectionFixture, scope: otherScope } },
+    ];
+    const fixture = fetchFixture([
+      { csrf: "csrf-token", caller: { id: "local-user" } },
+      context,
+      ...values,
+    ]);
+    const client = await connectLocalRuntime({ origin, fetch: fixture.fetch });
+    for (const _value of values)
+      await expect(client.inspect({}, scope)).rejects.toMatchObject({
+        code: "binding_mismatch",
+      });
+    client.dispose();
+  });
+
+  it("rejects malformed inspection graphs, usage and identity fields without accepting partial DTOs", async () => {
+    const graphTask = {
+      id: 42,
+      kind: "pi.tool",
+      conversationId: 17,
+      background: false,
+      abortRequested: false,
+      state: { status: "running", phase: "execute" },
+      conversations: [],
+    };
+    const invalid = [
+      null,
+      {},
+      { ...inspectionFixture, scheduling: "unknown" },
+      {
+        ...inspectionFixture,
+        graph: { tasks: { 42: { ...graphTask, id: 0 } } },
+      },
+      {
+        ...inspectionFixture,
+        graph: { tasks: { 42: { ...graphTask, conversationId: 1.5 } } },
+      },
+      {
+        ...inspectionFixture,
+        graph: {
+          tasks: {
+            42: { ...graphTask, conversations: [Number.MAX_SAFE_INTEGER + 1] },
+          },
+        },
+      },
+      { ...inspectionFixture, usage: { models: [], tools: {} } },
+      {
+        ...inspectionFixture,
+        usage: { models: { fixture: { totalTokens: -1 } }, tools: {} },
+      },
+    ];
+    const fixture = fetchFixture([
+      { csrf: "csrf-token", caller: { id: "local-user" } },
+      context,
+      ...invalid.map((value) => ({ scope, value })),
+    ]);
+    const client = await connectLocalRuntime({ origin, fetch: fixture.fetch });
+    for (const _value of invalid)
+      await expect(client.inspect({}, scope)).rejects.toThrow();
+    client.dispose();
+  });
+
+  it("validates paged entry and task identity arrays and bounded cursor envelopes", async () => {
+    const invalid = [
+      null,
+      {},
+      { items: {}, cursor: null },
+      { items: [], cursor: "" },
+      { items: [], cursor: "x".repeat(4097) },
+      { items: [], cursor: 1 },
+      { items: [{ ...entryFixture, id: 0 }], cursor: null },
+      {
+        items: [
+          { ...entryFixture, conversationId: Number.MAX_SAFE_INTEGER + 1 },
+        ],
+        cursor: null,
+      },
+      {
+        items: [
+          {
+            ...entryFixture,
+            messages: [{ role: "system", content: "Private" }],
+          },
+        ],
+        cursor: null,
+      },
+      {
+        items: [
+          {
+            ...entryFixture,
+            messages: [
+              {
+                role: "assistant",
+                content: "Body",
+                toolCalls: [{ id: "call", name: "tool" }],
+              },
+            ],
+          },
+        ],
+        cursor: null,
+      },
+    ];
+    const tasks = [
+      { items: [{ ...taskFixture, id: 0 }], cursor: null },
+      { items: [{ ...taskFixture, owner: 1.5 }], cursor: null },
+      {
+        items: [{ ...taskFixture, state: { status: "waiting", on: [0] } }],
+        cursor: null,
+      },
+      {
+        items: [
+          {
+            ...taskFixture,
+            tool: { ...taskFixture.tool, argumentsSource: "final" },
+          },
+        ],
+        cursor: null,
+      },
+      { items: Array(101).fill(taskFixture), cursor: null },
+    ];
+    const fixture = fetchFixture([
+      { csrf: "csrf-token", caller: { id: "local-user" } },
+      context,
+      ...[...invalid, ...tasks].map((value) => ({ scope, value })),
+    ]);
+    const client = await connectLocalRuntime({ origin, fetch: fixture.fetch });
+    for (const _value of invalid)
+      await expect(
+        client.listEntries({ conversationId: 17 as never }, scope),
+      ).rejects.toThrow();
+    for (const _value of tasks)
+      await expect(client.listTasks({}, scope)).rejects.toThrow();
+    client.dispose();
+  });
+
+  it("uses authenticated definition requests without borrowing a selected runtime scope", async () => {
+    const bundle = {
+      squadId: "zeppelin",
+      projectId: "frogie",
+      files: [],
+      contentHash: "definition-hash",
+    };
+    const fixture = fetchFixture([
+      { csrf: "csrf-token", caller: { id: "local-user" } },
+      context,
+      { value: [project] },
+      { value: bundle },
+      { value: { ...bundle, contentHash: "saved-hash" } },
+      null,
+      { value: [] },
+      { value: null },
+    ]);
+    const client = await connectLocalRuntime({ origin, fetch: fixture.fetch });
+    expect(await client.listSquads()).toEqual([project]);
+    expect(await client.loadDefinition("zeppelin")).toEqual(bundle);
+    const draft = { path: "SQUAD.md", content: "New", baseContent: "Old" };
+    expect(
+      await client.saveDefinition("zeppelin", draft, "save-once"),
+    ).toMatchObject({ contentHash: "saved-hash" });
+    for (const [index, name, body] of [
+      [2, "list", {}],
+      [3, "load", { squadId: "zeppelin" }],
+      [4, "save", { squadId: "zeppelin", draft, requestId: "save-once" }],
+    ] as const) {
+      const call = callAt(fixture.calls, index);
+      expect(requestUrl(call).pathname).toBe(`/__local/definitions/${name}`);
+      expect(JSON.parse(String(requestInit(call).body))).toEqual(body);
+      expect(headers(call).get("X-Frogie-CSRF")).toBe("csrf-token");
+    }
+    await expect(client.listSquads()).rejects.toThrow();
+    await expect(client.loadDefinition("zeppelin")).rejects.toThrow();
+    await expect(
+      client.saveDefinition("zeppelin", draft, "another-save"),
+    ).rejects.toThrow();
+    client.dispose();
+  });
+
+  it("reports unsafe observation errors and disconnected streams without fabricating inspection success", async () => {
+    const fixture = fetchFixture([
+      { csrf: "csrf-token", caller: { id: "local-user" } },
+      context,
+      Response.json({ error: { code: "forbidden" } }, { status: 403 }),
+    ]);
+    const client = await connectLocalRuntime({ origin, fetch: fixture.fetch });
+    let resolve!: (error: RuntimeError) => void;
+    const error = new Promise<RuntimeError>((accept) => {
+      resolve = accept;
+    });
+    client.observe({ conversationId: 17 as never }, vi.fn(), resolve, scope);
+    expect(await error).toMatchObject({ code: "runtime_unavailable" });
+    client.dispose();
+  });
+
+  it("returns a validated task while allowing native fork entries to retain ancestor conversation identities", async () => {
+    const ancestor = { ...entryFixture, conversationId: 16 as never };
+    const fixture = fetchFixture([
+      { csrf: "csrf-token", caller: { id: "local-user" } },
+      context,
+      { scope, value: taskFixture },
+      { scope, value: { items: [ancestor], cursor: null } },
+      { scope, value: { ...taskFixture, id: Number.MAX_SAFE_INTEGER + 1 } },
+    ]);
+    const client = await connectLocalRuntime({ origin, fetch: fixture.fetch });
+    expect(await client.getTask({ taskId: 42 as never }, scope)).toEqual(
+      taskFixture,
+    );
+    expect(
+      await client.listEntries({ conversationId: 17 as never }, scope),
+    ).toEqual({ items: [ancestor], cursor: null });
+    await expect(
+      client.getTask({ taskId: 42 as never }, scope),
+    ).rejects.toThrow();
+    client.dispose();
+  });
+  it("routes the four reads with the requested scope and maps absent task null to undefined", async () => {
+    const inspection: RuntimeInspection = {
+      scope: otherScope,
+      scheduling: "paused",
+      graph: { tasks: {} },
+      usage: { models: {}, tools: {} },
+    };
+    const entry: RuntimeEntry = {
+      id: 1 as never,
+      conversationId: 17 as never,
+      kind: "pi.user",
+      messages: [{ role: "user", content: "Public history" }],
+    };
+    const task: RuntimeTask = {
+      id: 42 as never,
+      conversationId: 17 as never,
+      kind: "fixture.task",
+      background: false,
+      abortRequested: false,
+      state: { status: "terminal", outcome: "completed" },
+    };
+    const fixture = fetchFixture([
+      { csrf: "csrf-token", caller: { id: "local-user" } },
+      context,
+      { scope: otherScope, value: inspection },
+      {
+        scope: otherScope,
+        value: { items: [entry], cursor: "entries-cursor" },
+      },
+      { scope: otherScope, value: { items: [task], cursor: null } },
+      { scope: otherScope, value: null },
+    ]);
+    const client = await connectLocalRuntime({ origin, fetch: fixture.fetch });
+    expect(await client.inspect({}, otherScope)).toEqual(inspection);
+    expect(
+      await client.listEntries(
+        { conversationId: 17 as never, limit: 50 },
+        otherScope,
+      ),
+    ).toEqual({ items: [entry], cursor: "entries-cursor" });
+    expect(await client.listTasks({ limit: 50 }, otherScope)).toEqual({
+      items: [task],
+      cursor: null,
+    });
+    expect(
+      await client.getTask({ taskId: 42 as never }, otherScope),
+    ).toBeUndefined();
+    for (const [index, name, input] of [
+      [2, "inspect", {}],
+      [3, "listEntries", { conversationId: 17, limit: 50 }],
+      [4, "listTasks", { limit: 50 }],
+      [5, "getTask", { taskId: 42 }],
+    ] as const) {
+      const call = callAt(fixture.calls, index);
+      expect(requestUrl(call).pathname).toBe(
+        `/__local/instances/instance-1/operations/${name}`,
+      );
+      expect(JSON.parse(String(requestInit(call).body))).toEqual({
+        scope: otherScope,
+        input,
+      });
+      expect(headers(call).get("X-Frogie-CSRF")).toBe("csrf-token");
+    }
+    client.dispose();
+  });
+});
 
 describe("connectLocalRuntime", () => {
   it("resumes the HTTPS session without reusing a startup token", async () => {

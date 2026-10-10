@@ -15,7 +15,11 @@ import type {
   DaemonDirectory,
   DescribeInput,
   GetSubmissionInput,
+  GetTaskInput,
+  InspectInput,
   ListConversationsInput,
+  ListEntriesInput,
+  ListTasksInput,
   ObserveConversationInput,
   RuntimeScope,
   RuntimeService,
@@ -143,6 +147,22 @@ const definitionOperations = {
 } as const;
 type DefinitionOperation = keyof typeof definitionOperations;
 
+const pageFields = {
+  limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 100 })),
+  cursor: Type.Optional(Type.String({ minLength: 1, maxLength: 4096 })),
+};
+const listEntriesSchema = Type.Object(
+  { conversationId: safeId, ...pageFields },
+  { additionalProperties: false },
+);
+const listTasksSchema = Type.Object(
+  { conversationId: Type.Optional(safeId), ...pageFields },
+  { additionalProperties: false },
+);
+const getTaskSchema = Type.Object(
+  { taskId: safeId },
+  { additionalProperties: false },
+);
 const operationSchemas = {
   describe: emptyInput,
   listConversations: emptyInput,
@@ -152,6 +172,10 @@ const operationSchemas = {
   cancel: cancelSchema,
   compact: compactSchema,
   observeConversation: observeSchema,
+  inspect: emptyInput,
+  listEntries: listEntriesSchema,
+  listTasks: listTasksSchema,
+  getTask: getTaskSchema,
 } as const;
 type Operation = keyof typeof operationSchemas;
 type OperationInput<K extends Operation> = Parameters<
@@ -212,6 +236,7 @@ const failures = {
   budget_exhausted: { status: 429, message: "Runtime budget exhausted" },
   storage_in_use: { status: 409, message: "Runtime storage is in use" },
   runtime_unavailable: { status: 500, message: "Runtime operation failed" },
+  output_limit: { status: 413, message: "Runtime response exceeds its limit" },
 } as const;
 type FailureCode = keyof typeof failures;
 
@@ -620,6 +645,26 @@ export async function startLocalServer(
       case "compact":
         return service.compact(
           call as AuthorizedCall<CompactInput>,
+          options.context,
+        );
+      case "inspect":
+        return service.inspect(
+          call as AuthorizedCall<InspectInput>,
+          options.context,
+        );
+      case "listEntries":
+        return service.listEntries(
+          call as AuthorizedCall<ListEntriesInput>,
+          options.context,
+        );
+      case "listTasks":
+        return service.listTasks(
+          call as AuthorizedCall<ListTasksInput>,
+          options.context,
+        );
+      case "getTask":
+        return service.getTask(
+          call as AuthorizedCall<GetTaskInput>,
           options.context,
         );
     }

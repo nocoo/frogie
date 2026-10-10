@@ -39,6 +39,7 @@ import type {
   RuntimeScope,
   RuntimeService,
 } from "../protocol/index.js";
+import { createRuntimeInspection } from "./inspection.js";
 
 interface BindingDocument extends JsonObject {
   [key: string]: JsonValue;
@@ -707,7 +708,8 @@ export async function openRuntime(
       if (
         !role ||
         role.runtimeId !== options.runtimeId ||
-        role.definitionHash !== options.definition.contentHash
+        role.definitionHash !== options.definition.contentHash ||
+        !options.definition.roles.some(({ id }) => id === role.roleId)
       ) {
         throw new RuntimeFailure(
           "not_found",
@@ -745,7 +747,39 @@ export async function openRuntime(
       }
     };
 
+    const inspection = createRuntimeInspection({
+      harness,
+      storage: options.storage,
+      scope: options.binding.scope,
+      conversation: ownedConversation,
+      owns: async (id, callContext) => {
+        try {
+          await ownedConversation(id, callContext);
+          return true;
+        } catch (error) {
+          if (error instanceof RuntimeFailure && error.code === "not_found")
+            return false;
+          throw error;
+        }
+      },
+    });
     const service: RuntimeService = {
+      inspect: async (call, callContext) => {
+        await authorize("inspect", call, callContext);
+        return inspection.inspect(callContext);
+      },
+      listEntries: async (call, callContext) => {
+        await authorize("listEntries", call, callContext);
+        return inspection.listEntries(call.input, callContext);
+      },
+      listTasks: async (call, callContext) => {
+        await authorize("listTasks", call, callContext);
+        return inspection.listTasks(call.input, callContext);
+      },
+      getTask: async (call, callContext) => {
+        await authorize("getTask", call, callContext);
+        return inspection.getTask(call.input.taskId, callContext);
+      },
       createConversation: async (call, callContext) => {
         await authorize("createConversation", call, callContext);
         const workflow = call.input.workflowId
@@ -851,6 +885,10 @@ export async function openRuntime(
           "getSubmission",
           "cancel",
           "compact",
+          "inspect",
+          "listEntries",
+          "listTasks",
+          "getTask",
         ];
         return {
           protocolVersion: 1,

@@ -15,6 +15,16 @@ import type {
   DefinitionBundle,
   DefinitionDefaults,
 } from "../definitions/types.js";
+import type {
+  GetTaskInput,
+  InspectInput,
+  ListEntriesInput,
+  ListTasksInput,
+  RuntimeEntry,
+  RuntimeInspection,
+  RuntimePage,
+  RuntimeTask,
+} from "./inspection.js";
 
 export interface RuntimeScope {
   readonly projectId: string;
@@ -84,7 +94,11 @@ export type RuntimeAuthorizationCall =
       readonly operation: "observeConversation";
     })
   | (RuntimeCall<CancelInput> & { readonly operation: "cancel" })
-  | (RuntimeCall<CompactInput> & { readonly operation: "compact" });
+  | (RuntimeCall<CompactInput> & { readonly operation: "compact" })
+  | (RuntimeCall<InspectInput> & { readonly operation: "inspect" })
+  | (RuntimeCall<ListEntriesInput> & { readonly operation: "listEntries" })
+  | (RuntimeCall<ListTasksInput> & { readonly operation: "listTasks" })
+  | (RuntimeCall<GetTaskInput> & { readonly operation: "getTask" });
 
 export interface RuntimeDescription {
   readonly protocolVersion: 1;
@@ -190,8 +204,25 @@ export interface RuntimeService {
     call: RuntimeCall<CompactInput>,
     context: Context,
   ): Promise<CompactOutput>;
+  inspect(
+    call: RuntimeCall<InspectInput>,
+    context: Context,
+  ): Promise<RuntimeInspection>;
+  listEntries(
+    call: RuntimeCall<ListEntriesInput>,
+    context: Context,
+  ): Promise<RuntimePage<RuntimeEntry>>;
+  listTasks(
+    call: RuntimeCall<ListTasksInput>,
+    context: Context,
+  ): Promise<RuntimePage<RuntimeTask>>;
+  getTask(
+    call: RuntimeCall<GetTaskInput>,
+    context: Context,
+  ): Promise<RuntimeTask | undefined>;
 }
 
 export type RuntimeDefinition = DefinitionBundle;
 
 export type * from "./daemon.js";
+export type * from "./inspection.js";

@@ -195,6 +195,67 @@ body {
   justify-content: flex-start;
 }
 
+.frogie-chat-details:has(> .frogie-execution-view) {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.frogie-execution-view {
+  flex: 1;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 0;
+}
+
+.frogie-execution-view > [data-slot="card-header"] {
+  flex-shrink: 0;
+}
+
+.frogie-execution-scroll {
+  flex: 1;
+  min-height: 0;
+}
+
+.frogie-execution-viewport {
+  overscroll-behavior: contain;
+}
+
+.frogie-execution-viewport > div {
+  /* biome-ignore lint/complexity/noImportantStyles: Override Radix's inline table layout so source IDs wrap within the viewport. */
+  display: block !important;
+  width: 100%;
+  max-width: 100%;
+}
+
+.frogie-execution-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--basalt-space-layout-sm);
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.frogie-execution-task {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.frogie-execution-task [aria-pressed] {
+  min-width: 0;
+  max-width: 100%;
+  height: auto;
+  min-height: var(--basalt-size-control);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.frogie-execution-code {
+  max-height: 24rem;
+}
+
 .frogie-chat-messages {
   display: flex;
   flex: 1;

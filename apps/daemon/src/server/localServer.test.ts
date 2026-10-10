@@ -133,6 +133,21 @@ function runtimeService() {
     ),
     cancel: vi.fn<RuntimeService["cancel"]>(async () => "aborted"),
     compact: vi.fn<RuntimeService["compact"]>(async () => 42 as CompactTaskId),
+    inspect: vi.fn<RuntimeService["inspect"]>(async (call) => ({
+      scope: call.scope,
+      scheduling: "paused",
+      graph: { tasks: {} },
+      usage: { models: {}, tools: {} },
+    })),
+    listEntries: vi.fn<RuntimeService["listEntries"]>(async () => ({
+      items: [],
+      cursor: null,
+    })),
+    listTasks: vi.fn<RuntimeService["listTasks"]>(async () => ({
+      items: [],
+      cursor: null,
+    })),
+    getTask: vi.fn<RuntimeService["getTask"]>(async () => undefined),
   };
   const service: RuntimeService = calls;
   return { service, calls, watch };
@@ -764,6 +779,165 @@ describe("local definition transport", () => {
         retryable: false,
       },
     });
+  });
+});
+
+describe("execution inspection HTTP transport", () => {
+  it("rejects invalid read fields and pagination bounds before querying the runtime", async () => {
+    const test = await start();
+    for (const [name, inputs] of [
+      ["inspect", [{ extra: true }]],
+      [
+        "listEntries",
+        [
+          {},
+          { conversationId: 0 },
+          { conversationId: 1.5 },
+          { conversationId: Number.MAX_SAFE_INTEGER + 1 },
+          { conversationId, limit: 0 },
+          { conversationId, limit: 101 },
+          { conversationId, limit: 1.5 },
+          { conversationId, cursor: "" },
+          { conversationId, cursor: "x".repeat(4097) },
+          { conversationId, extra: true },
+        ],
+      ],
+      [
+        "listTasks",
+        [
+          { conversationId: 0 },
+          { limit: 0 },
+          { limit: 101 },
+          { cursor: "" },
+          { cursor: "x".repeat(4097) },
+          { extra: true },
+        ],
+      ],
+      [
+        "getTask",
+        [
+          {},
+          { taskId: 0 },
+          { taskId: 1.5 },
+          { taskId: Number.MAX_SAFE_INTEGER + 1 },
+          { taskId: 42, extra: true },
+        ],
+      ],
+    ] as const) {
+      for (const input of inputs) {
+        const response = await post(
+          test.server.origin,
+          operationPath(name),
+          test.cookie,
+          test.credentials.csrf,
+          { scope, input },
+        );
+        expect(response.status).toBe(400);
+      }
+      expect(test.runtime.calls[name]).not.toHaveBeenCalled();
+    }
+    for (const [name, input] of [
+      ["inspect", {}],
+      ["listEntries", { conversationId, limit: 100, cursor: "x".repeat(4096) }],
+      ["listTasks", { conversationId, limit: 1 }],
+      ["getTask", { taskId: Number.MAX_SAFE_INTEGER }],
+    ] as const) {
+      expect(
+        (
+          await post(
+            test.server.origin,
+            operationPath(name),
+            test.cookie,
+            test.credentials.csrf,
+            { scope, input },
+          )
+        ).status,
+      ).toBe(200);
+      expect(test.runtime.calls[name]).toHaveBeenCalledOnce();
+    }
+  });
+
+  it("requires authentication, same Origin, CSRF and a matching complete scope for each inspection read", async () => {
+    const test = await start();
+    for (const [name, input] of [
+      ["inspect", {}],
+      ["listEntries", { conversationId }],
+      ["listTasks", {}],
+      ["getTask", { taskId: 42 }],
+    ] as const) {
+      for (const [cookie, csrf, origin] of [
+        ["", test.credentials.csrf, test.server.origin],
+        [test.cookie, "", test.server.origin],
+        [test.cookie, test.credentials.csrf, "http://untrusted.example"],
+      ] as const) {
+        const response = await post(
+          test.server.origin,
+          operationPath(name),
+          cookie,
+          csrf,
+          { scope, input },
+          origin,
+        );
+        expect([401, 403]).toContain(response.status);
+      }
+      for (const field of [
+        "projectId",
+        "environmentId",
+        "squadId",
+        "harnessId",
+      ] as const) {
+        expect(
+          (
+            await post(
+              test.server.origin,
+              operationPath(name),
+              test.cookie,
+              test.credentials.csrf,
+              { scope: { ...scope, [field]: "foreign" }, input },
+            )
+          ).status,
+        ).toBe(409);
+      }
+      expect(test.runtime.calls[name]).not.toHaveBeenCalled();
+    }
+  });
+
+  it("routes four read operations through authenticated CSRF and complete scope envelopes", async () => {
+    const test = await start();
+    for (const [name, input] of [
+      ["inspect", {}],
+      ["listEntries", { conversationId, limit: 50 }],
+      ["listTasks", { limit: 50 }],
+      ["getTask", { taskId: 42 }],
+    ] as const) {
+      const response = await post(
+        test.server.origin,
+        operationPath(name),
+        test.cookie,
+        test.credentials.csrf,
+        { scope, input },
+      );
+      expect(response.status).toBe(200);
+      const body = await response.json();
+      expect(body.scope).toEqual(scope);
+      expect(body).toHaveProperty("value");
+      expect(test.runtime.calls[name]).toHaveBeenCalledWith(
+        { scope, input, caller: test.credentials.caller },
+        expect.anything(),
+      );
+      expect(body.value).toEqual(
+        name === "inspect"
+          ? {
+              scope,
+              scheduling: "paused",
+              graph: { tasks: {} },
+              usage: { models: {}, tools: {} },
+            }
+          : name === "getTask"
+            ? null
+            : { items: [], cursor: null },
+      );
+    }
   });
 });
 

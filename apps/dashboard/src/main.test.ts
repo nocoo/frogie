@@ -9,7 +9,9 @@ import {
 import type {
   DaemonProject,
   RuntimeDescription,
+  RuntimeInspection,
   RuntimeScope,
+  RuntimeTask,
 } from "@frogie/core/protocol";
 import { Combobox } from "@nocoo/basalt/components/combobox";
 import { isValidElement, type ReactElement, type ReactNode } from "react";
@@ -18,6 +20,7 @@ import type { LocalRuntimeClient } from "./models/localClient.js";
 import { AppView, type AppViewProps } from "./views/AppView.js";
 import { ChatView } from "./views/ChatView.js";
 import { DefinitionView } from "./views/DefinitionView.js";
+import { ExecutionView } from "./views/ExecutionView.js";
 import { ProjectOverviewView } from "./views/ProjectOverviewView.js";
 import { WorkflowView } from "./views/WorkflowView.js";
 
@@ -193,6 +196,20 @@ function createClient(overrides: Partial<LocalRuntimeClient> = {}) {
       ),
     })),
     describe: vi.fn(async () => description),
+    inspect: vi.fn(
+      async (_input, requestedScope): Promise<RuntimeInspection> => ({
+        scope: requestedScope,
+        scheduling: "running",
+        graph: { tasks: {} },
+        usage: { models: {}, tools: {} },
+      }),
+    ),
+    listTasks: vi.fn(async () => ({ items: [], cursor: null })),
+    getTask: vi.fn<LocalRuntimeClient["getTask"]>(async () => undefined),
+    listEntries: vi.fn<LocalRuntimeClient["listEntries"]>(async () => ({
+      items: [],
+      cursor: null,
+    })),
     listConversations: vi.fn(async () => [
       {
         conversation: { id: conversationId } as ConversationRecord,
@@ -274,9 +291,15 @@ function findElement<T>(
     children?: ReactNode;
     conversationSelector?: ReactNode;
     roleSelector?: ReactNode;
+    details?: ReactNode;
   };
   return findElement(
-    [props.children, props.conversationSelector, props.roleSelector],
+    [
+      props.children,
+      props.conversationSelector,
+      props.roleSelector,
+      props.details,
+    ],
     component,
   );
 }
@@ -293,6 +316,302 @@ afterEach(() => {
   for (const dispose of disposers.splice(0)) dispose();
   vi.unstubAllGlobals();
   vi.useRealTimers();
+});
+
+describe("mountDashboard execution wiring", () => {
+  it("reads and renders actual execution data in chat without starting conversation work", async () => {
+    const native: RuntimeTask = {
+      id: 42 as never,
+      conversationId,
+      kind: "pi.tool",
+      background: false,
+      abortRequested: false,
+      state: { status: "terminal", outcome: "completed" },
+      tool: {
+        callId: "tool-call",
+        name: "read_artifact",
+        arguments: { id: "artifact" },
+        argumentsSource: "requested",
+        output: "Actual public result",
+      },
+    };
+    const historyEntry = {
+      id: 1 as never,
+      conversationId,
+      kind: "pi.user",
+      messages: [{ role: "user" as const, content: "Actual paged entry" }],
+    };
+    const { client } = createClient({
+      listTasks: vi.fn(async () => ({ items: [native], cursor: "more-tasks" })),
+      listEntries: vi.fn(async () => ({
+        items: [historyEntry],
+        cursor: "more-entries",
+      })),
+    });
+    const root = makeRoot();
+    mount({ nodeType: 1 } as HTMLElement, { connect: async () => client });
+    await vi.waitFor(() =>
+      expect(currentApp(root.render).props.busy).toBe(false),
+    );
+    currentApp(root.render).props.onPageChange("chat");
+    await vi.waitFor(() =>
+      expect(client.inspect).toHaveBeenCalledWith({}, scope),
+    );
+    expect(client.listTasks).toHaveBeenCalledWith(
+      expect.objectContaining({ conversationId }),
+      scope,
+    );
+    expect(client.listEntries).toHaveBeenCalledWith(
+      expect.objectContaining({ conversationId }),
+      scope,
+    );
+    await vi.waitFor(() =>
+      expect(
+        findElement(currentApp(root.render).props.children, ExecutionView)
+          ?.props.snapshot.busy,
+      ).toBe(false),
+    );
+    const view = findElement(
+      currentApp(root.render).props.children,
+      ExecutionView,
+    );
+    expect(view).toBeDefined();
+    expect(JSON.stringify(view?.props)).toContain("read_artifact");
+    expect(JSON.stringify(view?.props)).toContain("Actual public result");
+    expect(view?.props.snapshot).toMatchObject({
+      scope,
+      conversationId,
+      tasks: [native],
+      busy: false,
+      error: null,
+    });
+    vi.mocked(client.getTask).mockResolvedValueOnce(native);
+    await view?.props.onSelectTask(native.id);
+    expect(client.getTask).toHaveBeenCalledWith({ taskId: native.id }, scope);
+    expect(
+      findElement(currentApp(root.render).props.children, ExecutionView)?.props
+        .snapshot.selectedTask,
+    ).toEqual(native);
+    await findElement(
+      currentApp(root.render).props.children,
+      ExecutionView,
+    )?.props.onRefresh();
+    expect(client.inspect).toHaveBeenCalledTimes(2);
+    await findElement(
+      currentApp(root.render).props.children,
+      ExecutionView,
+    )?.props.onLoadMoreTasks();
+    expect(client.listTasks).toHaveBeenLastCalledWith(
+      expect.objectContaining({ conversationId, cursor: "more-tasks" }),
+      scope,
+    );
+    await findElement(
+      currentApp(root.render).props.children,
+      ExecutionView,
+    )?.props.onLoadMoreEntries();
+    expect(client.listEntries).toHaveBeenLastCalledWith(
+      expect.objectContaining({ conversationId, cursor: "more-entries" }),
+      scope,
+    );
+    expect(client.submit).not.toHaveBeenCalled();
+    expect(client.compact).not.toHaveBeenCalled();
+  });
+});
+
+describe("mountDashboard execution lifecycle", () => {
+  it("refreshes execution serially and stops polling and late updates on dispose", async () => {
+    vi.useFakeTimers();
+    const { client, released } = createClient();
+    const pending = deferred<RuntimeInspection>();
+    vi.mocked(client.inspect).mockReturnValueOnce(pending.promise);
+    const root = makeRoot();
+    const dispose = mount({ nodeType: 1 } as HTMLElement, {
+      connect: async () => client,
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    currentApp(root.render).props.onPageChange("chat");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(client.inspect).toHaveBeenCalledOnce();
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(client.inspect).toHaveBeenCalledOnce();
+    pending.resolve({
+      scope,
+      scheduling: "paused",
+      graph: { tasks: {} },
+      usage: { models: {}, tools: {} },
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(client.inspect).toHaveBeenCalledTimes(2);
+    const late = deferred<RuntimeInspection>();
+    vi.mocked(client.inspect).mockReturnValueOnce(late.promise);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(client.inspect).toHaveBeenCalledTimes(3);
+    dispose();
+    const renders = root.render.mock.calls.length;
+    late.resolve({
+      scope,
+      scheduling: "running",
+      graph: { tasks: {} },
+      usage: { models: {}, tools: {} },
+    });
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(client.inspect).toHaveBeenCalledTimes(3);
+    expect(root.render).toHaveBeenCalledTimes(renders);
+    expect(released).toContain(conversationId);
+    expect(vi.getTimerCount()).toBe(0);
+    expect(client.submit).not.toHaveBeenCalled();
+  });
+
+  it("does not inspect a stopped project while its definitions remain available", async () => {
+    const stopped = { ...project(), enabled: false, state: "stopped" as const };
+    const { client } = createClient({
+      context: { instanceId: "instance-1", mode: "local", projects: [stopped] },
+    });
+    const root = makeRoot();
+    mount({ nodeType: 1 } as HTMLElement, { connect: async () => client });
+    await vi.waitFor(() =>
+      expect(currentApp(root.render).props.busy).toBe(false),
+    );
+    currentApp(root.render).props.onPageChange("chat");
+    expect(client.inspect).not.toHaveBeenCalled();
+    expect(client.listTasks).not.toHaveBeenCalled();
+    expect(client.listEntries).not.toHaveBeenCalled();
+    currentApp(root.render).props.onPageChange("definitions");
+    expect(
+      findElement(currentApp(root.render).props.children, DefinitionView)?.props
+        .files,
+    ).toHaveLength(1);
+  });
+
+  it("does not route retained execution callbacks into a newly selected project with overlapping Task IDs", async () => {
+    vi.useFakeTimers();
+    const { client } = createClient({
+      context: {
+        instanceId: "instance-1",
+        mode: "local",
+        projects: [project(), project(otherScope)],
+      },
+      listTasks: vi.fn(async () => ({ items: [], cursor: "more-tasks" })),
+      listEntries: vi.fn(async () => ({ items: [], cursor: "more-entries" })),
+    });
+    const root = makeRoot();
+    mount({ nodeType: 1 } as HTMLElement, { connect: async () => client });
+    await vi.advanceTimersByTimeAsync(0);
+    currentApp(root.render).props.onPageChange("chat");
+    await vi.advanceTimersByTimeAsync(0);
+    const previous = findElement(
+      currentApp(root.render).props.children,
+      ExecutionView,
+    )?.props;
+    if (!previous) throw new Error("Missing previous execution callbacks");
+    currentApp(root.render).props.onSquadChange(otherScope.squadId);
+    await vi.advanceTimersByTimeAsync(0);
+    const current = findElement(
+      currentApp(root.render).props.children,
+      ExecutionView,
+    )?.props;
+    expect(current?.snapshot.scope).toEqual(otherScope);
+    const methods = [
+      client.inspect,
+      client.listTasks,
+      client.listEntries,
+      client.getTask,
+    ];
+    const calls = methods.map((method) => vi.mocked(method).mock.calls.length);
+    await previous.onRefresh();
+    await previous.onSelectTask(42 as never);
+    await previous.onLoadMoreTasks();
+    await previous.onLoadMoreEntries();
+    expect(
+      methods.map((method) => vi.mocked(method).mock.calls.length),
+    ).toEqual(calls);
+    expect(client.submit).not.toHaveBeenCalled();
+    expect(client.compact).not.toHaveBeenCalled();
+  });
+
+  it("drops old execution results when changing conversation or complete project scope", async () => {
+    const { client } = createClient({
+      context: {
+        instanceId: "instance-1",
+        mode: "local",
+        projects: [project(), project(otherScope)],
+      },
+    });
+    const records = await client.listConversations({}, scope);
+    const first = records[0];
+    if (!first) throw new Error("Missing fixture conversation");
+    vi.mocked(client.listConversations)
+      .mockClear()
+      .mockResolvedValue([
+        first,
+        {
+          ...first,
+          conversation: { id: 18 as ConversationId } as ConversationRecord,
+        },
+      ]);
+    const old = deferred<RuntimeInspection>();
+    vi.mocked(client.inspect).mockReturnValueOnce(old.promise);
+    const root = makeRoot();
+    mount({ nodeType: 1 } as HTMLElement, { connect: async () => client });
+    await vi.waitFor(() =>
+      expect(currentApp(root.render).props.busy).toBe(false),
+    );
+    currentApp(root.render).props.onPageChange("chat");
+    await vi.waitFor(() => expect(client.inspect).toHaveBeenCalledOnce());
+    const chat = findElement(
+      currentApp(root.render).props.children,
+      ChatView,
+    )?.props;
+    findElement(chat?.conversationSelector, Combobox)?.props.onValueChange?.(
+      "18",
+    );
+    await vi.waitFor(() =>
+      expect(client.listEntries).toHaveBeenLastCalledWith(
+        expect.objectContaining({ conversationId: 18 }),
+        scope,
+      ),
+    );
+    old.resolve({
+      scope,
+      scheduling: "closing",
+      graph: { tasks: {} },
+      usage: { models: {}, tools: {} },
+    });
+    await Promise.resolve();
+    const next = findElement(
+      currentApp(root.render).props.children,
+      ExecutionView,
+    )?.props.snapshot;
+    expect(next?.conversationId).toBe(18);
+    expect(next?.inspection?.scheduling).not.toBe("closing");
+    const late = deferred<RuntimeInspection>();
+    vi.mocked(client.inspect).mockReturnValueOnce(late.promise);
+    const refreshing = findElement(
+      currentApp(root.render).props.children,
+      ExecutionView,
+    )?.props.onRefresh();
+    currentApp(root.render).props.onSquadChange(otherScope.squadId);
+    await vi.waitFor(() =>
+      expect(client.listEntries).toHaveBeenLastCalledWith(
+        expect.objectContaining({ conversationId }),
+        otherScope,
+      ),
+    );
+    late.resolve({
+      scope,
+      scheduling: "closing",
+      graph: { tasks: {} },
+      usage: { models: {}, tools: {} },
+    });
+    await refreshing;
+    const current = findElement(
+      currentApp(root.render).props.children,
+      ExecutionView,
+    )?.props.snapshot;
+    expect(current?.scope).toEqual(otherScope);
+    expect(current?.inspection?.scheduling).not.toBe("closing");
+  });
 });
 
 describe("mountDashboard client wiring", () => {

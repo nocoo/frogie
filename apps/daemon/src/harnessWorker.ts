@@ -54,6 +54,7 @@ export function workerFailure(error: unknown): RuntimeError {
             "not_found",
             "forbidden",
             "invalid_request",
+            "output_limit",
           ].includes(value.code)
         ? value.code
         : "runtime_unavailable";
@@ -71,7 +72,9 @@ export function workerFailure(error: unknown): RuntimeError {
                 ? "Runtime operation is not authorized"
                 : code === "invalid_request"
                   ? "Runtime request is invalid"
-                  : "Harness operation failed",
+                  : code === "output_limit"
+                    ? "Runtime response exceeds the output limit"
+                    : "Harness operation failed",
     code,
     retryable: false,
   };

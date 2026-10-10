@@ -15,12 +15,14 @@ import {
   createDashboardViewModel,
   type DashboardViewModel,
 } from "./viewmodels/DashboardViewModel.js";
+import { createExecutionViewModel } from "./viewmodels/ExecutionViewModel.js";
 import { createProjectViewModel } from "./viewmodels/ProjectViewModel.js";
 import { projectChat } from "./viewmodels/projectChat.js";
 import { createWorkflowViewModel } from "./viewmodels/WorkflowViewModel.js";
 import { AppView, type Page } from "./views/AppView.js";
 import { ChatView } from "./views/ChatView.js";
 import { DefinitionView } from "./views/DefinitionView.js";
+import { ExecutionView } from "./views/ExecutionView.js";
 import { ProjectOverviewView } from "./views/ProjectOverviewView.js";
 import { WorkflowView } from "./views/WorkflowView.js";
 
@@ -48,6 +50,10 @@ export function mountDashboard(
   let vm: DashboardViewModel | undefined;
   let projects: ReturnType<typeof createProjectViewModel> | undefined;
   let workflows: ReturnType<typeof createWorkflowViewModel> | undefined;
+  let execution: ReturnType<typeof createExecutionViewModel> | undefined;
+  let executionKey: string | undefined;
+  let executionPoll: ReturnType<typeof setTimeout> | undefined;
+  let unsubscribeExecution: (() => void) | undefined;
   let unsubscribeWorkflows: (() => void) | undefined;
   let unsubscribeProjects: (() => void) | undefined;
   let projectPoll: ReturnType<typeof setTimeout> | undefined;
@@ -80,6 +86,7 @@ export function mountDashboard(
         error = failure instanceof Error ? failure.message : "操作失败";
       if (rethrow) throw failure;
     } finally {
+      syncExecution();
       render();
     }
   }
@@ -112,6 +119,60 @@ export function mountDashboard(
   async function refreshProjects() {
     await projects?.refresh();
     if (!disposed) projectPoll = setTimeout(() => void refreshProjects(), 3000);
+  }
+
+  function releaseExecution() {
+    clearTimeout(executionPoll);
+    unsubscribeExecution?.();
+    execution?.dispose();
+    execution = undefined;
+    executionKey = undefined;
+  }
+
+  async function pollExecution(
+    current: ReturnType<typeof createExecutionViewModel>,
+  ) {
+    await current.refresh();
+    if (!disposed && execution === current)
+      executionPoll = setTimeout(() => void pollExecution(current), 1000);
+  }
+
+  function syncExecution() {
+    const snapshot = vm?.store.getSnapshot();
+    const scope = snapshot?.scope;
+    const project = projects
+      ?.getSnapshot()
+      .projects.find((item) => item.projectId === scope?.projectId);
+    if (
+      disposed ||
+      page !== "chat" ||
+      !client ||
+      !scope ||
+      !snapshot?.definition ||
+      project?.state !== "running"
+    ) {
+      releaseExecution();
+      return;
+    }
+    const conversationId =
+      selectedConversationId ?? snapshot.conversations.keys().next().value;
+    const key = JSON.stringify([
+      scope.projectId,
+      scope.environmentId,
+      scope.squadId,
+      scope.harnessId,
+      conversationId,
+    ]);
+    if (executionKey === key) return;
+    releaseExecution();
+    const current = createExecutionViewModel(client);
+    execution = current;
+    executionKey = key;
+    unsubscribeExecution = current.subscribe(render);
+    void current.setTarget(scope, conversationId).then(() => {
+      if (!disposed && execution === current)
+        executionPoll = setTimeout(() => void pollExecution(current), 1000);
+    });
   }
 
   function render() {
@@ -148,6 +209,7 @@ export function mountDashboard(
       ? projectChat(conversation)
       : { entries: [], running: false, compacting: false };
     const workflow = workflows?.getSnapshot();
+    const executionModel = execution;
     let content: ReactNode;
     if (page === "definitions") {
       content = (
@@ -256,6 +318,7 @@ export function mountDashboard(
                 );
                 if (id !== undefined) {
                   selectedConversationId = id;
+                  syncExecution();
                   render();
                 }
               }}
@@ -303,6 +366,17 @@ export function mountDashboard(
             })
           }
           entries={chat.entries}
+          details={
+            executionModel && (
+              <ExecutionView
+                snapshot={executionModel.getSnapshot()}
+                onRefresh={executionModel.refresh}
+                onSelectTask={executionModel.selectTask}
+                onLoadMoreTasks={executionModel.loadMoreTasks}
+                onLoadMoreEntries={executionModel.loadMoreEntries}
+              />
+            )
+          }
           draft={chatDrafts.get(draftKey) ?? ""}
           loading={connecting}
           sending={sending}
@@ -458,6 +532,7 @@ export function mountDashboard(
               return;
             }
             page = next;
+            syncExecution();
             render();
           }
         }}
@@ -486,6 +561,7 @@ export function mountDashboard(
     unsubscribeProjects?.();
     unsubscribeWorkflows?.();
     clearTimeout(projectPoll);
+    releaseExecution();
     projects?.dispose();
     workflows?.dispose();
     vm?.dispose();
@@ -519,7 +595,10 @@ export function mountDashboard(
       }
       client = connected;
       projects = createProjectViewModel(client);
-      unsubscribeProjects = projects.subscribe(render);
+      unsubscribeProjects = projects.subscribe(() => {
+        syncExecution();
+        render();
+      });
       const api = createLocalDashboardApi(client, (failure) => {
         if (!disposed) {
           error = failure.message;
@@ -539,6 +618,7 @@ export function mountDashboard(
         const snapshot = vm?.store.getSnapshot();
         if (snapshot?.scope && snapshot.definition)
           workflows?.setDefinition(snapshot.scope, snapshot.definition);
+        syncExecution();
         render();
       });
       const initial =

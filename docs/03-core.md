@@ -149,7 +149,8 @@ Dashboard 保存文件后重新校验，用户再选择快照进行调试。定�
 | --- | --- |
 | `describe` | 返回 `RuntimeDescription`，包含身份、协议、绑定和当前授权 |
 | `listConversations`、`getConversation` | 分页条件或 Conversation ID → Pi 记录、角色绑定与当前状态 |
-| `listEntries` | Conversation ID、Pi 分页条件 → 原始 entries 与下一页游标 |
+| `listEntries` | Conversation ID、分页条件 → 保留 Pi 身份的消息投影与下一页游标 |
+| `listTasks`、`getTask` | Conversation 筛选、分页条件或 Task ID → 活跃及已结束任务、工具参数来源与结果 |
 | `createConversation` | Role ID、可选 Workflow 与获准配置 → 新 Conversation ID 和绑定 |
 | `submit` | Conversation ID、Pi Submission draft → 已持久接纳的 Submission ID |
 | `observeConversation` | Conversation ID → Pi `ConversationWatch`，传输层按下文封装 |
@@ -262,6 +263,10 @@ Registry 中的函数、凭据和外部环境由宿主重新提供。缺少定�
 会话观察以 `watch()` 或 `viewState()` 的已提交状态为依据。每次订阅先获取快照，按 SDK 修订顺序更新；断线超出续传窗口、慢消费者或缓冲溢出后用新快照替换投影。会话历史与效果回执持久保存，传输缓存只用于展示和投递。
 
 活跃 Task 使用 `taskGraph()`，阻塞原因使用 `inspect()`；已结束任务和会话关系从 Pi 保存的记录、entries 与工具 details 读取。UI 分别显示连接状态、Pi 执行状态和业务验收结果。
+
+`inspect`、`listTasks`、`getTask` 和 `listEntries` 仅执行授权读取，保持 Harness 当前调度状态。任务及历史默认每页 50 条、上限 100 条，按 Pi ID 降序返回；游标绑定完整 `RuntimeScope`、操作和会话筛选。分页结果按 UTF-8 JSON 限制为 1 MiB，单条投影超限返回 `output_limit`。Fork 历史保留祖先 Entry 的原始 Conversation ID。
+
+工具详情在执行阶段读取 checkpoint 中的参数，标为 `argumentsSource: "execution"`；终态从 Assistant Entry 读取原始请求参数，标为 `argumentsSource: "requested"`。结果通过 Task、Call ID 和 ToolResult Entry 关联。消息投影包括用户文本、助手文本、工具调用及结果；系统指令、思考内容和内部执行载荷由本地 Pi 存储管理。
 
 每次运行可追溯到环境、定义摘要、角色、实际模型与思考等级、Conversation、Submission、Task 和产物。Pi 提供的 token、费用和耗时按原值展示，缺失价格或计量信息标为未知。
 

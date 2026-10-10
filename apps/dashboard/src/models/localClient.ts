@@ -11,14 +11,22 @@ import type {
   DescribeInput,
   GetSubmissionInput,
   GetSubmissionOutput,
+  GetTaskInput,
+  InspectInput,
   ListConversationsInput,
+  ListEntriesInput,
+  ListTasksInput,
   ObservationFrame,
   ObserveConversationInput,
   RuntimeCaller,
   RuntimeConversationRecord,
   RuntimeDescription,
+  RuntimeEntry,
   RuntimeError,
+  RuntimeInspection,
+  RuntimePage,
   RuntimeScope,
+  RuntimeTask,
   SubmitInput,
   SubmitOutput,
 } from "@frogie/core/protocol";
@@ -88,6 +96,128 @@ const frameSchema = Type.Object({
     docs: Type.Record(Type.String(), Type.Unknown()),
   }),
 });
+const taskSchema = Type.Object({
+  id: safeId,
+  conversationId: safeId,
+  kind: nonempty,
+  owner: Type.Optional(safeId),
+  background: Type.Boolean(),
+  abortRequested: Type.Boolean(),
+  startedAt: Type.Optional(Type.Number()),
+  endedAt: Type.Optional(Type.Number()),
+  state: Type.Object({
+    status: Type.Union(
+      ["pending", "running", "waiting", "completing", "terminal"].map(
+        (status) => Type.Literal(status),
+      ),
+    ),
+    phase: Type.Optional(nonempty),
+    on: Type.Optional(Type.Array(safeId)),
+    outcome: Type.Optional(
+      Type.Union(
+        ["completed", "failed", "aborted", "orphaned", "faulted"].map(
+          (status) => Type.Literal(status),
+        ),
+      ),
+    ),
+  }),
+  tool: Type.Optional(
+    Type.Object({
+      callId: nonempty,
+      name: nonempty,
+      arguments: Type.Unknown(),
+      argumentsSource: Type.Union([
+        Type.Literal("requested"),
+        Type.Literal("execution"),
+      ]),
+      output: Type.Optional(Type.String()),
+      details: Type.Optional(Type.Unknown()),
+      isError: Type.Optional(Type.Boolean()),
+      entryId: Type.Optional(safeId),
+    }),
+  ),
+});
+const entrySchema = Type.Object({
+  id: safeId,
+  conversationId: safeId,
+  kind: nonempty,
+  byTaskId: Type.Optional(safeId),
+  head: Type.Optional(safeId),
+  messages: Type.Array(
+    Type.Object({
+      role: Type.Union([
+        Type.Literal("user"),
+        Type.Literal("assistant"),
+        Type.Literal("toolResult"),
+      ]),
+      content: Type.String(),
+      toolCalls: Type.Optional(
+        Type.Array(
+          Type.Object({
+            id: nonempty,
+            name: nonempty,
+            arguments: Type.Unknown(),
+          }),
+        ),
+      ),
+      toolCallId: Type.Optional(nonempty),
+      toolName: Type.Optional(nonempty),
+      isError: Type.Optional(Type.Boolean()),
+      details: Type.Optional(Type.Unknown()),
+    }),
+  ),
+});
+const pageSchema = <T extends import("typebox").TSchema>(item: T) =>
+  Type.Object({
+    items: Type.Array(item, { maxItems: 100 }),
+    cursor: Type.Union([
+      Type.Null(),
+      Type.String({ minLength: 1, maxLength: 4096 }),
+    ]),
+  });
+const tasksSchema = pageSchema(taskSchema);
+const entriesSchema = pageSchema(entrySchema);
+const usageSchema = Type.Object({
+  input: Type.Number({ minimum: 0 }),
+  output: Type.Number({ minimum: 0 }),
+  cacheRead: Type.Number({ minimum: 0 }),
+  cacheWrite: Type.Number({ minimum: 0 }),
+  totalTokens: Type.Number({ minimum: 0 }),
+  cost: Type.Object({
+    input: Type.Number({ minimum: 0 }),
+    output: Type.Number({ minimum: 0 }),
+    cacheRead: Type.Number({ minimum: 0 }),
+    cacheWrite: Type.Number({ minimum: 0 }),
+    total: Type.Number({ minimum: 0 }),
+  }),
+});
+const inspectionSchema = Type.Object({
+  scope: scopeSchema,
+  scheduling: Type.Union([
+    Type.Literal("paused"),
+    Type.Literal("running"),
+    Type.Literal("closing"),
+  ]),
+  graph: Type.Object({
+    tasks: Type.Record(
+      Type.String(),
+      Type.Object({
+        id: safeId,
+        kind: nonempty,
+        conversationId: safeId,
+        owner: Type.Optional(safeId),
+        background: Type.Boolean(),
+        abortRequested: Type.Boolean(),
+        state: Type.Object({ status: nonempty }),
+        conversations: Type.Array(safeId),
+      }),
+    ),
+  }),
+  usage: Type.Object({
+    models: Type.Record(Type.String(), usageSchema),
+    tools: Type.Record(Type.String(), usageSchema),
+  }),
+});
 
 function failure(
   code = "runtime_unavailable",
@@ -150,6 +280,19 @@ export interface LocalRuntimeClient {
   ): Promise<GetSubmissionOutput>;
   cancel(input: CancelInput, scope: RuntimeScope): Promise<CancelOutput>;
   compact(input: CompactInput, scope: RuntimeScope): Promise<CompactOutput>;
+  inspect(input: InspectInput, scope: RuntimeScope): Promise<RuntimeInspection>;
+  listEntries(
+    input: ListEntriesInput,
+    scope: RuntimeScope,
+  ): Promise<RuntimePage<RuntimeEntry>>;
+  listTasks(
+    input: ListTasksInput,
+    scope: RuntimeScope,
+  ): Promise<RuntimePage<RuntimeTask>>;
+  getTask(
+    input: GetTaskInput,
+    scope: RuntimeScope,
+  ): Promise<RuntimeTask | undefined>;
   observe(
     input: ObserveConversationInput,
     listener: (frame: ObservationFrame) => void,
@@ -365,6 +508,40 @@ export async function connectLocalRuntime(
       );
     },
     compact: (input, scope) => operation("compact", input, scope),
+    async inspect(input, scope) {
+      const result = await operation("inspect", input, scope);
+      if (
+        !Value.Check(inspectionSchema, result) ||
+        !sameScope(result.scope, scope)
+      )
+        throw failure("binding_mismatch", "Invalid runtime inspection");
+      return result as unknown as RuntimeInspection;
+    },
+    async listTasks(input, scope) {
+      const result = await operation("listTasks", input, scope);
+      if (
+        !Value.Check(tasksSchema, result) ||
+        (input.conversationId !== undefined &&
+          result.items.some(
+            (task) => task.conversationId !== input.conversationId,
+          ))
+      )
+        throw failure("binding_mismatch", "Invalid runtime task page");
+      return result as unknown as RuntimePage<RuntimeTask>;
+    },
+    async listEntries(input, scope) {
+      const result = await operation("listEntries", input, scope);
+      if (!Value.Check(entriesSchema, result))
+        throw failure("binding_mismatch", "Invalid runtime history page");
+      return result as unknown as RuntimePage<RuntimeEntry>;
+    },
+    async getTask(input, scope) {
+      const result = await operation("getTask", input, scope);
+      if (result === null) return undefined;
+      if (!Value.Check(taskSchema, result) || result.id !== input.taskId)
+        throw failure("binding_mismatch", "Invalid runtime task");
+      return result as unknown as RuntimeTask;
+    },
     observe(input, listener, onError, scope) {
       if (disposed)
         throw failure("runtime_unavailable", "Local runtime disposed");

@@ -194,6 +194,10 @@ export class HarnessProcess {
     });
     this.#send({ type: "initialize", config });
     this.service = {
+      inspect: (call, context) => this.#call("inspect", call, context),
+      listEntries: (call, context) => this.#call("listEntries", call, context),
+      listTasks: (call, context) => this.#call("listTasks", call, context),
+      getTask: (call, context) => this.#call("getTask", call, context),
       describe: (call, context) => this.#call("describe", call, context),
       listConversations: (call, context) =>
         this.#call("listConversations", call, context),
