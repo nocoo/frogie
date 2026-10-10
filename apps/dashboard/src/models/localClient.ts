@@ -33,6 +33,7 @@ import type {
 
 const nonempty = Type.String({ minLength: 1 });
 const scopeSchema = Type.Object({
+  projectId: nonempty,
   environmentId: nonempty,
   squadId: nonempty,
   harnessId: nonempty,
@@ -73,6 +74,7 @@ function failure(
 
 function sameScope(left: RuntimeScope, right: RuntimeScope): boolean {
   return (
+    left.projectId === right.projectId &&
     left.environmentId === right.environmentId &&
     left.squadId === right.squadId &&
     left.harnessId === right.harnessId

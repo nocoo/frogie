@@ -9,6 +9,7 @@ export function createLocalDashboardApi(
   const checkScope = (scope: RuntimeScope): void => {
     const bound = client.context.scope;
     if (
+      scope.projectId !== bound.projectId ||
       scope.environmentId !== bound.environmentId ||
       scope.squadId !== bound.squadId ||
       scope.harnessId !== bound.harnessId

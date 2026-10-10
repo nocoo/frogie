@@ -113,6 +113,7 @@ function runtimeError(error: unknown, scope?: DashboardScope): RuntimeError {
 }
 
 const sameScope = (left: DashboardScope, right: DashboardScope): boolean =>
+  left.projectId === right.projectId &&
   left.environmentId === right.environmentId &&
   left.squadId === right.squadId &&
   left.harnessId === right.harnessId;
@@ -331,6 +332,7 @@ export function createDashboardViewModel(
       const scope = scoped();
       const token = generation;
       const key = JSON.stringify([
+        scope.projectId,
         scope.environmentId,
         scope.squadId,
         scope.harnessId,

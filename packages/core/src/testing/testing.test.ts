@@ -38,6 +38,7 @@ it("drives real durable turns and inspects history without exposing runtime inte
     definition,
     runtimeId: "test",
     scope: {
+      projectId: definition.projectId,
       environmentId: "test",
       squadId: definition.squadId,
       harnessId: "testing",

@@ -10,7 +10,7 @@ import {
 import { join } from "node:path";
 import { runChecks } from "./check.js";
 
-const workspaces = ["", "packages/core", "apps/dashboard"];
+const workspaces = ["", "packages/core", "apps/dashboard", "apps/daemon"];
 
 export async function runL1(
   directory: string,

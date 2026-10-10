@@ -8,6 +8,7 @@ import { connectLocalRuntime, type LocalRuntimeClient } from "./localClient.js";
 
 const origin = "http://127.0.0.1:4123";
 const scope: RuntimeScope = {
+  projectId: "frogie",
   environmentId: "e2e",
   squadId: "zeppelin",
   harnessId: "harness-1",

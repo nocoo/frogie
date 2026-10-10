@@ -13,8 +13,8 @@ import { openNodeSqliteStorage } from "@earendil-works/pi-durable/storage/sqlite
 import { loadDefinition } from "@frogie/core/definitions";
 import { openRuntime } from "@frogie/core/runtime";
 import { test as base, expect, type Locator } from "@playwright/test";
-import { createDefinitionWorkspace } from "../src/server/definitions.js";
-import { startLocalServer } from "../src/server/localServer.js";
+import { createDefinitionWorkspace } from "../../daemon/src/server/definitions.js";
+import { startLocalServer } from "../../daemon/src/server/localServer.js";
 
 const test = base.extend<{ local: { url: string; directory: string } }>({
   local: async ({ browserName }, use) => {
@@ -32,6 +32,7 @@ const test = base.extend<{ local: { url: string; directory: string } }>({
     );
     const definition = loadDefinition(join(squads, "minimal-squad"));
     const scope = {
+      projectId: definition.projectId,
       environmentId: "e2e",
       squadId: definition.squadId,
       harnessId: "layout-test",

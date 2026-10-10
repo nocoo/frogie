@@ -113,6 +113,7 @@ export async function startLocal(options: {
   }
   const definition = loadDefinition(join(squads, "minimal-squad"));
   const scope = {
+    projectId: definition.projectId,
     environmentId: "local",
     squadId: definition.squadId,
     harnessId: runtimeId,
@@ -174,7 +175,9 @@ export async function startLocal(options: {
       service: runtime.service,
       context: BACKGROUND_CONTEXT,
       definitions: createDefinitionWorkspace(squads),
-      publicDirectory: fileURLToPath(new URL("../../dist", import.meta.url)),
+      publicDirectory: fileURLToPath(
+        new URL("../../../dashboard/dist", import.meta.url),
+      ),
       publicOrigin: "https://frogie.dev.hexly.ai",
       port: options.port ?? 7033,
     });

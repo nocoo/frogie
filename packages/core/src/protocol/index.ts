@@ -17,6 +17,7 @@ import type {
 } from "../definitions/types.js";
 
 export interface RuntimeScope {
+  readonly projectId: string;
   readonly environmentId: string;
   readonly squadId: string;
   readonly harnessId: string;
@@ -181,3 +182,5 @@ export interface RuntimeService {
 }
 
 export type RuntimeDefinition = DefinitionBundle;
+
+export type * from "./daemon.js";

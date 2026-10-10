@@ -16,11 +16,13 @@ import {
 } from "./DashboardViewModel.js";
 
 const scopeA: DashboardScope = {
+  projectId: "frogie",
   environmentId: "local-a",
   squadId: "alpha",
   harnessId: "harness-a",
 };
 const scopeB: DashboardScope = {
+  projectId: "frogie",
   environmentId: "local-b",
   squadId: "beta",
   harnessId: "harness-b",

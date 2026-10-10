@@ -108,6 +108,11 @@ function fixture(healthy: boolean): { repository: string; log: string } {
       dependencies: { "@frogie/core": "workspace:*" },
     }),
   );
+  write(
+    repository,
+    "apps/daemon/package.json",
+    JSON.stringify({ name: "@frogie/daemon" }),
+  );
   const lock = "lockfileVersion: '9.0'\nimporters: {}\n";
   write(repository, "pnpm-lock.yaml", lock);
   write(repository, "node_modules/.pnpm/lock.yaml", lock);
@@ -116,6 +121,7 @@ function fixture(healthy: boolean): { repository: string; log: string } {
     "packages/core/index.cjs",
     `module.exports = ${JSON.stringify(healthy ? "staged healthy" : "staged broken")};\n`,
   );
+  mkdirSync(join(repository, "apps/daemon/node_modules"), { recursive: true });
   mkdirSync(join(repository, "packages/core/node_modules"), {
     recursive: true,
   });
@@ -430,7 +436,12 @@ describe("gate", () => {
     "does nothing for push with %s, even without installed dependencies",
     async (_case, input) => {
       const { repository, log } = fixture(true);
-      for (const workspace of ["", "packages/core", "apps/dashboard"])
+      for (const workspace of [
+        "",
+        "packages/core",
+        "apps/dashboard",
+        "apps/daemon",
+      ])
         rmSync(join(repository, workspace, "node_modules"), {
           recursive: true,
         });

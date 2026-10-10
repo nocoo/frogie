@@ -28,6 +28,7 @@ const manifests = [
   "package.json",
   "packages/core/package.json",
   "apps/dashboard/package.json",
+  "apps/daemon/package.json",
 ] as const;
 const lock = "lockfileVersion: '9.0'\nimporters: {}\n";
 
@@ -74,6 +75,7 @@ function fixture(): { repository: string; directory: string } {
       name: "@frogie/dashboard",
       dependencies: { "@frogie/core": "workspace:*", external: "1.0.0" },
     },
+    { name: "@frogie/daemon", private: true },
   ];
   for (const [index, path] of manifests.entries()) {
     const content = JSON.stringify(definitions[index]);
@@ -97,7 +99,12 @@ function fixture(): { repository: string; directory: string } {
     repository,
     "node_modules/.pnpm/external@1.0.0/node_modules/external",
   );
-  for (const workspace of ["", "packages/core", "apps/dashboard"]) {
+  for (const workspace of [
+    "",
+    "packages/core",
+    "apps/dashboard",
+    "apps/daemon",
+  ]) {
     mkdirSync(join(repository, workspace, "node_modules"), { recursive: true });
     symlinkSync(external, join(repository, workspace, "node_modules/external"));
   }
@@ -127,14 +134,24 @@ afterEach(() => {
 describe("prepareSnapshot", () => {
   it("copies executable .bin launchers into independent workspace directories", async () => {
     const { repository, directory } = fixture();
-    for (const workspace of ["", "packages/core", "apps/dashboard"]) {
+    for (const workspace of [
+      "",
+      "packages/core",
+      "apps/dashboard",
+      "apps/daemon",
+    ]) {
       const path = join(workspace, "node_modules/.bin/local-tool");
       write(repository, path, '#!/bin/sh\nprintf "snapshot-tool"\n');
       chmodSync(join(repository, path), 0o755);
     }
     const before = tree(repository);
     await prepareSnapshot(repository, directory);
-    for (const workspace of ["", "packages/core", "apps/dashboard"]) {
+    for (const workspace of [
+      "",
+      "packages/core",
+      "apps/dashboard",
+      "apps/daemon",
+    ]) {
       const source = join(
         repository,
         workspace,
@@ -158,7 +175,12 @@ describe("prepareSnapshot", () => {
 
   it("does not copy or link .cache, .vite or .vite-temp from any workspace", async () => {
     const { repository, directory } = fixture();
-    for (const workspace of ["", "packages/core", "apps/dashboard"]) {
+    for (const workspace of [
+      "",
+      "packages/core",
+      "apps/dashboard",
+      "apps/daemon",
+    ]) {
       for (const cache of [".cache", ".vite"])
         write(
           repository,
@@ -172,7 +194,12 @@ describe("prepareSnapshot", () => {
     }
     const before = tree(repository);
     await prepareSnapshot(repository, directory);
-    for (const workspace of ["", "packages/core", "apps/dashboard"]) {
+    for (const workspace of [
+      "",
+      "packages/core",
+      "apps/dashboard",
+      "apps/daemon",
+    ]) {
       const names = readdirSync(join(directory, workspace, "node_modules"));
       for (const cache of [".cache", ".vite", ".vite-temp"])
         expect(names).not.toContain(cache);
@@ -187,7 +214,12 @@ describe("prepareSnapshot", () => {
       prepareSnapshot(repository, directory),
     ).resolves.toBeUndefined();
 
-    for (const workspace of ["", "packages/core", "apps/dashboard"]) {
+    for (const workspace of [
+      "",
+      "packages/core",
+      "apps/dashboard",
+      "apps/daemon",
+    ]) {
       const modules = join(directory, workspace, "node_modules");
       expect(realpathSync(modules)).toBe(modules);
       expect(realpathSync(join(modules, "external"))).toBe(

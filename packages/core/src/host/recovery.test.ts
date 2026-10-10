@@ -53,6 +53,7 @@ async function interrupted() {
     definition,
     runtimeId: "recovery",
     scope: {
+      projectId: definition.projectId,
       environmentId: "test",
       squadId: definition.squadId,
       harnessId: "recovery",

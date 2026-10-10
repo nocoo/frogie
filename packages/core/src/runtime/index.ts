@@ -176,6 +176,7 @@ const configHash = (options: RuntimeOptions): string =>
         },
   );
 const scopeMatches = (actual: RuntimeScope, expected: RuntimeScope): boolean =>
+  actual.projectId === expected.projectId &&
   actual.environmentId === expected.environmentId &&
   actual.squadId === expected.squadId &&
   actual.harnessId === expected.harnessId;
@@ -427,7 +428,10 @@ export function checkBinding(
   capabilities: BindingCapabilities,
 ): readonly BindingDiagnostic[] {
   const diagnostics: BindingDiagnostic[] = [];
-  if (binding.projectId !== definition.projectId) {
+  if (
+    binding.projectId !== definition.projectId ||
+    binding.scope.projectId !== binding.projectId
+  ) {
     diagnostics.push(
       errorDiagnostic(
         "binding_mismatch",

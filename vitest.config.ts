@@ -19,6 +19,7 @@ export default defineConfig({
       "scripts/**/*.test.ts",
       "seeds/**/*.test.ts",
       "evals/**/*.test.ts",
+      "integrations/**/*.test.ts",
     ],
     exclude: ["**/node_modules/**", "**/dist/**"],
     allowOnly: false,
@@ -30,6 +31,8 @@ export default defineConfig({
       include: [
         "packages/core/src/**/*.ts",
         "apps/dashboard/src/**/*.{ts,tsx}",
+        "apps/daemon/src/**/*.ts",
+        "integrations/**/*.ts",
         "seeds/**/*.ts",
         "evals/**/*.ts",
         "squads/**/*.mjs",

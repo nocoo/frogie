@@ -4,8 +4,8 @@ import { resolve } from "node:path";
 import {
   loadLocalModel,
   startLocal,
-} from "../apps/dashboard/src/server/localRuntime.js";
-import { startPreview } from "../apps/dashboard/src/server/preview.js";
+} from "../apps/daemon/src/server/localRuntime.js";
+import { startPreview } from "../apps/daemon/src/server/preview.js";
 import { version } from "../package.json";
 
 export async function main(

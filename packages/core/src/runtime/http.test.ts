@@ -11,7 +11,7 @@ import {
 import { createRegistry } from "@earendil-works/pi-durable";
 import { openNodeSqliteStorage } from "@earendil-works/pi-durable/storage/sqlite/node";
 import { expect, it } from "vitest";
-import { startLocalServer } from "../../../../apps/dashboard/src/server/localServer.js";
+import { startLocalServer } from "../../../../apps/daemon/src/server/localServer.js";
 import { loadDefinition } from "../definitions/index.js";
 import type { RuntimeScope, SubmitOutput } from "../protocol/index.js";
 import { openRuntime } from "./index.js";
@@ -24,6 +24,7 @@ it("submits through authenticated HTTP and reopens actual SQLite history", async
     ),
   );
   const scope: RuntimeScope = {
+    projectId: definition.projectId,
     environmentId: "http-test",
     squadId: definition.squadId,
     harnessId: "http-harness",

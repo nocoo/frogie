@@ -32,6 +32,7 @@ export async function startPreview(options: {
   const definition = loadDefinition(join(squads, "minimal-squad"));
   const instanceId = randomUUID();
   const scope = {
+    projectId: definition.projectId,
     environmentId: "e2e",
     squadId: definition.squadId,
     harnessId: instanceId,
@@ -83,7 +84,9 @@ export async function startPreview(options: {
       service: runtime.service,
       context: BACKGROUND_CONTEXT,
       definitions: createDefinitionWorkspace(squads),
-      publicDirectory: fileURLToPath(new URL("../../dist", import.meta.url)),
+      publicDirectory: fileURLToPath(
+        new URL("../../../dashboard/dist", import.meta.url),
+      ),
       publicOrigin: "https://frogie.dev.hexly.ai",
       port: options.port ?? 7033,
     });

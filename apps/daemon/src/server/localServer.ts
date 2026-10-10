@@ -40,6 +40,7 @@ const safeId = Type.Integer({
 });
 const scopeSchema = Type.Object(
   {
+    projectId: Type.String({ minLength: 1 }),
     environmentId: Type.String({ minLength: 1 }),
     squadId: Type.String({ minLength: 1 }),
     harnessId: Type.String({ minLength: 1 }),
@@ -287,6 +288,7 @@ function isStrictEnvelope(
 
 function sameScope(a: RuntimeScope, b: RuntimeScope): boolean {
   return (
+    a.projectId === b.projectId &&
     a.environmentId === b.environmentId &&
     a.squadId === b.squadId &&
     a.harnessId === b.harnessId

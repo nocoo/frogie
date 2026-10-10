@@ -15,6 +15,7 @@ import { createDefinitionWorkspace } from "./definitions.js";
 import { type LocalServer, startLocalServer } from "./localServer.js";
 
 const scope: RuntimeScope = {
+  projectId: "frogie",
   environmentId: "test-env",
   squadId: "zeppelin",
   harnessId: "harness-1",

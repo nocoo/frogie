@@ -66,6 +66,11 @@ function fixture(healthy: boolean) {
     "apps/dashboard/package.json",
     JSON.stringify({ name: "@frogie/dashboard" }),
   );
+  write(
+    repository,
+    "apps/daemon/package.json",
+    JSON.stringify({ name: "@frogie/daemon" }),
+  );
   const lock = "lockfileVersion: '9.0'\nimporters: {}\n";
   write(repository, "pnpm-lock.yaml", lock);
   write(repository, "node_modules/.pnpm/lock.yaml", lock);
@@ -86,7 +91,7 @@ function fixture(healthy: boolean) {
       `.husky/${hook}`,
       readFileSync(new URL(`.husky/${hook}`, sourceRoot), "utf8"),
     );
-  for (const workspace of ["packages/core", "apps/dashboard"])
+  for (const workspace of ["packages/core", "apps/dashboard", "apps/daemon"])
     mkdirSync(join(repository, workspace, "node_modules"), { recursive: true });
   symlinkSync(
     realpathSync(new URL("node_modules/tsx", sourceRoot)),
@@ -121,6 +126,7 @@ if (tool === "vitest") {
       "package.json",
       "packages/core/package.json",
       "apps/dashboard/package.json",
+      "apps/daemon/package.json",
       "pnpm-lock.yaml",
       "source.txt",
       "scripts/check.ts",

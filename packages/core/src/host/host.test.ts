@@ -52,6 +52,7 @@ async function fixture(databasePath?: string) {
     definition,
     runtimeId: "host-test",
     scope: {
+      projectId: definition.projectId,
       environmentId: "test",
       squadId: definition.squadId,
       harnessId: "host-test",

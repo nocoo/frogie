@@ -42,10 +42,20 @@ function fixture() {
     "apps/dashboard/package.json",
     JSON.stringify({ name: "@frogie/dashboard" }),
   );
+  write(
+    repository,
+    "apps/daemon/package.json",
+    JSON.stringify({ name: "@frogie/daemon" }),
+  );
   write(repository, "pnpm-lock.yaml", lock);
   write(repository, "source.txt", "unchanged\n");
   write(repository, "node_modules/.pnpm/lock.yaml", lock);
-  for (const workspace of ["", "packages/core", "apps/dashboard"])
+  for (const workspace of [
+    "",
+    "packages/core",
+    "apps/dashboard",
+    "apps/daemon",
+  ])
     mkdirSync(join(repository, workspace, "node_modules"), { recursive: true });
 
   const hang = `#!${process.execPath}
@@ -79,6 +89,7 @@ fs.writeFileSync("coverage/vitest.json", JSON.stringify({numTotalTests:1,numPass
       "package.json",
       "packages/core/package.json",
       "apps/dashboard/package.json",
+      "apps/daemon/package.json",
       "pnpm-lock.yaml",
       "source.txt",
     ],

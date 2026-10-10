@@ -53,6 +53,7 @@
 ## 本地数据
 
 - 当前 `pnpm build:core` 与 `packages/core` 中的 `npm pack` 对应既有嵌入式接入。目标 Core 为 daemon 私有依赖，公开交付范围为后续通信 SDK；精确已实现入口以 `package.json` 和对应代码为准。
+- 本地认证、HTTP 与定义文件服务维护在 `apps/daemon/src/server/`；Dashboard 的浏览器 Model、ViewModel 和 View 留在 `apps/dashboard/`。运行作用域统一包含项目、环境、Squad 和 Harness 身份。
 
 - `squads/` 定义和 `seeds/` 初始化源码及输入纳入 Git；生成的本地数据统一放在已忽略的 `data/`。
 - Local、E2E 的数据库分别存放在本机。测试使用本次运行拥有的隔离目录，文件编辑、重置与清理先核对归属，具体约定见文档索引中的 Dashboard 与 Tests。

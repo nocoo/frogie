@@ -5,6 +5,7 @@ import { createLocalDashboardApi } from "./dashboardApi.js";
 import { connectLocalRuntime } from "./localClient.js";
 
 const scope: RuntimeScope = {
+  projectId: "frogie",
   environmentId: "test",
   squadId: "zeppelin",
   harnessId: "test-harness",

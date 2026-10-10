@@ -56,6 +56,7 @@ function setup() {
   const binding: ProjectBinding = {
     projectId: definition.projectId,
     scope: {
+      projectId: definition.projectId,
       environmentId: "test",
       squadId: definition.squadId,
       harnessId: "test-harness",
@@ -92,7 +93,7 @@ describe("checkBinding", () => {
     expect(checkBinding(test.definition, test.binding, test)).toEqual([]);
   });
 
-  it.each(["project", "scope", "hash", "model"] as const)(
+  it.each(["project", "project-scope", "scope", "hash", "model"] as const)(
     "diagnoses a mismatched %s without changing the binding",
     (field) => {
       const test = setup();
@@ -100,6 +101,9 @@ describe("checkBinding", () => {
       const candidate = {
         ...binding,
         ...(field === "project" ? { projectId: "other" } : {}),
+        ...(field === "project-scope"
+          ? { scope: { ...binding.scope, projectId: "other" } }
+          : {}),
         ...(field === "scope"
           ? { scope: { ...binding.scope, squadId: "other" } }
           : {}),
@@ -1256,36 +1260,39 @@ describe("openRuntime", () => {
     }
   });
 
-  it("rejects submit and getSubmission when their scope does not match", async () => {
-    const test = setup();
-    const runtime = await openRuntime(test.options, context);
-    const input = {
-      scope: { ...test.binding.scope, environmentId: "other" },
-      caller: test.caller,
-      input: {
-        conversationId: runtime.root.id,
-        submission: { type: "input" as const, content: "Wrong scope" },
-      },
-    };
-    try {
-      await expect(
-        runtime.service.submit(input, context),
-      ).rejects.toMatchObject({ code: "binding_mismatch" });
-      await expect(
-        runtime.service.getSubmission(
-          {
-            scope: input.scope,
-            caller: test.caller,
-            input: { submissionId: "missing" as never },
-          },
-          context,
-        ),
-      ).rejects.toMatchObject({ code: "binding_mismatch" });
-      expect(test.faux.state.callCount).toBe(0);
-    } finally {
-      await runtime.close(context);
-    }
-  });
+  it.each(["projectId", "environmentId", "squadId", "harnessId"] as const)(
+    "rejects submit and getSubmission with a foreign %s",
+    async (field) => {
+      const test = setup();
+      const runtime = await openRuntime(test.options, context);
+      const input = {
+        scope: { ...test.binding.scope, [field]: "other" },
+        caller: test.caller,
+        input: {
+          conversationId: runtime.root.id,
+          submission: { type: "input" as const, content: "Wrong scope" },
+        },
+      };
+      try {
+        await expect(
+          runtime.service.submit(input, context),
+        ).rejects.toMatchObject({ code: "binding_mismatch" });
+        await expect(
+          runtime.service.getSubmission(
+            {
+              scope: input.scope,
+              caller: test.caller,
+              input: { submissionId: "missing" as never },
+            },
+            context,
+          ),
+        ).rejects.toMatchObject({ code: "binding_mismatch" });
+        expect(test.faux.state.callCount).toBe(0);
+      } finally {
+        await runtime.close(context);
+      }
+    },
+  );
 
   it("rejects submissions for missing conversations", async () => {
     const test = setup();

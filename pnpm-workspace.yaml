@@ -1,6 +1,7 @@
 packages:
   - packages/core
   - apps/dashboard
+  - apps/daemon
 
 allowBuilds:
   '@google/genai': false

@@ -18,7 +18,6 @@ import {
   type DefinitionFile,
   loadDefinition,
 } from "@frogie/core/definitions";
-import type { SquadSummary } from "../viewmodels/DashboardViewModel.js";
 
 export interface DefinitionDraft {
   readonly path: string;
@@ -27,7 +26,7 @@ export interface DefinitionDraft {
 }
 
 export interface DefinitionWorkspace {
-  list(): Promise<readonly SquadSummary[]>;
+  list(): Promise<readonly { id: string; projectId: string; title: string }[]>;
   load(squadId: string): Promise<DefinitionBundle>;
   save(
     squadId: string,
@@ -236,7 +235,7 @@ export function createDefinitionWorkspace(root: string): DefinitionWorkspace {
           (entry) => entry.isDirectory() && squadIdPattern.test(entry.name),
         )
         .sort((a, b) => a.name.localeCompare(b.name, "en"));
-      const summaries: SquadSummary[] = [];
+      const summaries: { id: string; projectId: string; title: string }[] = [];
       for (const entry of squads) {
         const definition = await load(entry.name);
         summaries.push({

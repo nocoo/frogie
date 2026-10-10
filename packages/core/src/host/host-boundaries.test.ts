@@ -47,6 +47,7 @@ function setup() {
     definition,
     runtimeId: "boundaries",
     scope: {
+      projectId: definition.projectId,
       environmentId: "test",
       squadId: definition.squadId,
       harnessId: "boundaries",

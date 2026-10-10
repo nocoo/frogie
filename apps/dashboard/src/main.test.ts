@@ -51,6 +51,7 @@ function deferred<T>() {
 }
 
 const scope: RuntimeScope = {
+  projectId: "frogie",
   environmentId: "local-env-id",
   squadId: "zeppelin",
   harnessId: "harness-1",
