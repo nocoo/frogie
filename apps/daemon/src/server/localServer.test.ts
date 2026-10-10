@@ -1243,7 +1243,7 @@ describe("startLocalServer", () => {
       expect(text).toContain("snapshot");
       expect(text).toContain("update");
       expect(runtime.calls.observeConversation).toHaveBeenCalledOnce();
-      await server.close();
+      await withTimeout(server.close(), 1_000);
       activeServers.splice(activeServers.indexOf(server), 1);
       expect(watch.stop).toHaveBeenCalled();
     } finally {
@@ -1465,10 +1465,25 @@ describe("startLocalServer", () => {
       { scope, input: { conversationId } },
     );
     expect(response.status).toBe(200);
-    const before = performance.now();
-    await withTimeout(server.close(), 5_800);
-    expect(performance.now() - before).toBeLessThan(5_800);
-    await response.body?.cancel();
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+    try {
+      const before = Date.now();
+      let completed = false;
+      const closing = withTimeout(server.close(), 5_800).then(() => {
+        completed = true;
+      });
+      await vi.advanceTimersByTimeAsync(4_999);
+      expect(watch.stop).toHaveBeenCalledOnce();
+      expect(completed).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(completed).toBe(true);
+      await closing;
+      expect(Date.now() - before).toBe(5_000);
+      expect(Date.now() - before).toBeLessThan(5_800);
+    } finally {
+      vi.useRealTimers();
+      await response.body?.cancel().catch(() => undefined);
+    }
   });
 
   it("ends an observation whose native watch fails and still stops it", async () => {

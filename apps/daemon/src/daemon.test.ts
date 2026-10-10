@@ -220,7 +220,7 @@ afterEach(async () => {
 });
 
 describe("daemon directory", { timeout: 30_000 }, () => {
-  it("enumerates two projects with independently bound roots and SQLite files", async () => {
+  it("enumerates independent roots and SQLite while rejecting invalid scopes before parallel submissions", async () => {
     const daemon = await launch();
     expect(daemon.instanceId).toEqual(expect.any(String));
     expect(daemon.instanceId.length).toBeGreaterThan(0);
@@ -283,6 +283,82 @@ describe("daemon directory", { timeout: 30_000 }, () => {
         .runtime(beta.scope)
         .listConversations({ scope: beta.scope, caller, input: {} }, context),
     ).toHaveLength(1);
+    for (const field of [
+      "projectId",
+      "environmentId",
+      "squadId",
+      "harnessId",
+    ] as const) {
+      const forged = { ...alpha.scope, [field]: "unbound-value" };
+      expect(() => daemon.runtime(forged)).toThrow(
+        expect.objectContaining({ code: "binding_mismatch" }),
+      );
+      await expect(
+        alphaService.submit(
+          {
+            scope: forged,
+            caller,
+            input: {
+              conversationId: rootId(alpha),
+              submission: { type: "input", content: "Must never enter Pi" },
+            },
+          },
+          context,
+        ),
+      ).rejects.toMatchObject({ code: "binding_mismatch" });
+      expect(
+        (await snapshot(alphaService, alpha.scope, rootId(alpha))).entries,
+      ).toHaveLength(0);
+      expect(
+        (await snapshot(daemon.runtime(beta.scope), beta.scope, rootId(beta)))
+          .entries,
+      ).toHaveLength(0);
+      const incomplete = { ...alpha.scope };
+      Reflect.deleteProperty(incomplete, field);
+      expect(() => daemon.runtime(incomplete as RuntimeScope)).toThrow();
+      await expect(
+        alphaService.submit(
+          {
+            scope: incomplete as RuntimeScope,
+            caller,
+            input: {
+              conversationId: rootId(alpha),
+              submission: {
+                type: "input",
+                content: "Incomplete scope must reject",
+              },
+            },
+          },
+          context,
+        ),
+      ).rejects.toMatchObject({ code: "binding_mismatch" });
+      for (const value of await daemon.listProjects())
+        expect(
+          (
+            await snapshot(
+              daemon.runtime(value.scope),
+              value.scope,
+              rootId(value),
+            )
+          ).entries,
+        ).toHaveLength(0);
+    }
+    const [first, second] = await Promise.all([
+      answer(daemon, alpha, "Only alpha received this request", "same-request"),
+      answer(daemon, beta, "Only beta received this request", "same-request"),
+    ]);
+    expect(JSON.stringify(first.entries)).toContain(
+      "Only alpha received this request",
+    );
+    expect(JSON.stringify(first.entries)).not.toContain(
+      "Only beta received this request",
+    );
+    expect(JSON.stringify(second.entries)).toContain(
+      "Only beta received this request",
+    );
+    expect(JSON.stringify(second.entries)).not.toContain(
+      "Only alpha received this request",
+    );
     await daemon.close();
     const databases = await Promise.all(
       [alpha, beta].map(async (value) => {
@@ -303,28 +379,6 @@ describe("daemon directory", { timeout: 30_000 }, () => {
       }),
     );
     expect(databases[0]?.ino).not.toBe(databases[1]?.ino);
-  });
-
-  it("accepts parallel project submissions without sharing their histories or request IDs", async () => {
-    const daemon = await launch();
-    const alpha = await project(daemon);
-    const beta = await project(daemon, "daemon-beta");
-    const [first, second] = await Promise.all([
-      answer(daemon, alpha, "Only alpha received this request", "same-request"),
-      answer(daemon, beta, "Only beta received this request", "same-request"),
-    ]);
-    expect(JSON.stringify(first.entries)).toContain(
-      "Only alpha received this request",
-    );
-    expect(JSON.stringify(first.entries)).not.toContain(
-      "Only beta received this request",
-    );
-    expect(JSON.stringify(second.entries)).toContain(
-      "Only beta received this request",
-    );
-    expect(JSON.stringify(second.entries)).not.toContain(
-      "Only alpha received this request",
-    );
   });
 
   it("has requests from both real Pi Harnesses in flight before either model response is released", async () => {
@@ -399,86 +453,6 @@ describe("daemon directory", { timeout: 30_000 }, () => {
     }
   });
 
-  it("rejects every mismatched scope field at both directory and held service boundaries", async () => {
-    const daemon = await launch();
-    const alpha = await project(daemon);
-    const beta = await project(daemon, "daemon-beta");
-    const service = daemon.runtime(alpha.scope);
-    for (const field of [
-      "projectId",
-      "environmentId",
-      "squadId",
-      "harnessId",
-    ] as const) {
-      const forged = { ...alpha.scope, [field]: "unbound-value" };
-      expect(() => daemon.runtime(forged)).toThrow(
-        expect.objectContaining({ code: "binding_mismatch" }),
-      );
-      await expect(
-        service.submit(
-          {
-            scope: forged,
-            caller,
-            input: {
-              conversationId: rootId(alpha),
-              submission: { type: "input", content: "Must never enter Pi" },
-            },
-          },
-          context,
-        ),
-      ).rejects.toMatchObject({ code: "binding_mismatch" });
-      expect(
-        (await snapshot(service, alpha.scope, rootId(alpha))).entries,
-      ).toHaveLength(0);
-      expect(
-        (await snapshot(daemon.runtime(beta.scope), beta.scope, rootId(beta)))
-          .entries,
-      ).toHaveLength(0);
-    }
-  });
-
-  it("rejects every missing scope field without modifying either project", async () => {
-    const daemon = await launch();
-    const alpha = await project(daemon);
-    const service = daemon.runtime(alpha.scope);
-    for (const field of [
-      "projectId",
-      "environmentId",
-      "squadId",
-      "harnessId",
-    ] as const) {
-      const incomplete = { ...alpha.scope };
-      Reflect.deleteProperty(incomplete, field);
-      expect(() => daemon.runtime(incomplete as RuntimeScope)).toThrow();
-      await expect(
-        service.submit(
-          {
-            scope: incomplete as RuntimeScope,
-            caller,
-            input: {
-              conversationId: rootId(alpha),
-              submission: {
-                type: "input",
-                content: "Incomplete scope must reject",
-              },
-            },
-          },
-          context,
-        ),
-      ).rejects.toMatchObject({ code: "binding_mismatch" });
-      for (const value of await daemon.listProjects())
-        expect(
-          (
-            await snapshot(
-              daemon.runtime(value.scope),
-              value.scope,
-              rootId(value),
-            )
-          ).entries,
-        ).toHaveLength(0);
-    }
-  });
-
   it("stops one project while the other continues and reenables the original binding", async () => {
     const daemon = await launch();
     const alpha = await project(daemon);
@@ -542,10 +516,21 @@ describe("daemon directory", { timeout: 30_000 }, () => {
     );
   });
 
-  it("closes idempotently within its deadline and releases active watchers and directory ownership", async () => {
+  it("rejects a second owner, remains operational and closes idempotently while releasing watchers and its lock", async () => {
     const daemon = await launch();
     const alpha = await project(daemon);
     const service = daemon.runtime(alpha.scope);
+    const before = await daemon.listProjects();
+    const files = await readdir(directory, { recursive: true });
+    await expect(
+      bounded(
+        startDaemon({ directory, definitionsDirectory, mode: "e2e" }),
+        "second owner startup",
+      ),
+    ).rejects.toMatchObject({ code: "storage_in_use" });
+    expect(await daemon.listProjects()).toEqual(before);
+    expect(await readdir(directory, { recursive: true })).toEqual(files);
+    await answer(daemon, alpha, "First owner remains operational");
     const watch = await service.observeConversation(
       { scope: alpha.scope, caller, input: { conversationId: rootId(alpha) } },
       context,
@@ -576,6 +561,7 @@ describe("daemon directory", { timeout: 30_000 }, () => {
         ),
       ).rejects.toMatchObject({ code: "runtime_unavailable" });
       const reopened = await launch();
+      expect(reopened.instanceId).toBe(daemon.instanceId);
       expect(await project(reopened)).toMatchObject({
         scope: alpha.scope,
         rootConversationId: rootId(alpha),
@@ -684,30 +670,6 @@ describe("daemon directory", { timeout: 30_000 }, () => {
       await project(reopened, "daemon-beta"),
       "Running project after restart",
     );
-  });
-
-  it("rejects a second owner without disturbing the running daemon and releases its lock on close", async () => {
-    const daemon = await launch();
-    const alpha = await project(daemon);
-    const before = await daemon.listProjects();
-    const files = await readdir(directory, { recursive: true });
-    await expect(
-      bounded(
-        startDaemon({ directory, definitionsDirectory, mode: "e2e" }),
-        "second owner startup",
-      ),
-    ).rejects.toMatchObject({ code: "storage_in_use" });
-    expect(await daemon.listProjects()).toEqual(before);
-    expect(await readdir(directory, { recursive: true })).toEqual(files);
-    await answer(
-      daemon,
-      await project(daemon),
-      "First owner remains operational",
-    );
-    await daemon.close();
-    const reopened = await launch();
-    expect(reopened.instanceId).toBe(daemon.instanceId);
-    expect(await project(reopened)).toMatchObject({ scope: alpha.scope });
   });
 
   it("keeps a project with an invalid role definition isolated from healthy projects", async () => {

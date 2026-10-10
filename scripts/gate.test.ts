@@ -15,7 +15,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it, onTestFinished } from "vitest";
 import {
   prepareSnapshot,
   pushTargets,
@@ -23,7 +23,6 @@ import {
   verifyTestReport,
 } from "./gate.js";
 
-const temporaryRoots: string[] = [];
 const manifests = [
   "package.json",
   "packages/core/package.json",
@@ -34,7 +33,7 @@ const lock = "lockfileVersion: '9.0'\nimporters: {}\n";
 
 function temporaryDirectory(): string {
   const root = realpathSync(mkdtempSync(join(tmpdir(), "frogie-gate-test-")));
-  temporaryRoots.push(root);
+  onTestFinished(() => rmSync(root, { recursive: true, force: true }));
   return root;
 }
 
@@ -125,11 +124,6 @@ function fixture(): { repository: string; directory: string } {
   );
   return { repository, directory };
 }
-
-afterEach(() => {
-  for (const root of temporaryRoots.splice(0))
-    rmSync(root, { recursive: true, force: true });
-});
 
 describe("prepareSnapshot", () => {
   it("copies executable .bin launchers into independent workspace directories", async () => {
@@ -309,7 +303,7 @@ describe("prepareSnapshot", () => {
   });
 });
 
-describe("runL1", () => {
+describe.concurrent("runL1", () => {
   const passing = {
     numTotalTests: 2,
     numPassedTests: 2,
@@ -341,38 +335,30 @@ describe("runL1", () => {
     } = {},
   ): string {
     const directory = temporaryDirectory();
-    const config = { report: passing, ...options };
-    write(directory, "fixture-config.json", JSON.stringify(config));
+    const report =
+      options.rawReport ??
+      JSON.stringify(options.report === undefined ? passing : options.report);
     for (const tool of ["tsc", "biome", "vitest"]) {
       const path = join(directory, "node_modules/.bin", tool);
       write(
         directory,
-        join(
-          "node_modules/.bin",
-          options.hangTool === tool ? `${tool}.cjs` : tool,
-        ),
-        `#!${process.execPath}
-const fs = require("node:fs");
-const config = JSON.parse(fs.readFileSync("fixture-config.json", "utf8"));
-const tool = ${JSON.stringify(tool)};
-fs.appendFileSync("calls.jsonl", JSON.stringify({tool, args:process.argv.slice(2), cwd:process.cwd(), staleReport:fs.existsSync("coverage/vitest.json")}) + "\\n");
-if (config.failTool === tool) process.exit(7);
-if (config.hangTool === tool) {
-  setInterval(() => {}, 1000);
-}
-else if (tool === "vitest" && !config.omitReport) {
-  fs.mkdirSync("coverage", {recursive:true});
-  fs.writeFileSync("coverage/vitest.json", config.rawReport === undefined ? JSON.stringify(config.report) : config.rawReport);
-}
+        join("node_modules/.bin", tool),
+        `#!/bin/sh
+set -eu
+args=''
+separator=''
+for arg do
+  args="$args$separator\\"$arg\\""
+  separator=','
+done
+stale=false
+[ ! -e coverage/vitest.json ] || stale=true
+printf '{"tool":"%s","args":[%s],"cwd":"%s","staleReport":%s}\\n' '${tool}' "$args" "$(pwd -P)" "$stale" >> calls.jsonl
+${options.failTool === tool ? "exit 7" : ""}
+${options.hangTool === tool ? 'printf "%s" "$$" > hanging.pid\nexec sleep 60' : ""}
+${tool === "vitest" && !options.omitReport ? `mkdir -p coverage\nprintf '%s' '${report.replaceAll("'", "'\\''")}' > coverage/vitest.json` : ""}
 `,
       );
-      if (options.hangTool === tool) {
-        write(
-          directory,
-          join("node_modules/.bin", tool),
-          `#!/bin/sh\nprintf '%s' "$$" > hanging.pid\nexec ${JSON.stringify(process.execPath)} "$0.cjs" "$@"\n`,
-        );
-      }
       chmodSync(path, 0o755);
     }
     return directory;

@@ -335,8 +335,8 @@ export async function startLocalServer(
     timeout.unref();
     closePromise = Promise.race([
       Promise.all([
-        Promise.allSettled([...watches].map((stop) => stop())).then(
-          () => undefined,
+        Promise.allSettled([...watches].map((stop) => stop())).then(() =>
+          server.closeIdleConnections(),
         ),
         serverClosed,
       ]).then(() => undefined),

@@ -61,8 +61,10 @@ function fixture() {
   const hang = `#!${process.execPath}
 const fs = require("node:fs");
 const {spawn} = require("node:child_process");
-const child = spawn(process.execPath, ["-e", "require('node:fs').writeFileSync(process.env.FROGIE_CLI_CHILD_FILE, String(process.pid)); setInterval(() => {}, 1000)"]);
-fs.writeFileSync(process.env.FROGIE_CLI_PID_FILE, JSON.stringify({pids:[process.pid, child.pid], cwd:process.cwd()}));
+const child = spawn(process.execPath, ["-e", "const fs=require('node:fs'); const file=process.env.FROGIE_CLI_CHILD_FILE; fs.writeFileSync(file+'.tmp', String(process.pid)); fs.renameSync(file+'.tmp',file); setInterval(() => {}, 1000)"]);
+const file = process.env.FROGIE_CLI_PID_FILE;
+fs.writeFileSync(file + ".tmp", JSON.stringify({pids:[process.pid, child.pid], cwd:process.cwd()}));
+fs.renameSync(file + ".tmp", file);
 setInterval(() => {}, 1000);
 `;
   const successful = `#!${process.execPath}
@@ -156,6 +158,13 @@ async function startMainFixture() {
     await waitForFile(test.childFile);
     return { ...test, source, listeners, running, ...started };
   } catch (error) {
+    process.emit("SIGTERM");
+    if (existsSync(test.pidFile)) {
+      const started = JSON.parse(readFileSync(test.pidFile, "utf8")) as {
+        pids: number[];
+      };
+      await killStartedProcesses(started.pids);
+    }
     await running.catch(() => undefined);
     throw error;
   }
@@ -238,6 +247,14 @@ describe("CLI cancellation lifecycle", () => {
       expect(existsSync(snapshot)).toBe(false);
       expect(sourceState(test.repository)).toBe(source);
     } finally {
+      controller.abort(new Error("Lifecycle fixture cleanup"));
+      if (!pids.length && existsSync(test.pidFile)) {
+        pids = (
+          JSON.parse(readFileSync(test.pidFile, "utf8")) as {
+            pids: number[];
+          }
+        ).pids;
+      }
       await killStartedProcesses(pids);
       await running.catch(() => undefined);
     }
