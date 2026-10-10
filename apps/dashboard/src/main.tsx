@@ -593,20 +593,7 @@ export function mountDashboard(
     try {
       const connect =
         options?.connect ??
-        (() => {
-          const token = new URLSearchParams(location.hash.slice(1)).get(
-            "token",
-          );
-          history.replaceState(
-            null,
-            "",
-            `${location.pathname}${location.search}`,
-          );
-          return connectLocalRuntime({
-            origin: location.origin,
-            ...(token === null ? {} : { token }),
-          });
-        });
+        (() => connectLocalRuntime({ origin: location.origin }));
       const connected = await connect();
       if (disposed) {
         connected.dispose();

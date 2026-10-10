@@ -50,10 +50,6 @@ const scopeSchema = Type.Object({
   squadId: nonempty,
   harnessId: nonempty,
 });
-const authSchema = Type.Object({
-  csrf: nonempty,
-  caller: Type.Object({ id: nonempty }),
-});
 const projectSchema = Type.Object({
   projectId: nonempty,
   title: nonempty,
@@ -83,6 +79,7 @@ const projectSchema = Type.Object({
   ),
 });
 const contextSchema = Type.Object({
+  caller: Type.Object({ id: nonempty }),
   instanceId: nonempty,
   mode: Type.Union([Type.Literal("local"), Type.Literal("e2e")]),
   projects: Type.Array(projectSchema),
@@ -283,7 +280,6 @@ function sameScope(left: RuntimeScope, right: RuntimeScope): boolean {
 
 export interface LocalRuntimeOptions {
   readonly origin: string;
-  readonly token?: string;
   readonly fetch?: typeof fetch;
 }
 
@@ -363,8 +359,7 @@ export async function connectLocalRuntime(
       (origin.protocol === "http:" && origin.hostname === "127.0.0.1") ||
       options.origin === "https://frogie.dev.hexly.ai"
     ) ||
-    origin.origin !== options.origin ||
-    options.token === ""
+    origin.origin !== options.origin
   )
     throw failure("invalid_request", "Invalid local runtime connection");
 
@@ -372,11 +367,7 @@ export async function connectLocalRuntime(
   const controllers = new Set<AbortController>();
   const observations = new Set<() => void>();
   let disposed = false;
-  const request = async (
-    path: string,
-    body?: unknown,
-    csrf?: string,
-  ): Promise<unknown> => {
+  const request = async (path: string, body?: unknown): Promise<unknown> => {
     if (disposed)
       throw failure("runtime_unavailable", "Local runtime disposed");
     const controller = new AbortController();
@@ -386,7 +377,7 @@ export async function connectLocalRuntime(
       try {
         response = await fetch(new URL(path, origin), {
           method: body === undefined ? "GET" : "POST",
-          credentials: "same-origin",
+          credentials: "omit",
           redirect: "error",
           signal: controller.signal,
           headers: {
@@ -394,7 +385,6 @@ export async function connectLocalRuntime(
             ...(body === undefined
               ? {}
               : { "Content-Type": "application/json" }),
-            ...(csrf === undefined ? {} : { "X-Frogie-CSRF": csrf }),
           },
           ...(body === undefined ? {} : { body: JSON.stringify(body) }),
         });
@@ -430,15 +420,6 @@ export async function connectLocalRuntime(
     }
   };
 
-  const auth =
-    options.token === undefined
-      ? await request("/__local/auth/session")
-      : await request("/__local/auth/exchange", { token: options.token });
-  if (!Value.Check(authSchema, auth))
-    throw failure(
-      "runtime_unavailable",
-      "Invalid local authentication response",
-    );
   const loaded = await request("/__local/context");
   if (
     !Value.Check(contextSchema, loaded) ||
@@ -447,10 +428,12 @@ export async function connectLocalRuntime(
     )
   )
     throw failure("binding_mismatch", "Invalid local runtime context");
-  const context = Object.freeze({
-    ...(loaded as unknown as DaemonContext),
+  const context: DaemonContext = Object.freeze({
+    instanceId: loaded.instanceId,
+    mode: loaded.mode,
+    projects: loaded.projects as readonly DaemonProject[],
   });
-  const caller = Object.freeze({ ...auth.caller });
+  const caller = Object.freeze({ ...loaded.caller });
   const operation = async <T>(
     name: string,
     input: unknown,
@@ -459,7 +442,6 @@ export async function connectLocalRuntime(
     const result = await request(
       `/__local/instances/${encodeURIComponent(context.instanceId)}/operations/${name}`,
       { scope, input },
-      auth.csrf,
     );
     if (
       typeof result !== "object" ||
@@ -476,11 +458,7 @@ export async function connectLocalRuntime(
     name: string,
     body: unknown,
   ): Promise<T> => {
-    const result = await request(
-      `/__local/definitions/${name}`,
-      body,
-      auth.csrf,
-    );
+    const result = await request(`/__local/definitions/${name}`, body);
     if (
       typeof result !== "object" ||
       result === null ||
@@ -498,7 +476,7 @@ export async function connectLocalRuntime(
     name: string,
     input: unknown,
   ): Promise<DaemonProject> => {
-    const result = await request(`/__local/projects/${name}`, input, auth.csrf);
+    const result = await request(`/__local/projects/${name}`, input);
     if (
       typeof result !== "object" ||
       result === null ||
@@ -622,13 +600,12 @@ export async function connectLocalRuntime(
             ),
             {
               method: "POST",
-              credentials: "same-origin",
+              credentials: "omit",
               redirect: "error",
               signal: controller.signal,
               headers: {
                 Accept: "text/event-stream",
                 "Content-Type": "application/json",
-                "X-Frogie-CSRF": auth.csrf,
               },
               body: JSON.stringify({ scope, input }),
             },

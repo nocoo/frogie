@@ -51,7 +51,7 @@ Frogie 是基于 [Pi Durable](https://github.com/earendil-works/pi/tree/main/pac
 
 以下命令对应当前实现。daemon 已提供项目登记、独立 Harness 启停、快照绑定及多项目 Dashboard；完整工具、工作流调试和公开 SDK 按 [MVP 实施](docs/08-mvp-implementation.md) 继续交付，设计能力以对应验收结果为准。
 
-运行 `pnpm dev` 构建并启动 Local，通过终端输出的一次性链接打开 `https://frogie.dev.hexly.ai`。本机 Caddy 将该域名转发到 `127.0.0.1:7033`。
+运行 `pnpm dev` 构建并启动 Local，直接打开 `https://frogie.dev.hexly.ai`。本机 Caddy 将该域名转发到 `127.0.0.1:7033`。
 
 Local 使用真实的 OpenAI-compatible Chat Completions 模型。服务端从 `data/local-model.json` 读取私有配置，也可通过 `FROGIE_MODEL_CONFIG` 指定文件；密钥仅留在服务端。配置格式如下，将示例值替换为自己的模型配置：
 

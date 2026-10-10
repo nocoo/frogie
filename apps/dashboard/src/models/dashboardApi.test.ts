@@ -26,8 +26,8 @@ const bundle = {
 
 async function fixture(values: unknown[] = []) {
   const responses = [
-    { csrf: "csrf", caller: { id: "local-user" } },
     {
+      caller: { id: "local-user" },
       instanceId: "test-instance",
       mode: "e2e",
       projects: [scope, otherScope].map((scope) => ({
@@ -46,7 +46,7 @@ async function fixture(values: unknown[] = []) {
     const value = responses.shift();
     return value instanceof Response ? value : Response.json(value);
   });
-  const client = await connectLocalRuntime({ origin, token: "token", fetch });
+  const client = await connectLocalRuntime({ origin, fetch });
   const onError = vi.fn<(error: RuntimeError) => void>();
   return {
     fetch,
@@ -57,7 +57,7 @@ async function fixture(values: unknown[] = []) {
 }
 
 describe("local Dashboard adapter", () => {
-  it("uses authenticated definition routes and returns the entire updated bundle", async () => {
+  it("uses unauthenticated JSON definition routes and returns the entire updated bundle", async () => {
     const summaries = [
       { id: "zeppelin", projectId: "frogie", title: "Zeppelin" },
     ];
@@ -74,16 +74,21 @@ describe("local Dashboard adapter", () => {
       contentHash: "saved",
     });
     for (const [index, operation, body] of [
-      [2, "list", {}],
-      [3, "load", { squadId: scope.squadId }],
-      [4, "save", { squadId: scope.squadId, draft, requestId: "save-once" }],
+      [1, "list", {}],
+      [2, "load", { squadId: scope.squadId }],
+      [3, "save", { squadId: scope.squadId, draft, requestId: "save-once" }],
     ] as const) {
       const call = fetch.mock.calls[index];
       expect(String(call?.[0])).toBe(
         `${origin}/__local/definitions/${operation}`,
       );
       expect(call?.[1]?.method).toBe("POST");
-      expect(new Headers(call?.[1]?.headers).get("X-Frogie-CSRF")).toBe("csrf");
+      expect(call?.[1]?.credentials).toBe("omit");
+      const headers = new Headers(call?.[1]?.headers);
+      expect(headers.get("Content-Type")).toBe("application/json");
+      expect(headers.has("Cookie")).toBe(false);
+      expect(headers.has("Authorization")).toBe(false);
+      expect(headers.has("X-Frogie-CSRF")).toBe(false);
       expect(JSON.parse(String(call?.[1]?.body))).toEqual(body);
     }
     client.dispose();
@@ -128,13 +133,13 @@ describe("local Dashboard adapter", () => {
     expect(await api.cancel(scope, id, submissionId)).toBeUndefined();
     expect(await api.compact(scope, id)).toBeUndefined();
     expect(await api.cancel(scope, id)).toBeUndefined();
-    for (const [, init] of fetch.mock.calls.slice(2))
+    for (const [, init] of fetch.mock.calls.slice(1))
       expect(JSON.parse(String(init?.body))).not.toHaveProperty("caller");
-    expect(JSON.parse(String(fetch.mock.calls[6]?.[1]?.body))).toEqual({
+    expect(JSON.parse(String(fetch.mock.calls[5]?.[1]?.body))).toEqual({
       scope,
       input: { conversationId: id, submissionId },
     });
-    expect(JSON.parse(String(fetch.mock.calls[8]?.[1]?.body))).toEqual({
+    expect(JSON.parse(String(fetch.mock.calls[7]?.[1]?.body))).toEqual({
       scope,
       input: { conversationId: id },
     });
@@ -183,17 +188,17 @@ describe("local Dashboard adapter", () => {
     });
     await api.cancel(otherScope, id);
     await api.compact(otherScope, id);
-    expect(JSON.parse(String(fetch.mock.calls[2]?.[1]?.body))).toEqual({
+    expect(JSON.parse(String(fetch.mock.calls[1]?.[1]?.body))).toEqual({
       squadId: otherScope.squadId,
     });
-    expect(JSON.parse(String(fetch.mock.calls[3]?.[1]?.body))).toEqual({
+    expect(JSON.parse(String(fetch.mock.calls[2]?.[1]?.body))).toEqual({
       squadId: otherScope.squadId,
       draft,
       requestId: "one",
     });
-    for (const [, init] of fetch.mock.calls.slice(4))
+    for (const [, init] of fetch.mock.calls.slice(3))
       expect(JSON.parse(String(init?.body)).scope).toEqual(otherScope);
-    expect(fetch).toHaveBeenCalledTimes(10);
+    expect(fetch).toHaveBeenCalledTimes(9);
     client.dispose();
   });
 
@@ -212,8 +217,8 @@ describe("local Dashboard adapter", () => {
       await expect(api.listConversations(other)).rejects.toMatchObject({
         code: "binding_mismatch",
       });
-      expect(fetch).toHaveBeenCalledTimes(3);
-      expect(JSON.parse(String(fetch.mock.calls[2]?.[1]?.body))).toEqual({
+      expect(fetch).toHaveBeenCalledTimes(2);
+      expect(JSON.parse(String(fetch.mock.calls[1]?.[1]?.body))).toEqual({
         scope: other,
         input: {},
       });

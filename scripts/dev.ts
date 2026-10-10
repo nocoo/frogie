@@ -47,6 +47,6 @@ export async function main(
   console.log(
     `Frogie v${version} — ${model ? `Local · ${model.modelId}` : "E2E（无模型费用）"}`,
   );
-  console.log(`打开一次性链接：${preview.url}`);
+  console.log(`打开本地页面：${preview.url}`);
   console.log(`本地数据：${directory}`);
 }

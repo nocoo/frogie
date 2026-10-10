@@ -149,12 +149,24 @@ test("real daemon keeps two project histories, Role conversations and lifecycle 
   };
   try {
     const initial = await launch();
+    expect(initial.server.url).toBe(`${initial.server.origin}/`);
     let alpha = await project(initial.daemon, "alpha-project");
     let beta = await project(initial.daemon, "beta-project");
     const scopes: RuntimeScope[] = [alpha.scope, beta.scope];
     const rootIds = [alpha.rootConversationId, beta.rootConversationId];
     expect(alpha.rootConversationId).toBe(beta.rootConversationId);
     let page = await context.newPage();
+    const localRequests: Array<{
+      url: string;
+      headers: Record<string, string>;
+    }> = [];
+    page.on("request", (request) => {
+      if (new URL(request.url()).origin !== initial.server.origin) return;
+      void request
+        .allHeaders()
+        .then((headers) => localRequests.push({ url: request.url(), headers }));
+    });
+    expect(await context.cookies(initial.server.origin)).toEqual([]);
     await page.goto(initial.server.url);
     await expect(
       page.getByRole("combobox", { name: "Squad", exact: true }),
@@ -236,6 +248,7 @@ test("real daemon keeps two project histories, Role conversations and lifecycle 
 
     await page.reload();
     expect(new URL(page.url()).hash).toBe("");
+    expect(await context.cookies(initial.server.origin)).toEqual([]);
     await chat(page, "Alpha Squad", "Alpha resumed after session refresh");
     await expect(log).toContainText("Alpha root history is private");
     const savedAlpha = await history(initial.daemon, alpha);
@@ -286,6 +299,20 @@ test("real daemon keeps two project histories, Role conversations and lifecycle 
     await page.screenshot({
       path: testInfo.outputPath("projects-restarted.png"),
     });
+    await expect.poll(() => localRequests.length).toBeGreaterThan(0);
+    expect(
+      localRequests
+        .map(({ url }) => new URL(url).pathname)
+        .filter((path) => path.startsWith("/__local/auth/")),
+    ).toEqual([]);
+    expect(
+      localRequests.every(
+        ({ headers }) =>
+          !headers.cookie &&
+          !headers.authorization &&
+          !headers["x-frogie-csrf"],
+      ),
+    ).toBe(true);
     expect(errors).toEqual([]);
     expect(await readFile(join(fixture, "SQUAD.md"), "utf8")).toBe(
       originalFixture,

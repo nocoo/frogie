@@ -57,6 +57,11 @@ const context: DaemonContext = {
   mode: "e2e",
   projects: [project, otherProject],
 };
+function contextResponse(value: unknown = context): unknown {
+  if (typeof value !== "object" || value === null || Array.isArray(value))
+    return value;
+  return { ...value, caller: { id: "local-user" } };
+}
 type FetchCall = { input: string | URL | Request; init?: RequestInit };
 type ObserveInput = Parameters<LocalRuntimeClient["observe"]>[0];
 type ObservationFrame = Parameters<
@@ -119,10 +124,7 @@ function headers(call: FetchCall): Headers {
 }
 
 function successfulFetch() {
-  return fetchFixture([
-    { csrf: "csrf-token", caller: { id: "local-user" } },
-    context,
-  ]);
+  return fetchFixture([contextResponse()]);
 }
 
 function sseResponse(chunks: readonly string[], status = 200): Response {
@@ -192,8 +194,7 @@ const budgetFixture: RuntimeBudgetSnapshot = {
 describe("budget transport client", () => {
   it("posts a complete target scope and preserves the validated budget snapshot", async () => {
     const fixture = fetchFixture([
-      { csrf: "csrf-token", caller: { id: "local-user" } },
-      context,
+      contextResponse(),
       { scope: otherScope, value: budgetFixture },
     ]);
     const client = await connectLocalRuntime({ origin, fetch: fixture.fetch });
@@ -207,7 +208,7 @@ describe("budget transport client", () => {
       expect(await client.extendBudget(input, otherScope)).toEqual(
         budgetFixture,
       );
-      const call = callAt(fixture.calls, 2);
+      const call = callAt(fixture.calls, 1);
       expect(requestUrl(call).pathname).toBe(
         "/__local/instances/instance-1/operations/extendBudget",
       );
@@ -216,8 +217,9 @@ describe("budget transport client", () => {
         input,
       });
       expect(requestInit(call).method).toBe("POST");
-      expect(requestInit(call).credentials).toBe("same-origin");
-      expect(headers(call).get("X-Frogie-CSRF")).toBe("csrf-token");
+      expect(requestInit(call).credentials).toBe("omit");
+      expect(headers(call).get("Content-Type")).toBe("application/json");
+      expect(headers(call).has("X-Frogie-CSRF")).toBe(false);
     } finally {
       client.dispose();
     }
@@ -241,8 +243,7 @@ describe("budget transport client", () => {
       ),
     ];
     const fixture = fetchFixture([
-      { csrf: "csrf-token", caller: { id: "local-user" } },
-      context,
+      contextResponse(),
       { scope, value: inspectionFixture },
       ...snapshots.flatMap((budget) => [
         { scope, value: { ...inspectionFixture, budget } },
@@ -332,8 +333,7 @@ describe("budget transport client", () => {
     ])
       invalid.push({ ...budgetFixture, stopped });
     const fixture = fetchFixture([
-      { csrf: "csrf-token", caller: { id: "local-user" } },
-      context,
+      contextResponse(),
       ...invalid.flatMap((budget) => [
         { scope, value: { ...inspectionFixture, budget } },
         { scope, value: budget },
@@ -365,11 +365,7 @@ describe("budget transport client", () => {
         }),
       ),
     ];
-    const fixture = fetchFixture([
-      { csrf: "csrf-token", caller: { id: "local-user" } },
-      context,
-      ...values,
-    ]);
+    const fixture = fetchFixture([contextResponse(), ...values]);
     const client = await connectLocalRuntime({ origin, fetch: fixture.fetch });
     try {
       for (const _value of values)
@@ -394,8 +390,7 @@ describe("budget transport client", () => {
       resolve = accept;
     });
     const fixture = fetchFixture([
-      { csrf: "csrf-token", caller: { id: "local-user" } },
-      context,
+      contextResponse(),
       ...failures.map(([code, status, message]) =>
         Response.json(
           { error: { code, message, retryable: false } },
@@ -421,13 +416,13 @@ describe("budget transport client", () => {
         code: "runtime_unavailable",
       });
       client.dispose();
-      expect(requestInit(callAt(fixture.calls, 5)).signal?.aborted).toBe(true);
+      expect(requestInit(callAt(fixture.calls, 4)).signal?.aborted).toBe(true);
       resolve(Response.json({ scope, value: budgetFixture }));
       await rejected;
       await expect(
         client.extendBudget({ requestId: "disposed", toolEntries: 1 }, scope),
       ).rejects.toMatchObject({ code: "runtime_unavailable" });
-      expect(fixture.calls).toHaveLength(6);
+      expect(fixture.calls).toHaveLength(5);
     } finally {
       client.dispose();
     }
@@ -445,11 +440,7 @@ describe("execution inspection client", () => {
       ),
       { scope, value: { ...inspectionFixture, scope: otherScope } },
     ];
-    const fixture = fetchFixture([
-      { csrf: "csrf-token", caller: { id: "local-user" } },
-      context,
-      ...values,
-    ]);
+    const fixture = fetchFixture([contextResponse(), ...values]);
     const client = await connectLocalRuntime({ origin, fetch: fixture.fetch });
     for (const _value of values)
       await expect(client.inspect({}, scope)).rejects.toMatchObject({
@@ -495,8 +486,7 @@ describe("execution inspection client", () => {
       },
     ];
     const fixture = fetchFixture([
-      { csrf: "csrf-token", caller: { id: "local-user" } },
-      context,
+      contextResponse(),
       ...invalid.map((value) => ({ scope, value })),
     ]);
     const client = await connectLocalRuntime({ origin, fetch: fixture.fetch });
@@ -564,8 +554,7 @@ describe("execution inspection client", () => {
       { items: Array(101).fill(taskFixture), cursor: null },
     ];
     const fixture = fetchFixture([
-      { csrf: "csrf-token", caller: { id: "local-user" } },
-      context,
+      contextResponse(),
       ...[...invalid, ...tasks].map((value) => ({ scope, value })),
     ]);
     const client = await connectLocalRuntime({ origin, fetch: fixture.fetch });
@@ -578,7 +567,7 @@ describe("execution inspection client", () => {
     client.dispose();
   });
 
-  it("uses authenticated definition requests without borrowing a selected runtime scope", async () => {
+  it("uses definition requests without borrowing a selected runtime scope", async () => {
     const bundle = {
       squadId: "zeppelin",
       projectId: "frogie",
@@ -586,8 +575,7 @@ describe("execution inspection client", () => {
       contentHash: "definition-hash",
     };
     const fixture = fetchFixture([
-      { csrf: "csrf-token", caller: { id: "local-user" } },
-      context,
+      contextResponse(),
       { value: [project] },
       { value: bundle },
       { value: { ...bundle, contentHash: "saved-hash" } },
@@ -603,14 +591,18 @@ describe("execution inspection client", () => {
       await client.saveDefinition("zeppelin", draft, "save-once"),
     ).toMatchObject({ contentHash: "saved-hash" });
     for (const [index, name, body] of [
-      [2, "list", {}],
-      [3, "load", { squadId: "zeppelin" }],
-      [4, "save", { squadId: "zeppelin", draft, requestId: "save-once" }],
+      [1, "list", {}],
+      [2, "load", { squadId: "zeppelin" }],
+      [3, "save", { squadId: "zeppelin", draft, requestId: "save-once" }],
     ] as const) {
       const call = callAt(fixture.calls, index);
       expect(requestUrl(call).pathname).toBe(`/__local/definitions/${name}`);
       expect(JSON.parse(String(requestInit(call).body))).toEqual(body);
-      expect(headers(call).get("X-Frogie-CSRF")).toBe("csrf-token");
+      expect(requestInit(call).credentials).toBe("omit");
+      expect(headers(call).get("Content-Type")).toBe("application/json");
+      expect(headers(call).has("X-Frogie-CSRF")).toBe(false);
+      expect(headers(call).has("Cookie")).toBe(false);
+      expect(headers(call).has("Authorization")).toBe(false);
     }
     await expect(client.listSquads()).rejects.toThrow();
     await expect(client.loadDefinition("zeppelin")).rejects.toThrow();
@@ -622,8 +614,7 @@ describe("execution inspection client", () => {
 
   it("reports unsafe observation errors and disconnected streams without fabricating inspection success", async () => {
     const fixture = fetchFixture([
-      { csrf: "csrf-token", caller: { id: "local-user" } },
-      context,
+      contextResponse(),
       Response.json({ error: { code: "forbidden" } }, { status: 403 }),
     ]);
     const client = await connectLocalRuntime({ origin, fetch: fixture.fetch });
@@ -639,8 +630,7 @@ describe("execution inspection client", () => {
   it("returns a validated task while allowing native fork entries to retain ancestor conversation identities", async () => {
     const ancestor = { ...entryFixture, conversationId: 16 as never };
     const fixture = fetchFixture([
-      { csrf: "csrf-token", caller: { id: "local-user" } },
-      context,
+      contextResponse(),
       { scope, value: taskFixture },
       { scope, value: { items: [ancestor], cursor: null } },
       { scope, value: { ...taskFixture, id: Number.MAX_SAFE_INTEGER + 1 } },
@@ -679,8 +669,7 @@ describe("execution inspection client", () => {
       state: { status: "terminal", outcome: "completed" },
     };
     const fixture = fetchFixture([
-      { csrf: "csrf-token", caller: { id: "local-user" } },
-      context,
+      contextResponse(),
       { scope: otherScope, value: inspection },
       {
         scope: otherScope,
@@ -705,10 +694,10 @@ describe("execution inspection client", () => {
       await client.getTask({ taskId: 42 as never }, otherScope),
     ).toBeUndefined();
     for (const [index, name, input] of [
-      [2, "inspect", {}],
-      [3, "listEntries", { conversationId: 17, limit: 50 }],
-      [4, "listTasks", { limit: 50 }],
-      [5, "getTask", { taskId: 42 }],
+      [1, "inspect", {}],
+      [2, "listEntries", { conversationId: 17, limit: 50 }],
+      [3, "listTasks", { limit: 50 }],
+      [4, "getTask", { taskId: 42 }],
     ] as const) {
       const call = callAt(fixture.calls, index);
       expect(requestUrl(call).pathname).toBe(
@@ -718,78 +707,42 @@ describe("execution inspection client", () => {
         scope: otherScope,
         input,
       });
-      expect(headers(call).get("X-Frogie-CSRF")).toBe("csrf-token");
+      expect(headers(call).has("X-Frogie-CSRF")).toBe(false);
     }
     client.dispose();
   });
 });
 
 describe("connectLocalRuntime", () => {
-  it("resumes the HTTPS session without reusing a startup token", async () => {
-    const fixture = successfulFetch();
-    const client = await connectLocalRuntime({
-      origin: "https://frogie.dev.hexly.ai",
-      fetch: fixture.fetch,
-    });
-    expect(requestUrl(callAt(fixture.calls, 0)).href).toBe(
-      "https://frogie.dev.hexly.ai/__local/auth/session",
-    );
-    expect(requestInit(callAt(fixture.calls, 0)).method).toBe("GET");
-    expect(requestInit(callAt(fixture.calls, 0)).credentials).toBe(
-      "same-origin",
-    );
-    expect(client.context).toEqual(context);
-    client.dispose();
-  });
+  it("connects directly from the caller context without cookies or authentication requests", async () => {
+    const fixture = fetchFixture([
+      { ...context, caller: { id: "local-user" } },
+    ]);
+    const client = await connectLocalRuntime({ origin, fetch: fixture.fetch });
 
-  it("exchanges a provided token on the exact HTTPS domain", async () => {
-    const fixture = successfulFetch();
-    const client = await connectLocalRuntime({
-      origin: "https://frogie.dev.hexly.ai",
-      token: "once",
-      fetch: fixture.fetch,
-    });
-    expect(requestUrl(callAt(fixture.calls, 0)).href).toBe(
-      "https://frogie.dev.hexly.ai/__local/auth/exchange",
+    expect(fixture.calls).toHaveLength(1);
+    expect(requestUrl(callAt(fixture.calls, 0)).pathname).toBe(
+      "/__local/context",
     );
-    client.dispose();
-  });
-
-  it("exchanges the fragment token, loads context and connects with same-origin credentials", async () => {
-    const fixture = successfulFetch();
-    const client = await connectLocalRuntime({
-      origin,
-      token: "startup-secret",
-      fetch: fixture.fetch,
+    expect(requestInit(callAt(fixture.calls, 0))).toMatchObject({
+      method: "GET",
+      credentials: "omit",
     });
-
+    expect(headers(callAt(fixture.calls, 0)).get("Accept")).toBe(
+      "application/json",
+    );
+    expect(headers(callAt(fixture.calls, 0)).has("Cookie")).toBe(false);
+    expect(headers(callAt(fixture.calls, 0)).has("Authorization")).toBe(false);
+    expect(headers(callAt(fixture.calls, 0)).has("X-Frogie-CSRF")).toBe(false);
     expect(client.context).toEqual(context);
     expect(client.caller).toEqual({ id: "local-user" });
-    expect(fixture.calls).toHaveLength(2);
-    const exchange = callAt(fixture.calls, 0);
-    const loadContext = callAt(fixture.calls, 1);
-    expect(requestUrl(exchange).pathname).toBe("/__local/auth/exchange");
-    expect(requestUrl(exchange).search).toBe("");
-    expect(requestUrl(exchange).hash).toBe("");
-    expect(JSON.parse(String(requestInit(exchange).body))).toEqual({
-      token: "startup-secret",
-    });
-    expect(requestInit(exchange).credentials).toBe("same-origin");
-    expect(requestInit(exchange).redirect).toBe("error");
-    expect(requestUrl(loadContext).pathname).toBe("/__local/context");
-    expect(requestInit(loadContext).credentials).toBe("same-origin");
-    expect(requestInit(loadContext).redirect).toBe("error");
+    client.dispose();
   });
 
-  it("submits with only the requested scope and input, and injects CSRF headers", async () => {
-    const fixture = fetchFixture([
-      { csrf: "csrf-token", caller: { id: "local-user" } },
-      context,
-      { scope, value: 29 },
-    ]);
+  it("submits only the requested scope and input without authentication", async () => {
+    const fixture = fetchFixture([contextResponse(), { scope, value: 29 }]);
     const client = await connectLocalRuntime({
       origin,
-      token: "startup-secret",
       fetch: fixture.fetch,
     });
     const input = {
@@ -798,7 +751,7 @@ describe("connectLocalRuntime", () => {
     };
 
     await expect(client.submit(input, scope)).resolves.toBe(29);
-    const call = callAt(fixture.calls, 2);
+    const call = callAt(fixture.calls, 1);
     expect(requestUrl(call).pathname).toBe(
       "/__local/instances/instance-1/operations/submit",
     );
@@ -809,8 +762,9 @@ describe("connectLocalRuntime", () => {
     expect(JSON.parse(String(requestInit(call).body))).not.toHaveProperty(
       "caller",
     );
-    expect(headers(call).get("X-Frogie-CSRF")).toBe("csrf-token");
-    expect(requestInit(call).credentials).toBe("same-origin");
+    expect(headers(call).has("X-Frogie-CSRF")).toBe(false);
+    expect(requestInit(call).credentials).toBe("omit");
+    expect(headers(call).get("Content-Type")).toBe("application/json");
     expect(requestInit(call).redirect).toBe("error");
   });
 
@@ -818,15 +772,13 @@ describe("connectLocalRuntime", () => {
     const rows = [{ conversation: { id: 17 }, binding: { roleId: "command" } }];
     const submission = { id: 29, conversationId: 17, status: "done" };
     const fixture = fetchFixture([
-      { csrf: "csrf-token", caller: { id: "local-user" } },
-      context,
+      contextResponse(),
       { scope, value: rows },
       { scope, value: null },
       { scope, value: submission },
     ]);
     const client = await connectLocalRuntime({
       origin,
-      token: "startup-secret",
       fetch: fixture.fetch,
     });
 
@@ -838,10 +790,16 @@ describe("connectLocalRuntime", () => {
       client.getSubmission({ submissionId: 29 as never }, scope),
     ).resolves.toEqual(submission);
     expect(
-      JSON.parse(String(requestInit(callAt(fixture.calls, 2)).body)),
+      JSON.parse(String(requestInit(callAt(fixture.calls, 1)).body)),
     ).toEqual({
       scope,
       input: {},
+    });
+    expect(
+      JSON.parse(String(requestInit(callAt(fixture.calls, 2)).body)),
+    ).toEqual({
+      scope,
+      input: { submissionId: 29 },
     });
     expect(
       JSON.parse(String(requestInit(callAt(fixture.calls, 3)).body)),
@@ -849,35 +807,27 @@ describe("connectLocalRuntime", () => {
       scope,
       input: { submissionId: 29 },
     });
-    expect(
-      JSON.parse(String(requestInit(callAt(fixture.calls, 4)).body)),
-    ).toEqual({
-      scope,
-      input: { submissionId: 29 },
-    });
   });
 
-  it("refreshes project states within the same authenticated daemon session", async () => {
+  it("refreshes project states without a browser session", async () => {
     const updated = { ...project, enabled: false, state: "stopped" as const };
     const fixture = fetchFixture([
-      { csrf: "csrf-token", caller: { id: "local-user" } },
-      context,
-      { ...context, projects: [updated, otherProject] },
-      { ...context, projects: [] },
+      contextResponse(),
+      contextResponse({ ...context, projects: [updated, otherProject] }),
+      contextResponse({ ...context, projects: [] }),
     ]);
     const client = await connectLocalRuntime({
       origin,
-      token: "once",
       fetch: fixture.fetch,
     });
     expect(await client.listProjects()).toEqual([updated, otherProject]);
     expect(await client.listProjects()).toEqual([]);
-    for (const index of [2, 3]) {
+    for (const index of [1, 2]) {
       const call = callAt(fixture.calls, index);
       expect(requestUrl(call).pathname).toBe("/__local/context");
       expect(requestInit(call)).toMatchObject({
         method: "GET",
-        credentials: "same-origin",
+        credentials: "omit",
         redirect: "error",
       });
       expect(requestInit(call).body).toBeUndefined();
@@ -886,7 +836,7 @@ describe("connectLocalRuntime", () => {
       fixture.calls.filter((call) =>
         requestUrl(call).pathname.includes("/auth/"),
       ),
-    ).toHaveLength(1);
+    ).toHaveLength(0);
     client.dispose();
   });
 
@@ -903,11 +853,7 @@ describe("connectLocalRuntime", () => {
   ])(
     "rejects a directory refresh that changes daemon identity or project ownership (%#)",
     async (response) => {
-      const fixture = fetchFixture([
-        { csrf: "csrf-token", caller: { id: "local-user" } },
-        context,
-        response,
-      ]);
+      const fixture = fetchFixture([contextResponse(), response]);
       const client = await connectLocalRuntime({
         origin,
         fetch: fixture.fetch,
@@ -919,22 +865,20 @@ describe("connectLocalRuntime", () => {
     },
   );
 
-  it("authenticates project management routes independently of the selected runtime", async () => {
+  it("manages projects independently of the selected runtime without auth headers", async () => {
     const stopped = {
       ...otherProject,
       enabled: false,
       state: "stopped" as const,
     };
     const fixture = fetchFixture([
-      { csrf: "csrf-token", caller: { id: "local-user" } },
-      context,
+      contextResponse(),
       { value: stopped },
       { value: otherProject },
       { value: { ...project, definitionHash: "new-hash" } },
     ]);
     const client = await connectLocalRuntime({
       origin,
-      token: "startup-secret",
       fetch: fixture.fetch,
     });
     expect(await client.setProjectEnabled(otherScope.projectId, false)).toEqual(
@@ -947,21 +891,22 @@ describe("connectLocalRuntime", () => {
       definitionHash: "new-hash",
     });
     for (const [index, route, body] of [
-      [2, "enabled", { projectId: otherScope.projectId, enabled: false }],
-      [3, "register", { squadId: otherScope.squadId }],
-      [4, "bind", { projectId: scope.projectId }],
+      [1, "enabled", { projectId: otherScope.projectId, enabled: false }],
+      [2, "register", { squadId: otherScope.squadId }],
+      [3, "bind", { projectId: scope.projectId }],
     ] as const) {
       const call = callAt(fixture.calls, index);
       expect(requestUrl(call).pathname).toBe(`/__local/projects/${route}`);
       expect(JSON.parse(String(requestInit(call).body))).toEqual(body);
       expect(requestInit(call)).toMatchObject({
         method: "POST",
-        credentials: "same-origin",
+        credentials: "omit",
         redirect: "error",
       });
-      expect(headers(call).get("X-Frogie-CSRF")).toBe("csrf-token");
+      expect(headers(call).has("Cookie")).toBe(false);
+      expect(headers(call).has("Authorization")).toBe(false);
+      expect(headers(call).has("X-Frogie-CSRF")).toBe(false);
       expect(headers(call).get("Content-Type")).toBe("application/json");
-      expect(String(requestInit(call).body)).not.toContain("startup-secret");
     }
     client.dispose();
   });
@@ -977,13 +922,7 @@ describe("connectLocalRuntime", () => {
   ])(
     "rejects malformed project management response envelopes (%#)",
     async (result) => {
-      const fixture = fetchFixture([
-        { csrf: "csrf-token", caller: { id: "local-user" } },
-        context,
-        result,
-        result,
-        result,
-      ]);
+      const fixture = fetchFixture([contextResponse(), result, result, result]);
       const client = await connectLocalRuntime({
         origin,
         fetch: fixture.fetch,
@@ -1024,10 +963,7 @@ describe("connectLocalRuntime", () => {
       ],
     ]) {
       const loaded = { ...context, projects };
-      const fixture = fetchFixture([
-        { csrf: "csrf-token", caller: { id: "local-user" } },
-        loaded,
-      ]);
+      const fixture = fetchFixture([contextResponse(loaded)]);
       const client = await connectLocalRuntime({
         origin,
         fetch: fixture.fetch,
@@ -1039,8 +975,7 @@ describe("connectLocalRuntime", () => {
 
   it("routes consecutive operations to distinct projects using each complete scope", async () => {
     const fixture = fetchFixture([
-      { csrf: "csrf-token", caller: { id: "local-user" } },
-      context,
+      contextResponse(),
       { scope: otherScope, value: { ...description, scope: otherScope } },
       { scope, value: description },
     ]);
@@ -1050,8 +985,8 @@ describe("connectLocalRuntime", () => {
     });
     expect(await client.describe({}, scope)).toEqual(description);
     for (const [index, expected] of [
-      [2, otherScope],
-      [3, scope],
+      [1, otherScope],
+      [2, scope],
     ] as const) {
       const call = callAt(fixture.calls, index);
       expect(requestUrl(call).pathname).toBe(
@@ -1061,6 +996,11 @@ describe("connectLocalRuntime", () => {
         scope: expected,
         input: {},
       });
+      expect(requestInit(call).credentials).toBe("omit");
+      expect(headers(call).get("Content-Type")).toBe("application/json");
+      expect(headers(call).has("Cookie")).toBe(false);
+      expect(headers(call).has("Authorization")).toBe(false);
+      expect(headers(call).has("X-Frogie-CSRF")).toBe(false);
     }
     client.dispose();
   });
@@ -1069,8 +1009,7 @@ describe("connectLocalRuntime", () => {
     "rejects an operation response whose %s differs from the requested project",
     async (field) => {
       const fixture = fetchFixture([
-        { csrf: "csrf-token", caller: { id: "local-user" } },
-        context,
+        contextResponse(),
         { scope: { ...otherScope, [field]: "forged" }, value: description },
       ]);
       const client = await connectLocalRuntime({
@@ -1088,9 +1027,9 @@ describe("connectLocalRuntime", () => {
     const fixture = successfulFetch();
     vi.stubGlobal("fetch", fixture.fetch);
     try {
-      const client = await connectLocalRuntime({ origin, token: "secret" });
+      const client = await connectLocalRuntime({ origin });
       expect(client.context).toEqual(context);
-      expect(fixture.fetch).toHaveBeenCalledTimes(2);
+      expect(fixture.fetch).toHaveBeenCalledTimes(1);
       client.dispose();
     } finally {
       vi.unstubAllGlobals();
@@ -1099,17 +1038,20 @@ describe("connectLocalRuntime", () => {
 
   it("encodes a daemon instance ID in runtime operation URLs", async () => {
     const fixture = fetchFixture([
-      { csrf: "csrf-token", caller: { id: "local-user" } },
-      { ...context, instanceId: "daemon/name ?#" },
+      {
+        ...context,
+        caller: { id: "local-user" },
+        instanceId: "daemon/name ?#",
+      },
       { scope, value: description },
     ]);
     const client = await connectLocalRuntime({ origin, fetch: fixture.fetch });
     await client.describe({}, scope);
-    expect(requestUrl(callAt(fixture.calls, 2)).pathname).toBe(
+    expect(requestUrl(callAt(fixture.calls, 1)).pathname).toBe(
       "/__local/instances/daemon%2Fname%20%3F%23/operations/describe",
     );
-    expect(requestUrl(callAt(fixture.calls, 2)).search).toBe("");
-    expect(requestUrl(callAt(fixture.calls, 2)).hash).toBe("");
+    expect(requestUrl(callAt(fixture.calls, 1)).search).toBe("");
+    expect(requestUrl(callAt(fixture.calls, 1)).hash).toBe("");
     client.dispose();
   });
 
@@ -1141,8 +1083,7 @@ describe("connectLocalRuntime", () => {
       };
     });
     const fixture = fetchFixture([
-      { csrf: "csrf-token", caller: { id: "local-user" } },
-      context,
+      contextResponse(),
       ...streams.map((stream) => stream.response),
     ]);
     const client = await connectLocalRuntime({ origin, fetch: fixture.fetch });
@@ -1166,14 +1107,18 @@ describe("connectLocalRuntime", () => {
           scope: stream.scope,
           conversationId: 17,
         });
-        const call = callAt(fixture.calls, index + 2);
+        const call = callAt(fixture.calls, index + 1);
         expect(JSON.parse(String(requestInit(call).body))).toEqual({
           scope: stream.scope,
           input: { conversationId: 17 },
         });
-        expect(headers(call).get("X-Frogie-CSRF")).toBe("csrf-token");
+        expect(requestInit(call).credentials).toBe("omit");
+        expect(headers(call).get("Content-Type")).toBe("application/json");
+        expect(headers(call).has("Cookie")).toBe(false);
+        expect(headers(call).has("Authorization")).toBe(false);
+        expect(headers(call).has("X-Frogie-CSRF")).toBe(false);
         expect(requestInit(call)).toMatchObject({
-          credentials: "same-origin",
+          credentials: "omit",
           redirect: "error",
           method: "POST",
         });
@@ -1194,7 +1139,7 @@ describe("connectLocalRuntime", () => {
         expect(streams[1]?.listener).toHaveBeenCalledTimes(2),
       );
       expect(streams[0]?.listener).toHaveBeenCalledOnce();
-      expect(requestInit(callAt(fixture.calls, 3)).signal?.aborted).toBe(false);
+      expect(requestInit(callAt(fixture.calls, 2)).signal?.aborted).toBe(false);
       for (const stream of streams)
         expect(stream.onError).not.toHaveBeenCalled();
     } finally {
@@ -1218,11 +1163,7 @@ describe("connectLocalRuntime", () => {
   ] as const)(
     "preserves project management HTTP errors without accepting malformed error details (%#)",
     async (response, code) => {
-      const fixture = fetchFixture([
-        { csrf: "csrf-token", caller: { id: "local-user" } },
-        context,
-        response,
-      ]);
+      const fixture = fetchFixture([contextResponse(), response]);
       const client = await connectLocalRuntime({
         origin,
         fetch: fixture.fetch,
@@ -1239,16 +1180,12 @@ describe("connectLocalRuntime", () => {
     const pendingResponse = new Promise<Response>((accept) => {
       resolve = accept;
     });
-    const fixture = fetchFixture([
-      { csrf: "csrf-token", caller: { id: "local-user" } },
-      context,
-      pendingResponse,
-    ]);
+    const fixture = fetchFixture([contextResponse(), pendingResponse]);
     const client = await connectLocalRuntime({ origin, fetch: fixture.fetch });
     const pending = client.listProjects();
     client.dispose();
-    expect(requestInit(callAt(fixture.calls, 2)).signal?.aborted).toBe(true);
-    resolve(Response.json(context));
+    expect(requestInit(callAt(fixture.calls, 1)).signal?.aborted).toBe(true);
+    resolve(Response.json(contextResponse()));
     await expect(pending).rejects.toMatchObject({
       code: "runtime_unavailable",
     });
@@ -1266,15 +1203,13 @@ describe("connectLocalRuntime", () => {
       },
     };
     const fixture = fetchFixture([
-      { csrf: "csrf-token", caller: { id: "local-user" } },
-      context,
+      contextResponse(),
       { scope, value: created },
       { scope, value: null },
       { scope, value: 43 },
     ]);
     const client = await connectLocalRuntime({
       origin,
-      token: "secret",
       fetch: fixture.fetch,
     });
     await expect(
@@ -1293,19 +1228,19 @@ describe("connectLocalRuntime", () => {
       ),
     ).resolves.toBe(43);
 
-    expect(requestUrl(callAt(fixture.calls, 2)).pathname).toContain(
+    expect(requestUrl(callAt(fixture.calls, 1)).pathname).toContain(
       "/createConversation",
     );
     expect(
-      JSON.parse(String(requestInit(callAt(fixture.calls, 2)).body)),
+      JSON.parse(String(requestInit(callAt(fixture.calls, 1)).body)),
     ).toEqual({ scope, input: { roleId: "reviewer" } });
-    expect(requestUrl(callAt(fixture.calls, 3)).pathname).toContain("/cancel");
+    expect(requestUrl(callAt(fixture.calls, 2)).pathname).toContain("/cancel");
+    expect(
+      JSON.parse(String(requestInit(callAt(fixture.calls, 2)).body)),
+    ).toEqual({ scope, input: { conversationId: 17 } });
+    expect(requestUrl(callAt(fixture.calls, 3)).pathname).toContain("/compact");
     expect(
       JSON.parse(String(requestInit(callAt(fixture.calls, 3)).body)),
-    ).toEqual({ scope, input: { conversationId: 17 } });
-    expect(requestUrl(callAt(fixture.calls, 4)).pathname).toContain("/compact");
-    expect(
-      JSON.parse(String(requestInit(callAt(fixture.calls, 4)).body)),
     ).toEqual({
       scope,
       input: { conversationId: 17, instructions: "Keep decisions" },
@@ -1347,8 +1282,7 @@ describe("connectLocalRuntime", () => {
       bytes.slice(crLfAfterEmoji + 1),
     ];
     const fixture = fetchFixture([
-      { csrf: "csrf-token", caller: { id: "local-user" } },
-      context,
+      contextResponse(),
       new Response(
         new ReadableStream<Uint8Array>({
           start(controller) {
@@ -1360,7 +1294,6 @@ describe("connectLocalRuntime", () => {
     ]);
     const client = await connectLocalRuntime({
       origin,
-      token: "secret",
       fetch: fixture.fetch,
     });
     const frames: ObservationFrame[] = [];
@@ -1375,7 +1308,7 @@ describe("connectLocalRuntime", () => {
     expect(frames[0]).toEqual(snapshot);
     expect(frames[1]).toEqual(update);
     expect(errors).toEqual([]);
-    const observeSignal = requestInit(callAt(fixture.calls, 2)).signal;
+    const observeSignal = requestInit(callAt(fixture.calls, 1)).signal;
     unsubscribe();
     expect(observeSignal?.aborted).toBe(true);
     client.dispose();
@@ -1415,13 +1348,11 @@ describe("connectLocalRuntime", () => {
     ],
   ])("reports a %s frame without delivering it", async (_case, badFrame) => {
     const fixture = fetchFixture([
-      { csrf: "csrf-token", caller: { id: "local-user" } },
-      context,
+      contextResponse(),
       sseResponse([`event: snapshot\ndata: ${JSON.stringify(badFrame)}\n\n`]),
     ]);
     const client = await connectLocalRuntime({
       origin,
-      token: "secret",
       fetch: fixture.fetch,
     });
     const listener = vi.fn();
@@ -1450,14 +1381,9 @@ describe("connectLocalRuntime", () => {
   ])(
     "reports %s through onError without delivering a frame",
     async (_case, response) => {
-      const fixture = fetchFixture([
-        { csrf: "csrf-token", caller: { id: "local-user" } },
-        context,
-        response,
-      ]);
+      const fixture = fetchFixture([contextResponse(), response]);
       const client = await connectLocalRuntime({
         origin,
-        token: "secret",
         fetch: fixture.fetch,
       });
       const listener = vi.fn();
@@ -1478,8 +1404,7 @@ describe("connectLocalRuntime", () => {
   it("rejects a successful observation response with the wrong content type and cancels its body", async () => {
     const cancel = vi.fn();
     const fixture = fetchFixture([
-      { csrf: "csrf-token", caller: { id: "local-user" } },
-      context,
+      contextResponse(),
       new Response(new ReadableStream<Uint8Array>({ cancel }), {
         headers: { "Content-Type": "application/json" },
       }),
@@ -1505,8 +1430,7 @@ describe("connectLocalRuntime", () => {
 
   it("contains a frame listener exception and aborts that observation", async () => {
     const fixture = fetchFixture([
-      { csrf: "csrf-token", caller: { id: "local-user" } },
-      context,
+      contextResponse(),
       sseResponse([
         `event: snapshot\ndata: ${JSON.stringify(frame("snapshot"))}\n\n`,
       ]),
@@ -1524,7 +1448,7 @@ describe("connectLocalRuntime", () => {
     );
     await vi.waitFor(() => expect(onError).toHaveBeenCalledOnce());
     expect(listener).toHaveBeenCalledOnce();
-    expect(requestInit(callAt(fixture.calls, 2)).signal?.aborted).toBe(true);
+    expect(requestInit(callAt(fixture.calls, 1)).signal?.aborted).toBe(true);
     client.dispose();
   });
 
@@ -1542,14 +1466,9 @@ describe("connectLocalRuntime", () => {
       }),
       { headers: { "Content-Type": "text/event-stream" } },
     );
-    const fixture = fetchFixture([
-      { csrf: "csrf-token", caller: { id: "local-user" } },
-      context,
-      response,
-    ]);
+    const fixture = fetchFixture([contextResponse(), response]);
     const client = await connectLocalRuntime({
       origin,
-      token: "secret",
       fetch: fixture.fetch,
     });
     const cancelled = new Promise<void>((resolve) => {
@@ -1566,7 +1485,7 @@ describe("connectLocalRuntime", () => {
     const snapshotData = new TextEncoder().encode(
       `event: snapshot\ndata: ${JSON.stringify(frame("snapshot"))}\n\n`,
     );
-    await vi.waitFor(() => expect(fixture.calls).toHaveLength(3));
+    await vi.waitFor(() => expect(fixture.calls).toHaveLength(2));
     enqueue(snapshotData);
     await vi.waitFor(() => expect(listener).toHaveBeenCalledOnce());
     unsubscribe();
@@ -1577,8 +1496,7 @@ describe("connectLocalRuntime", () => {
 
   it("reports a non-successful observe response through onError once", async () => {
     const fixture = fetchFixture([
-      { csrf: "csrf-token", caller: { id: "local-user" } },
-      context,
+      contextResponse(),
       Response.json(
         { error: { code: "forbidden", message: "Forbidden" } },
         { status: 403 },
@@ -1586,7 +1504,6 @@ describe("connectLocalRuntime", () => {
     ]);
     const client = await connectLocalRuntime({
       origin,
-      token: "secret",
       fetch: fixture.fetch,
     });
     const onError = vi.fn();
@@ -1609,14 +1526,9 @@ describe("connectLocalRuntime", () => {
       const streamResponse = new Promise<Response>((resolve) => {
         resolveStream = resolve;
       });
-      const fixture = fetchFixture([
-        { csrf: "csrf-token", caller: { id: "local-user" } },
-        context,
-        streamResponse,
-      ]);
+      const fixture = fetchFixture([contextResponse(), streamResponse]);
       const client = await connectLocalRuntime({
         origin,
-        token: "secret",
         fetch: fixture.fetch,
       });
       const listener = vi.fn();
@@ -1627,8 +1539,8 @@ describe("connectLocalRuntime", () => {
         onError,
         scope,
       );
-      await vi.waitFor(() => expect(fixture.calls).toHaveLength(3));
-      const signal = requestInit(callAt(fixture.calls, 2)).signal;
+      await vi.waitFor(() => expect(fixture.calls).toHaveLength(2));
+      const signal = requestInit(callAt(fixture.calls, 1)).signal;
       if (stopKind === "unsubscribe") unsubscribe();
       else client.dispose();
       expect(signal?.aborted).toBe(true);
@@ -1649,12 +1561,7 @@ describe("connectLocalRuntime", () => {
     let abortRequest!: () => void;
     const fetch = vi.fn<typeof globalThis.fetch>(async (input, init) => {
       calls.push({ input, ...(init === undefined ? {} : { init }) });
-      if (calls.length === 1)
-        return Response.json({
-          csrf: "csrf-token",
-          caller: { id: "local-user" },
-        });
-      if (calls.length === 2) return Response.json(context);
+      if (calls.length === 1) return Response.json(contextResponse());
       return new Promise<Response>((_resolve, reject) => {
         abortRequest = () => reject(new Error("aborted"));
         init?.signal?.addEventListener("abort", abortRequest, { once: true });
@@ -1663,12 +1570,11 @@ describe("connectLocalRuntime", () => {
 
     const client = await connectLocalRuntime({
       origin,
-      token: "secret",
       fetch,
     });
     const pending = client.describe({}, scope);
-    await vi.waitFor(() => expect(calls).toHaveLength(3));
-    const operationInit = calls[2]?.init;
+    await vi.waitFor(() => expect(calls).toHaveLength(2));
+    const operationInit = calls[1]?.init;
     const requestSignal = operationInit?.signal;
     client.dispose();
     expect(requestSignal?.aborted).toBe(true);
@@ -1683,18 +1589,9 @@ describe("connectLocalRuntime", () => {
   ])("rejects a non-loopback or malformed origin: %s", async (badOrigin) => {
     const fetch = vi.fn<typeof globalThis.fetch>();
     await expect(
-      connectLocalRuntime({ origin: badOrigin, token: "secret", fetch }),
+      connectLocalRuntime({ origin: badOrigin, fetch }),
     ).rejects.toMatchObject({ code: "invalid_request" });
     expect(fetch).not.toHaveBeenCalled();
-  });
-
-  it("rejects an invalid auth bootstrap response", async () => {
-    for (const response of [undefined, {}, { csrf: "csrf-token" }]) {
-      const fixture = fetchFixture([response, context]);
-      await expect(
-        connectLocalRuntime({ origin, token: "secret", fetch: fixture.fetch }),
-      ).rejects.toThrow();
-    }
   });
 
   it.each([
@@ -1713,14 +1610,9 @@ describe("connectLocalRuntime", () => {
   ])(
     "maps operation HTTP failures to safe runtime errors",
     async (response, code) => {
-      const fixture = fetchFixture([
-        { csrf: "csrf-token", caller: { id: "local-user" } },
-        context,
-        response,
-      ]);
+      const fixture = fetchFixture([contextResponse(), response]);
       const client = await connectLocalRuntime({
         origin,
-        token: "secret",
         fetch: fixture.fetch,
       });
       await expect(client.describe({}, scope)).rejects.toMatchObject({ code });
@@ -1734,14 +1626,9 @@ describe("connectLocalRuntime", () => {
       { scope, other: description },
       null,
     ]) {
-      const fixture = fetchFixture([
-        { csrf: "csrf-token", caller: { id: "local-user" } },
-        context,
-        result,
-      ]);
+      const fixture = fetchFixture([contextResponse(), result]);
       const client = await connectLocalRuntime({
         origin,
-        token: "secret",
         fetch: fixture.fetch,
       });
       await expect(client.describe({}, scope)).rejects.toMatchObject({
@@ -1773,14 +1660,9 @@ describe("connectLocalRuntime", () => {
       { headers: { "Content-Type": "text/event-stream" } },
     );
     for (const response of [invalidUtf8, incomplete]) {
-      const fixture = fetchFixture([
-        { csrf: "csrf-token", caller: { id: "local-user" } },
-        context,
-        response,
-      ]);
+      const fixture = fetchFixture([contextResponse(), response]);
       const client = await connectLocalRuntime({
         origin,
-        token: "secret",
         fetch: fixture.fetch,
       });
       const onError = vi.fn();
@@ -1799,7 +1681,6 @@ describe("connectLocalRuntime", () => {
     const fixture = successfulFetch();
     const client = await connectLocalRuntime({
       origin,
-      token: "secret",
       fetch: fixture.fetch,
     });
     client.dispose();
@@ -1811,7 +1692,7 @@ describe("connectLocalRuntime", () => {
         scope,
       ),
     ).toThrow();
-    expect(fixture.fetch).toHaveBeenCalledTimes(2);
+    expect(fixture.fetch).toHaveBeenCalledTimes(1);
   });
 
   it("contains an onError callback exception and still aborts and releases the stream", async () => {
@@ -1828,14 +1709,9 @@ describe("connectLocalRuntime", () => {
       }),
       { headers: { "Content-Type": "text/event-stream" } },
     );
-    const fixture = fetchFixture([
-      { csrf: "csrf-token", caller: { id: "local-user" } },
-      context,
-      response,
-    ]);
+    const fixture = fetchFixture([contextResponse(), response]);
     const client = await connectLocalRuntime({
       origin,
-      token: "secret",
       fetch: fixture.fetch,
     });
     const cancelled = new Promise<void>((resolve) => {
@@ -1850,11 +1726,11 @@ describe("connectLocalRuntime", () => {
       onError,
       scope,
     );
-    await vi.waitFor(() => expect(fixture.calls).toHaveLength(3));
+    await vi.waitFor(() => expect(fixture.calls).toHaveLength(2));
     enqueue(new TextEncoder().encode("event: snapshot\ndata: {\n\n"));
     await vi.waitFor(() => expect(onError).toHaveBeenCalledOnce());
     await withTimeout(cancelled, 1_000);
-    const signal = requestInit(callAt(fixture.calls, 2)).signal;
+    const signal = requestInit(callAt(fixture.calls, 1)).signal;
     expect(signal?.aborted).toBe(true);
     client.dispose();
   });
@@ -1876,12 +1752,9 @@ describe("connectLocalRuntime", () => {
       },
       { ...context, projects: [{ ...project, state: "unknown" }] },
     ]) {
-      const fixture = fetchFixture([
-        { csrf: "csrf-token", caller: { id: "local-user" } },
-        invalidContext,
-      ]);
+      const fixture = fetchFixture([contextResponse(invalidContext)]);
       await expect(
-        connectLocalRuntime({ origin, token: "secret", fetch: fixture.fetch }),
+        connectLocalRuntime({ origin, fetch: fixture.fetch }),
       ).rejects.toThrow();
     }
   });
@@ -1890,7 +1763,6 @@ describe("connectLocalRuntime", () => {
     const fixture = successfulFetch();
     const client = await connectLocalRuntime({
       origin,
-      token: "startup-secret",
       fetch: fixture.fetch,
     });
     client.dispose();
@@ -1904,6 +1776,6 @@ describe("connectLocalRuntime", () => {
     ).rejects.toThrow();
     await expect(client.registerProject(scope.squadId)).rejects.toThrow();
     await expect(client.bindDefinition(scope.projectId)).rejects.toThrow();
-    expect(fixture.fetch).toHaveBeenCalledTimes(2);
+    expect(fixture.fetch).toHaveBeenCalledTimes(1);
   });
 });

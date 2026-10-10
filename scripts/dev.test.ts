@@ -20,7 +20,7 @@ vi.mock("../apps/daemon/src/server/preview.js", () => ({
 }));
 
 const close = vi.fn<() => Promise<void>>();
-const url = "https://frogie.dev.hexly.ai/#token=test-preview";
+const url = "https://frogie.dev.hexly.ai/";
 const model: LocalModelConfig = {
   baseUrl: "https://models.example/v1",
   apiKey: "private-test-key",
@@ -84,7 +84,9 @@ it("defaults to the persistent Local runtime, reports its model and shares shutd
   expect(output).toContain(model.modelId);
   expect(output).not.toContain(model.apiKey);
   expect(output).not.toContain("无模型费用");
-  expect(output).toContain(url);
+  expect(console.log).toHaveBeenCalledWith(`打开本地页面：${url}`);
+  expect(output).not.toContain("一次性");
+  expect(output).not.toContain("#token=");
   expect(output).toContain(directory);
   const stop = handler("SIGINT");
   expect(handler("SIGTERM")).toBe(stop);
@@ -123,6 +125,9 @@ it("isolates E2E under its own unique directory without loading any model key", 
   const output = vi.mocked(console.log).mock.calls.flat().join("\n");
   expect(output).toContain("E2E");
   expect(output).toContain("无模型费用");
+  expect(console.log).toHaveBeenCalledWith(`打开本地页面：${url}`);
+  expect(output).not.toContain("一次性");
+  expect(output).not.toContain("#token=");
   expect(output).toContain(directory);
 });
 

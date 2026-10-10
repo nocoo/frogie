@@ -852,44 +852,31 @@ describe("mountDashboard client wiring", () => {
     );
   });
 
-  it("resumes the existing session when the startup fragment is absent", async () => {
-    vi.stubGlobal("document", { getElementById: () => elements[0] });
-    vi.stubGlobal("location", { hash: "", origin, pathname: "/", search: "" });
-    vi.stubGlobal("history", { replaceState: vi.fn() });
-    const root = makeRoot();
-    const element = { nodeType: 1 } as HTMLElement;
-    elements.push(element);
-    rootMock.connect.mockResolvedValue(createClient().client);
-
-    mount(element);
-    await vi.waitFor(() =>
-      expect(currentApp(root.render).props.busy).toBe(false),
-    );
-    expect(rootMock.connect).toHaveBeenCalledWith({ origin });
-    expect(currentApp(root.render).props.error).toBeNull();
-  });
-
-  it("clears the default token fragment before connecting", async () => {
-    makeRoot();
+  it("starts directly without reading or clearing URL fragments or forwarding tokens", async () => {
     const connected = createClient().client;
     rootMock.connect.mockResolvedValue(connected);
+    const hash = vi.fn(() => "#token=must-not-be-read");
     const replaceState = vi.fn();
     const element = { nodeType: 1 } as HTMLElement;
     elements.push(element);
     vi.stubGlobal("document", { getElementById: () => element });
     vi.stubGlobal("location", {
-      hash: "#token=one-time-secret",
+      get hash() {
+        return hash();
+      },
       origin,
-      pathname: "/",
-      search: "?keep=1",
     });
     vi.stubGlobal("history", { replaceState });
+
+    const root = makeRoot();
     mount(element);
-    await vi.waitFor(() => expect(rootMock.connect).toHaveBeenCalledOnce());
-    expect(rootMock.connect).toHaveBeenCalledWith(
-      expect.objectContaining({ token: "one-time-secret" }),
+    await vi.waitFor(() =>
+      expect(currentApp(root.render).props.busy).toBe(false),
     );
-    expect(replaceState).toHaveBeenCalledWith(null, "", "/?keep=1");
+    expect(rootMock.connect).toHaveBeenCalledWith({ origin });
+    expect(hash).not.toHaveBeenCalled();
+    expect(replaceState).not.toHaveBeenCalled();
+    expect(currentApp(root.render).props.error).toBeNull();
   });
 
   it("drives definition draft/save callbacks from the connected VM and renders the refreshed definition", async () => {

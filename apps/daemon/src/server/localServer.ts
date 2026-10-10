@@ -27,15 +27,15 @@ import type {
   SubmitInput,
 } from "@frogie/core/protocol";
 import sirv, { type RequestHandler } from "sirv";
-import { type Static, Type } from "typebox";
+import { Type } from "typebox";
 import Value from "typebox/value";
 import appPackage from "../../../../package.json" with { type: "json" };
 import type { DefinitionWorkspace } from "./definitions.js";
 import {
-  createLocalAuth,
-  type LocalAuth,
+  createLocalAccess,
+  type LocalAccess,
   type LocalRequestIdentity,
-} from "./localAuth.js";
+} from "./localAccess.js";
 
 const MAX_BODY_BYTES = 1_048_576;
 const MAX_FRAME_BYTES = 1_048_576;
@@ -73,10 +73,6 @@ const definitionSaveSchema = Type.Object(
     ),
     requestId: Type.String({ minLength: 1 }),
   },
-  { additionalProperties: false },
-);
-const exchangeSchema = Type.Object(
-  { token: Type.String({ minLength: 1 }) },
   { additionalProperties: false },
 );
 const projectId = Type.String({ pattern: "^[a-z][a-z0-9-]*$" });
@@ -223,11 +219,6 @@ function identity(request: IncomingMessage): LocalRequestIdentity {
   return {
     host: request.headers.host,
     origin: request.headers.origin,
-    cookie: request.headers.cookie,
-    csrf:
-      typeof request.headers["x-frogie-csrf"] === "string"
-        ? request.headers["x-frogie-csrf"]
-        : undefined,
   };
 }
 
@@ -337,7 +328,7 @@ export async function startLocalServer(
   options: LocalServerOptions,
 ): Promise<LocalServer> {
   const watches = new Set<WatchStop>();
-  let auth!: LocalAuth;
+  let access!: LocalAccess;
   let closed = false;
   let closePromise: Promise<void> | undefined;
   let origin!: string;
@@ -355,7 +346,7 @@ export async function startLocalServer(
   const close = (): Promise<void> => {
     if (closePromise) return closePromise;
     closed = true;
-    auth?.close();
+    access?.close();
     const serverClosed = new Promise<void>((resolve) => {
       if (!server.listening) resolve();
       else server.close(() => resolve());
@@ -400,7 +391,7 @@ export async function startLocalServer(
     const method = request.method;
     const url = new URL(request.url ?? "/", origin);
     const pathname = url.pathname;
-    const authRequest = identity(request);
+    const caller = access.authorize(identity(request), method === "POST");
 
     if (pathname !== "/__local" && !pathname.startsWith("/__local/")) {
       if (method !== "GET" && method !== "HEAD") {
@@ -410,16 +401,6 @@ export async function startLocalServer(
             message: "Invalid request",
             retryable: false,
           },
-        });
-        return;
-      }
-      if (
-        request.headers.host !== new URL(origin).host ||
-        (request.headers.origin !== undefined &&
-          request.headers.origin !== origin)
-      ) {
-        sendJson(response, 403, {
-          error: { code: "forbidden", message: "Forbidden", retryable: false },
         });
         return;
       }
@@ -437,26 +418,9 @@ export async function startLocalServer(
       return;
     }
 
-    if (method === "GET" && pathname === "/__local/auth/session") {
-      sendJson(response, 200, auth.resume(authRequest));
-      return;
-    }
-
-    if (method === "POST" && pathname === "/__local/auth/exchange") {
-      const body = await readJson(request);
-      if (!Value.Check(exchangeSchema, body)) throw fail("invalid_request");
-      const session = auth.exchange(
-        authRequest,
-        (body as Static<typeof exchangeSchema>).token,
-      );
-      response.setHeader("Set-Cookie", session.cookie);
-      sendJson(response, 200, { csrf: session.csrf, caller: session.caller });
-      return;
-    }
-
     if (method === "GET" && pathname === "/__local/context") {
-      auth.authorize(authRequest, false);
       sendJson(response, 200, {
+        caller,
         instanceId: options.directory.instanceId,
         mode: options.directory.mode,
         projects: await options.directory.listProjects(),
@@ -464,10 +428,6 @@ export async function startLocalServer(
       return;
     }
 
-    const postCaller =
-      method === "POST" && pathname !== "/__local/auth/exchange"
-        ? auth.authorize(authRequest, true)
-        : undefined;
     if (method === "POST" && pathname.startsWith("/__local/projects/")) {
       const operation = pathname.slice(
         "/__local/projects/".length,
@@ -494,8 +454,6 @@ export async function startLocalServer(
       return;
     }
     if (method === "POST" && pathname.startsWith("/__local/definitions/")) {
-      const caller = postCaller;
-      if (!caller) throw fail("unauthenticated");
       const operation = pathname.slice(
         "/__local/definitions/".length,
       ) as DefinitionOperation;
@@ -584,8 +542,6 @@ export async function startLocalServer(
       });
       return;
     }
-    const caller = postCaller;
-    if (caller === undefined) throw fail("unauthenticated");
     const body = await readJson(request);
     if (!isStrictEnvelope(body) || !Value.Check(scopeSchema, body.scope)) {
       throw fail("invalid_request");
@@ -809,7 +765,7 @@ export async function startLocalServer(
     });
     const address = server.address() as import("node:net").AddressInfo;
     origin = options.publicOrigin ?? `http://127.0.0.1:${address.port}`;
-    auth = createLocalAuth(origin);
+    access = createLocalAccess(origin);
     if (options.publicDirectory) {
       staticFiles = sirv(options.publicDirectory, {
         etag: true,
@@ -831,7 +787,7 @@ export async function startLocalServer(
 
   return {
     origin,
-    url: `${origin}/#token=${encodeURIComponent(auth.bootstrapToken)}`,
+    url: `${origin}/`,
     close,
   };
 }

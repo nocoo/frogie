@@ -25,6 +25,7 @@ const scope: RuntimeScope = {
   harnessId: "harness-1",
 };
 const instanceId = "instance-1";
+const caller = { id: "local-user" };
 const budget: RuntimeBudgetSnapshot = {
   limits: { modelRequests: 12, toolEntries: 24, modelConcurrency: 2 },
   consumed: { modelRequests: 3, toolEntries: 5 },
@@ -128,13 +129,9 @@ function runtimeService() {
         };
       },
     ),
-    submit: vi.fn<RuntimeService["submit"]>(
-      async (_call: Parameters<RuntimeService["submit"]>[0]) =>
-        23 as SubmissionId,
-    ),
+    submit: vi.fn<RuntimeService["submit"]>(async () => 23 as SubmissionId),
     getSubmission: vi.fn<RuntimeService["getSubmission"]>(
-      async (_call: Parameters<RuntimeService["getSubmission"]>[0]) =>
-        undefined,
+      async () => undefined,
     ),
     cancel: vi.fn<RuntimeService["cancel"]>(async () => "aborted"),
     compact: vi.fn<RuntimeService["compact"]>(async () => 42 as CompactTaskId),
@@ -162,7 +159,7 @@ function runtimeService() {
 const activeServers: LocalServer[] = [];
 const definitionRoots: string[] = [];
 
-async function launch(
+async function start(
   definitions?: ReturnType<typeof createDefinitionWorkspace>,
   directory?: DaemonDirectory,
 ) {
@@ -174,62 +171,80 @@ async function launch(
     ...(definitions === undefined ? {} : { definitions }),
   });
   activeServers.push(server);
-  return { server, runtime };
-}
-
-async function start(
-  definitions?: ReturnType<typeof createDefinitionWorkspace>,
-  directory?: DaemonDirectory,
-) {
-  const { server, runtime } = await launch(definitions, directory);
-  const token = new URLSearchParams(new URL(server.url).hash.slice(1)).get(
-    "token",
-  );
-  if (!token) throw new Error("Missing startup token");
-  const exchange = await fetch(`${server.origin}/__local/auth/exchange`, {
-    method: "POST",
-    headers: {
-      Origin: server.origin,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ token }),
-  });
-  const credentials = (await exchange.json()) as {
-    csrf: string;
-    caller: { id: string };
-  };
-  const setCookie = exchange.headers.getSetCookie()[0];
-  if (!setCookie) throw new Error("Missing local session cookie");
-  const cookie = setCookie.split(";", 1)[0] ?? "";
-  return { server, runtime, credentials, cookie, watch: runtime.watch };
+  return { server, runtime, watch: runtime.watch };
 }
 
 async function post(
   origin: string,
   path: string,
-  cookie: string,
-  csrf: string,
   body: unknown,
-  requestOrigin = origin,
+  headers: Record<string, string> = { Origin: origin },
 ): Promise<Response> {
+  if (headers.Host !== undefined) {
+    return rawRequest(
+      origin,
+      path,
+      "POST",
+      {
+        "Content-Type": "application/json",
+        ...headers,
+      },
+      JSON.stringify(body),
+    );
+  }
   return fetch(`${origin}${path}`, {
     method: "POST",
-    headers: {
-      Origin: requestOrigin,
-      "Content-Type": "application/json",
-      ...(cookie ? { Cookie: cookie } : {}),
-      "X-Frogie-CSRF": csrf,
-    },
+    headers: { "Content-Type": "application/json", ...headers },
     body: JSON.stringify(body),
   });
+}
+
+async function rawRequest(
+  origin: string,
+  path: string,
+  method: string,
+  headers: Record<string, string>,
+  body?: string,
+): Promise<Response> {
+  return new Promise<Response>((resolve, reject) => {
+    const request = httpRequest(
+      `${origin}${path}`,
+      { method, headers },
+      (response) => {
+        const chunks: Buffer[] = [];
+        response.on("data", (chunk: Buffer) => chunks.push(chunk));
+        response.on("error", reject);
+        response.on("end", () =>
+          resolve(
+            new Response(Buffer.concat(chunks), {
+              status: response.statusCode ?? 500,
+            }),
+          ),
+        );
+      },
+    );
+    request.on("error", reject);
+    request.end(body);
+  });
+}
+
+function rejectedHeaders(origin: string): [Record<string, string>, number][] {
+  return [
+    [{}, 403],
+    [{ Origin: "null" }, 403],
+    [{ Origin: "https://foreign.example" }, 403],
+    [{ Origin: `${origin}/` }, 403],
+    [{ Origin: origin, Host: "attacker.example" }, 403],
+    [{ Origin: origin, "Content-Type": "text/plain" }, 400],
+    [{ Origin: origin, "Content-Type": "application/jsonp" }, 400],
+  ];
 }
 
 const operationPath = (name: string) =>
   `/__local/instances/${instanceId}/operations/${name}`;
 
 afterEach(async () => {
-  const servers = activeServers.splice(0);
-  await Promise.all(servers.map((server) => server.close()));
+  await Promise.all(activeServers.splice(0).map((server) => server.close()));
   for (const root of definitionRoots.splice(0))
     await rm(root, { recursive: true, force: true });
 });
@@ -301,7 +316,7 @@ describe("local project transport", () => {
     };
   }
 
-  it("refreshes project states without requiring an available Harness", async () => {
+  it("refreshes project states without credentials or an available Harness", async () => {
     const test = await directoryFixture();
     const projects = await test.listProjects();
     test.listProjects.mockResolvedValueOnce([]);
@@ -312,18 +327,12 @@ describe("local project transport", () => {
         state: "stopped",
       })),
     );
-    const { server, cookie } = await start(undefined, test.directory);
+    const { server } = await start(undefined, test.directory);
     for (const expectedCount of [0, 2]) {
-      const response = await fetch(`${server.origin}/__local/context`, {
-        headers: { Origin: server.origin, Cookie: cookie },
-      });
+      const response = await fetch(`${server.origin}/__local/context`);
       expect(response.status).toBe(200);
-      const context = (await response.json()) as {
-        instanceId: string;
-        mode: string;
-        projects: DaemonProject[];
-      };
-      expect(context).toMatchObject({ instanceId, mode: "e2e" });
+      const context = (await response.json()) as { projects: DaemonProject[] };
+      expect(context).toMatchObject({ instanceId, mode: "e2e", caller });
       expect(context.projects).toHaveLength(expectedCount);
       for (const project of context.projects)
         expect(project.state).toBe("stopped");
@@ -336,40 +345,20 @@ describe("local project transport", () => {
     ["register", { squadId: "other-squad" }],
     ["bind", { projectId: "other-project" }],
   ] as const)(
-    "authorizes and forwards project %s",
+    "checks boundaries and forwards credential-free project %s",
     async (operation, input) => {
       const test = await directoryFixture();
-      const { server, cookie, credentials } = await start(
-        undefined,
-        test.directory,
-      );
+      const { server } = await start(undefined, test.directory);
       const path = `/__local/projects/${operation}`;
-      for (const [requestCookie, csrf, requestOrigin, status] of [
-        ["", credentials.csrf, server.origin, 401],
-        [cookie, "", server.origin, 403],
-        [cookie, credentials.csrf, "http://localhost:1234", 403],
-      ] as const) {
-        const response = await post(
-          server.origin,
-          path,
-          requestCookie,
-          csrf,
-          input,
-          requestOrigin,
+      for (const [headers, status] of rejectedHeaders(server.origin)) {
+        expect((await post(server.origin, path, input, headers)).status).toBe(
+          status,
         );
-        expect(response.status).toBe(status);
       }
       expect(test.setProjectEnabled).not.toHaveBeenCalled();
       expect(test.registerProject).not.toHaveBeenCalled();
       expect(test.bindDefinition).not.toHaveBeenCalled();
-
-      const response = await post(
-        server.origin,
-        path,
-        cookie,
-        credentials.csrf,
-        input,
-      );
+      const response = await post(server.origin, path, input);
       expect(response.status).toBe(200);
       const result = await response.json();
       expect(result).toMatchObject({
@@ -410,10 +399,7 @@ describe("local project transport", () => {
 
   it("rejects unknown project operations and strict input violations before mutation", async () => {
     const test = await directoryFixture();
-    const { server, cookie, credentials } = await start(
-      undefined,
-      test.directory,
-    );
+    const { server } = await start(undefined, test.directory);
     for (const [operation, input, status] of [
       ["delete", { projectId: "other-project" }, 404],
       ["enabled", { projectId: "other-project", enabled: "false" }, 400],
@@ -422,16 +408,11 @@ describe("local project transport", () => {
       ["register", { squadId: "other-squad", enabled: true }, 400],
       ["bind", {}, 400],
       ["bind", { projectId: "other-project", caller: { id: "owner" } }, 400],
-    ] as const) {
-      const response = await post(
-        server.origin,
-        `/__local/projects/${operation}`,
-        cookie,
-        credentials.csrf,
-        input,
-      );
-      expect(response.status).toBe(status);
-    }
+    ] as const)
+      expect(
+        (await post(server.origin, `/__local/projects/${operation}`, input))
+          .status,
+      ).toBe(status);
     expect(test.setProjectEnabled).not.toHaveBeenCalled();
     expect(test.registerProject).not.toHaveBeenCalled();
     expect(test.bindDefinition).not.toHaveBeenCalled();
@@ -450,17 +431,10 @@ describe("local project transport", () => {
         code,
       }),
     );
-    const { server, cookie, credentials } = await start(
-      undefined,
-      test.directory,
-    );
-    const response = await post(
-      server.origin,
-      "/__local/projects/bind",
-      cookie,
-      credentials.csrf,
-      { projectId: "other-project" },
-    );
+    const { server } = await start(undefined, test.directory);
+    const response = await post(server.origin, "/__local/projects/bind", {
+      projectId: "other-project",
+    });
     expect(response.status).toBe(status);
     const text = await response.text();
     expect(text).not.toContain("private-secret");
@@ -475,10 +449,7 @@ describe("local project transport", () => {
 
   it("routes overlapping conversation IDs only to their full project scope", async () => {
     const test = await directoryFixture();
-    const { server, cookie, credentials } = await start(
-      undefined,
-      test.directory,
-    );
+    const { server } = await start(undefined, test.directory);
     for (const [target, runtime] of [
       [scope, test.first],
       [test.otherScope, test.second],
@@ -487,33 +458,24 @@ describe("local project transport", () => {
         conversationId,
         submission: { type: "input", content: target.projectId },
       };
-      const response = await post(
-        server.origin,
-        operationPath("submit"),
-        cookie,
-        credentials.csrf,
-        { scope: target, input },
-      );
+      const response = await post(server.origin, operationPath("submit"), {
+        scope: target,
+        input,
+      });
       expect(response.status).toBe(200);
       expect(await response.json()).toMatchObject({ scope: target, value: 23 });
       expect(runtime.calls.submit).toHaveBeenCalledExactlyOnceWith(
-        { scope: target, input, caller: credentials.caller },
+        { scope: target, input, caller },
         BACKGROUND_CONTEXT,
       );
     }
-    const forged = await post(
-      server.origin,
-      operationPath("submit"),
-      cookie,
-      credentials.csrf,
-      {
-        scope: { ...scope, projectId: test.otherScope.projectId },
-        input: {
-          conversationId,
-          submission: { type: "input", content: "forged" },
-        },
+    const forged = await post(server.origin, operationPath("submit"), {
+      scope: { ...scope, projectId: test.otherScope.projectId },
+      input: {
+        conversationId,
+        submission: { type: "input", content: "forged" },
       },
-    );
+    });
     expect(forged.status).toBe(409);
     expect(test.first.calls.submit).toHaveBeenCalledOnce();
     expect(test.second.calls.submit).toHaveBeenCalledOnce();
@@ -521,18 +483,13 @@ describe("local project transport", () => {
 
   it("keeps project SSE watches independent when one browser unsubscribes", async () => {
     const test = await directoryFixture();
-    const { server, cookie, credentials } = await start(
-      undefined,
-      test.directory,
-    );
+    const { server } = await start(undefined, test.directory);
     const readers: ReadableStreamDefaultReader<Uint8Array>[] = [];
     try {
       for (const target of [scope, test.otherScope]) {
         const response = await post(
           server.origin,
           operationPath("observeConversation"),
-          cookie,
-          credentials.csrf,
           { scope: target, input: { conversationId } },
         );
         expect(response.status).toBe(200);
@@ -582,17 +539,11 @@ describe("local definition transport", () => {
     return { squads, definitions: createDefinitionWorkspace(squads) };
   }
 
-  it("lists, reads and saves actual MD through the authenticated workspace", async () => {
+  it("lists, reads and saves actual MD through the credential-free local workspace", async () => {
     const { squads, definitions } = await workspace();
-    const { server, cookie, credentials } = await start(definitions);
+    const { server } = await start(definitions);
     const request = (operation: string, input: unknown) =>
-      post(
-        server.origin,
-        `/__local/definitions/${operation}`,
-        cookie,
-        credentials.csrf,
-        input,
-      );
+      post(server.origin, `/__local/definitions/${operation}`, input);
     const listed = await request("list", {});
     expect(listed.status).toBe(200);
     expect(await listed.json()).toMatchObject({
@@ -630,49 +581,52 @@ describe("local definition transport", () => {
     expect(await conflict.json()).toMatchObject({
       error: { code: "conflict" },
     });
+    expect(await readFile(join(squads, "minimal-squad", path), "utf8")).toBe(
+      content,
+    );
   });
 
-  it("requires session, exact Origin and CSRF for every definition operation", async () => {
+  it("requires exact Host, Origin and JSON for every definition POST including reads", async () => {
     const { definitions } = await workspace();
-    const { server, cookie, credentials } = await start(definitions);
+    const { server } = await start(definitions);
+    const list = vi.spyOn(definitions, "list");
+    const load = vi.spyOn(definitions, "load");
+    const save = vi.spyOn(definitions, "save");
     for (const [operation, input] of [
       ["list", {}],
       ["load", { squadId: "minimal-squad" }],
       ["save", {}],
     ] as const) {
-      const path = `/__local/definitions/${operation}`;
-      expect(
-        (
-          await post(
-            server.origin,
-            path,
-            "other=value",
-            credentials.csrf,
-            input,
-          )
-        ).status,
-      ).toBe(401);
-      expect(
-        (await post(server.origin, path, cookie, "wrong", input)).status,
-      ).toBe(403);
-      expect(
-        (
-          await post(
-            server.origin,
-            path,
-            cookie,
-            credentials.csrf,
-            input,
-            "https://foreign.example",
-          )
-        ).status,
-      ).toBe(403);
+      for (const [headers, status] of rejectedHeaders(server.origin)) {
+        expect(
+          (
+            await post(
+              server.origin,
+              `/__local/definitions/${operation}`,
+              input,
+              headers,
+            )
+          ).status,
+        ).toBe(status);
+      }
+      const noType = await fetch(
+        `${server.origin}/__local/definitions/${operation}`,
+        {
+          method: "POST",
+          headers: { Origin: server.origin },
+          body: JSON.stringify(input),
+        },
+      );
+      expect(noType.status).toBe(400);
     }
+    expect(list).not.toHaveBeenCalled();
+    expect(load).not.toHaveBeenCalled();
+    expect(save).not.toHaveBeenCalled();
   });
 
   it("rejects extra fields, invalid IDs, paths, unknown operations and absent workspaces", async () => {
     const { definitions } = await workspace();
-    const { server, cookie, credentials } = await start(definitions);
+    const { server } = await start(definitions);
     for (const [operation, input] of [
       ["list", { caller: { id: "forged" } }],
       ["load", { squadId: "../escape" }],
@@ -691,54 +645,27 @@ describe("local definition transport", () => {
           draft: { path: "SQUAD.md", content: "x", baseContent: "" },
         },
       ],
-    ] as const) {
+    ] as const)
       expect(
-        (
-          await post(
-            server.origin,
-            `/__local/definitions/${operation}`,
-            cookie,
-            credentials.csrf,
-            input,
-          )
-        ).status,
+        (await post(server.origin, `/__local/definitions/${operation}`, input))
+          .status,
       ).toBe(400);
-    }
     expect(
-      (
-        await post(
-          server.origin,
-          "/__local/definitions/unknown",
-          cookie,
-          credentials.csrf,
-          {},
-        )
-      ).status,
+      (await post(server.origin, "/__local/definitions/unknown", {})).status,
     ).toBe(404);
     const absent = await start();
     expect(
-      (
-        await post(
-          absent.server.origin,
-          "/__local/definitions/list",
-          absent.cookie,
-          absent.credentials.csrf,
-          {},
-        )
-      ).status,
+      (await post(absent.server.origin, "/__local/definitions/list", {}))
+        .status,
     ).toBe(404);
   });
 
   it("maps missing files and invalid definitions to public diagnostics", async () => {
     const { definitions } = await workspace();
-    const { server, cookie, credentials } = await start(definitions);
-    const missing = await post(
-      server.origin,
-      "/__local/definitions/load",
-      cookie,
-      credentials.csrf,
-      { squadId: "missing" },
-    );
+    const { server } = await start(definitions);
+    const missing = await post(server.origin, "/__local/definitions/load", {
+      squadId: "missing",
+    });
     expect(missing.status).toBe(404);
     expect(await missing.json()).toMatchObject({
       error: { code: "not_found" },
@@ -747,21 +674,16 @@ describe("local definition transport", () => {
     const baseContent = definition.files.find(
       (file) => file.path === "SQUAD.md",
     )?.content;
-    const invalid = await post(
-      server.origin,
-      "/__local/definitions/save",
-      cookie,
-      credentials.csrf,
-      {
-        squadId: "minimal-squad",
-        draft: { path: "SQUAD.md", baseContent, content: "not a valid squad" },
-        requestId: "invalid-definition",
-      },
-    );
+    const invalid = await post(server.origin, "/__local/definitions/save", {
+      squadId: "minimal-squad",
+      draft: { path: "SQUAD.md", baseContent, content: "not a valid squad" },
+      requestId: "invalid-definition",
+    });
     expect(invalid.status).toBe(400);
     expect(await invalid.json()).toMatchObject({
       error: { code: "invalid_definition" },
     });
+    expect(await definitions.load("minimal-squad")).toEqual(definition);
   });
 
   it("keeps unexpected workspace failures private", async () => {
@@ -769,14 +691,8 @@ describe("local definition transport", () => {
     vi.spyOn(definitions, "list").mockRejectedValueOnce(
       new Error("secret path and token"),
     );
-    const { server, cookie, credentials } = await start(definitions);
-    const response = await post(
-      server.origin,
-      "/__local/definitions/list",
-      cookie,
-      credentials.csrf,
-      {},
-    );
+    const { server } = await start(definitions);
+    const response = await post(server.origin, "/__local/definitions/list", {});
     expect(response.status).toBe(500);
     expect(await response.json()).toEqual({
       error: {
@@ -789,7 +705,7 @@ describe("local definition transport", () => {
 });
 
 describe("budget transport HTTP", () => {
-  it("forwards authenticated budget increments and returns the complete scoped snapshot", async () => {
+  it("forwards credential-free budget increments and returns the complete scoped snapshot", async () => {
     const test = await start();
     const input = {
       requestId: "extend-http",
@@ -800,34 +716,30 @@ describe("budget transport HTTP", () => {
     const response = await post(
       test.server.origin,
       operationPath("extendBudget"),
-      test.cookie,
-      test.credentials.csrf,
       { scope, input },
     );
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ scope, value: budget });
     expect(test.runtime.calls.extendBudget).toHaveBeenCalledWith(
-      { scope, input, caller: test.credentials.caller },
+      { scope, input, caller },
       expect.anything(),
     );
   });
-  it("rejects unauthenticated, cross-origin, CSRF and incomplete scope grants before mutation", async () => {
+
+  it("rejects wrong Host, Origin, content type and incomplete scope grants before mutation", async () => {
     const test = await start();
     const input = { requestId: "scope-grant", modelRequests: 1 };
-    for (const [cookie, csrf, origin, status] of [
-      ["", test.credentials.csrf, test.server.origin, 401],
-      [test.cookie, "", test.server.origin, 403],
-      [test.cookie, test.credentials.csrf, "http://untrusted.example", 403],
-    ] as const) {
-      const response = await post(
-        test.server.origin,
-        operationPath("extendBudget"),
-        cookie,
-        csrf,
-        { scope, input },
-        origin,
-      );
-      expect(response.status).toBe(status);
+    for (const [headers, status] of rejectedHeaders(test.server.origin)) {
+      expect(
+        (
+          await post(
+            test.server.origin,
+            operationPath("extendBudget"),
+            { scope, input },
+            headers,
+          )
+        ).status,
+      ).toBe(status);
     }
     for (const field of [
       "projectId",
@@ -835,27 +747,28 @@ describe("budget transport HTTP", () => {
       "squadId",
       "harnessId",
     ] as const) {
-      const response = await post(
-        test.server.origin,
-        operationPath("extendBudget"),
-        test.cookie,
-        test.credentials.csrf,
-        { scope: { ...scope, [field]: "foreign" }, input },
-      );
-      expect(response.status).toBe(409);
+      expect(
+        (
+          await post(test.server.origin, operationPath("extendBudget"), {
+            scope: { ...scope, [field]: "foreign" },
+            input,
+          })
+        ).status,
+      ).toBe(409);
       const { [field]: _missing, ...incomplete } = scope;
-      const absent = await post(
-        test.server.origin,
-        operationPath("extendBudget"),
-        test.cookie,
-        test.credentials.csrf,
-        { scope: incomplete, input },
-      );
-      expect(absent.status).toBe(400);
+      expect(
+        (
+          await post(test.server.origin, operationPath("extendBudget"), {
+            scope: incomplete,
+            input,
+          })
+        ).status,
+      ).toBe(400);
     }
     expect(test.runtime.calls.extendBudget).not.toHaveBeenCalled();
   });
-  it("enforces UTF-8 request identity and positive safe integer changes without rejecting valid partial increments", async () => {
+
+  it("enforces UTF-8 request identity and positive safe integers while accepting partial increments", async () => {
     const test = await start();
     const invalid: unknown[] = [
       {},
@@ -867,7 +780,11 @@ describe("budget transport HTTP", () => {
       { requestId: 7, modelRequests: 1 },
       { requestId: "extra", modelRequests: 1, modelConcurrency: 2 },
     ];
-    for (const field of ["modelRequests", "toolEntries", "deadlineAt"] as const)
+    for (const field of [
+      "modelRequests",
+      "toolEntries",
+      "deadlineAt",
+    ] as const) {
       for (const value of [
         0,
         -1,
@@ -878,16 +795,16 @@ describe("budget transport HTTP", () => {
         true,
       ])
         invalid.push({ requestId: "invalid-number", [field]: value });
-    for (const input of invalid) {
-      const response = await post(
-        test.server.origin,
-        operationPath("extendBudget"),
-        test.cookie,
-        test.credentials.csrf,
-        { scope, input },
-      );
-      expect(response.status).toBe(400);
     }
+    for (const input of invalid)
+      expect(
+        (
+          await post(test.server.origin, operationPath("extendBudget"), {
+            scope,
+            input,
+          })
+        ).status,
+      ).toBe(400);
     expect(test.runtime.calls.extendBudget).not.toHaveBeenCalled();
     const inputs = [
       { requestId: "x".repeat(128), modelRequests: Number.MAX_SAFE_INTEGER },
@@ -895,16 +812,16 @@ describe("budget transport HTTP", () => {
       { requestId: " a ", deadlineAt: 1 },
     ];
     for (const input of inputs) {
-      const response = await post(
-        test.server.origin,
-        operationPath("extendBudget"),
-        test.cookie,
-        test.credentials.csrf,
-        { scope, input },
-      );
-      expect(response.status).toBe(200);
+      expect(
+        (
+          await post(test.server.origin, operationPath("extendBudget"), {
+            scope,
+            input,
+          })
+        ).status,
+      ).toBe(200);
       expect(test.runtime.calls.extendBudget).toHaveBeenLastCalledWith(
-        { scope, input, caller: test.credentials.caller },
+        { scope, input, caller },
         expect.anything(),
       );
     }
@@ -912,6 +829,7 @@ describe("budget transport HTTP", () => {
       inputs.length,
     );
   });
+
   it("maps budget failures to safe HTTP errors without exposing runtime messages", async () => {
     const test = await start();
     for (const [code, status] of [
@@ -927,8 +845,6 @@ describe("budget transport HTTP", () => {
       const response = await post(
         test.server.origin,
         operationPath("extendBudget"),
-        test.cookie,
-        test.credentials.csrf,
         { scope, input: { requestId: `error-${code}`, toolEntries: 1 } },
       );
       expect(response.status).toBe(status);
@@ -943,7 +859,7 @@ describe("budget transport HTTP", () => {
 });
 
 describe("execution inspection HTTP transport", () => {
-  it("rejects invalid read fields and pagination bounds before querying the runtime", async () => {
+  it("rejects invalid read fields and pagination bounds before runtime queries", async () => {
     const test = await start();
     for (const [name, inputs] of [
       ["inspect", [{ extra: true }]],
@@ -984,16 +900,15 @@ describe("execution inspection HTTP transport", () => {
         ],
       ],
     ] as const) {
-      for (const input of inputs) {
-        const response = await post(
-          test.server.origin,
-          operationPath(name),
-          test.cookie,
-          test.credentials.csrf,
-          { scope, input },
-        );
-        expect(response.status).toBe(400);
-      }
+      for (const input of inputs)
+        expect(
+          (
+            await post(test.server.origin, operationPath(name), {
+              scope,
+              input,
+            })
+          ).status,
+        ).toBe(400);
       expect(test.runtime.calls[name]).not.toHaveBeenCalled();
     }
     for (const [name, input] of [
@@ -1003,21 +918,14 @@ describe("execution inspection HTTP transport", () => {
       ["getTask", { taskId: Number.MAX_SAFE_INTEGER }],
     ] as const) {
       expect(
-        (
-          await post(
-            test.server.origin,
-            operationPath(name),
-            test.cookie,
-            test.credentials.csrf,
-            { scope, input },
-          )
-        ).status,
+        (await post(test.server.origin, operationPath(name), { scope, input }))
+          .status,
       ).toBe(200);
       expect(test.runtime.calls[name]).toHaveBeenCalledOnce();
     }
   });
 
-  it("requires authentication, same Origin, CSRF and a matching complete scope for each inspection read", async () => {
+  it("requires exact Host, Origin, JSON and a matching complete scope for each inspection POST", async () => {
     const test = await start();
     for (const [name, input] of [
       ["inspect", {}],
@@ -1025,21 +933,26 @@ describe("execution inspection HTTP transport", () => {
       ["listTasks", {}],
       ["getTask", { taskId: 42 }],
     ] as const) {
-      for (const [cookie, csrf, origin] of [
-        ["", test.credentials.csrf, test.server.origin],
-        [test.cookie, "", test.server.origin],
-        [test.cookie, test.credentials.csrf, "http://untrusted.example"],
-      ] as const) {
-        const response = await post(
-          test.server.origin,
-          operationPath(name),
-          cookie,
-          csrf,
-          { scope, input },
-          origin,
-        );
-        expect([401, 403]).toContain(response.status);
-      }
+      for (const [headers, status] of rejectedHeaders(test.server.origin))
+        expect(
+          (
+            await post(
+              test.server.origin,
+              operationPath(name),
+              { scope, input },
+              headers,
+            )
+          ).status,
+        ).toBe(status);
+      const noType = await fetch(
+        `${test.server.origin}${operationPath(name)}`,
+        {
+          method: "POST",
+          headers: { Origin: test.server.origin },
+          body: JSON.stringify({ scope, input }),
+        },
+      );
+      expect(noType.status).toBe(400);
       for (const field of [
         "projectId",
         "environmentId",
@@ -1048,21 +961,27 @@ describe("execution inspection HTTP transport", () => {
       ] as const) {
         expect(
           (
-            await post(
-              test.server.origin,
-              operationPath(name),
-              test.cookie,
-              test.credentials.csrf,
-              { scope: { ...scope, [field]: "foreign" }, input },
-            )
+            await post(test.server.origin, operationPath(name), {
+              scope: { ...scope, [field]: "foreign" },
+              input,
+            })
           ).status,
         ).toBe(409);
+        const { [field]: _missing, ...incomplete } = scope;
+        expect(
+          (
+            await post(test.server.origin, operationPath(name), {
+              scope: incomplete,
+              input,
+            })
+          ).status,
+        ).toBe(400);
       }
       expect(test.runtime.calls[name]).not.toHaveBeenCalled();
     }
   });
 
-  it("routes four read operations through authenticated CSRF and complete scope envelopes", async () => {
+  it("routes all four read operations without credentials using complete scope envelopes", async () => {
     const test = await start();
     for (const [name, input] of [
       ["inspect", {}],
@@ -1070,19 +989,16 @@ describe("execution inspection HTTP transport", () => {
       ["listTasks", { limit: 50 }],
       ["getTask", { taskId: 42 }],
     ] as const) {
-      const response = await post(
-        test.server.origin,
-        operationPath(name),
-        test.cookie,
-        test.credentials.csrf,
-        { scope, input },
-      );
+      const response = await post(test.server.origin, operationPath(name), {
+        scope,
+        input,
+      });
       expect(response.status).toBe(200);
       const body = await response.json();
       expect(body.scope).toEqual(scope);
       expect(body).toHaveProperty("value");
       expect(test.runtime.calls[name]).toHaveBeenCalledWith(
-        { scope, input, caller: test.credentials.caller },
+        { scope, input, caller },
         expect.anything(),
       );
       expect(body.value).toEqual(
@@ -1103,7 +1019,7 @@ describe("execution inspection HTTP transport", () => {
 
 describe("startLocalServer", () => {
   it("reports the authoritative application version without runtime data", async () => {
-    const { server } = await launch();
+    const { server } = await start();
     const response = await fetch(`${server.origin}/api/live`);
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ status: "ok", version });
@@ -1115,33 +1031,36 @@ describe("startLocalServer", () => {
       ).status,
     ).toBe(403);
   });
-  it("honors an explicit Caddy origin and resumes the cookie session", async () => {
+
+  it("honors an explicit Caddy origin with a plain local page URL", async () => {
     const publicOrigin = "https://frogie.dev.hexly.ai";
     const server = await startLocalServer({
       directory: localDirectory(instanceId, scope, runtimeService().service),
       context: BACKGROUND_CONTEXT,
       publicOrigin,
+      port: 0,
     });
     activeServers.push(server);
     expect(server.origin).toBe(publicOrigin);
-    expect(server.url.startsWith(`${publicOrigin}/#token=`)).toBe(true);
+    expect(server.url).toBe(`${publicOrigin}/`);
   });
 
-  it("returns session CSRF only for an authenticated browser", async () => {
-    const { server, cookie, credentials } = await start();
-    const endpoint = `${server.origin}/__local/auth/session`;
-    expect((await fetch(endpoint)).status).toBe(401);
-    const resumed = await fetch(endpoint, { headers: { Cookie: cookie } });
-    expect(resumed.status).toBe(200);
-    expect(await resumed.json()).toEqual(credentials);
-    expect(resumed.headers.get("Cache-Control")).toBe("no-store");
-    expect(
-      (
-        await fetch(endpoint, {
-          headers: { Cookie: cookie, Origin: "https://evil.example" },
-        })
-      ).status,
-    ).toBe(403);
+  it("returns 404 for both retired auth endpoints on trusted GET and POST requests", async () => {
+    const { server } = await start();
+    for (const path of ["/__local/auth/session", "/__local/auth/exchange"]) {
+      for (const method of ["GET", "POST"]) {
+        const response = await fetch(`${server.origin}${path}`, {
+          method,
+          headers: {
+            Origin: server.origin,
+            "Content-Type": "application/json",
+          },
+          ...(method === "POST" ? { body: "{}" } : {}),
+        });
+        expect(response.status).toBe(404);
+        expect(response.headers.getSetCookie()).toEqual([]);
+      }
+    }
   });
 
   it("rejects unsupported configured public origins", async () => {
@@ -1150,6 +1069,7 @@ describe("startLocalServer", () => {
         directory: localDirectory(instanceId, scope, runtimeService().service),
         context: BACKGROUND_CONTEXT,
         publicOrigin: "https://evil.example",
+        port: 0,
       }),
     ).rejects.toThrow();
   });
@@ -1171,6 +1091,7 @@ describe("startLocalServer", () => {
       directory: localDirectory(instanceId, scope, runtimeService().service),
       context: BACKGROUND_CONTEXT,
       publicDirectory: join(root, "dist"),
+      port: 0,
     });
     activeServers.push(server);
     const home = await fetch(server.origin);
@@ -1180,10 +1101,9 @@ describe("startLocalServer", () => {
     const asset = await fetch(`${server.origin}/assets/main.js`);
     expect(asset.status).toBe(200);
     expect(asset.headers.get("Content-Type")).toContain("javascript");
-    expect((await fetch(`${server.origin}/src/main.tsx`)).status).toBe(404);
-    expect((await fetch(`${server.origin}/private.txt`)).status).toBe(404);
-    expect((await fetch(`${server.origin}/__local/context`)).status).toBe(401);
-    expect((await fetch(`${server.origin}/__local/unknown`)).status).toBe(404);
+    for (const path of ["/src/main.tsx", "/private.txt", "/__local/unknown"])
+      expect((await fetch(`${server.origin}${path}`)).status).toBe(404);
+    expect((await fetch(`${server.origin}/__local/context`)).status).toBe(200);
     const wrongHost = await new Promise<number | undefined>(
       (resolve, reject) => {
         const request = httpRequest(
@@ -1211,72 +1131,38 @@ describe("startLocalServer", () => {
     expect(await head.text()).toBe("");
   });
 
-  it("starts on an ephemeral loopback port and exposes only an opaque startup token in the URL fragment", async () => {
-    const server = await startLocalServer({
-      directory: localDirectory(instanceId, scope, runtimeService().service),
-      context: BACKGROUND_CONTEXT,
-      port: 0,
-    });
-    activeServers.push(server);
+  it("starts on an ephemeral loopback port with a plain URL and no credentials", async () => {
+    const { server } = await start();
     const url = new URL(server.url);
     expect(url.origin).toBe(server.origin);
     expect(url.hostname).toBe("127.0.0.1");
     expect(url.port).not.toBe("");
-    expect(url.hash).toMatch(/^#token=[^&\s]+$/);
+    expect(server.url).toBe(`${server.origin}/`);
+    expect(url.hash).toBe("");
     expect(url.search).toBe("");
     expect(await fetch(server.origin)).toBeDefined();
   });
 
-  it("exchanges the startup token only for the exact server Origin", async () => {
-    const { server } = await launch();
-    const token = new URLSearchParams(new URL(server.url).hash.slice(1)).get(
-      "token",
-    );
-    expect(token).toBeTruthy();
-
-    const wrongOrigin = await fetch(`${server.origin}/__local/auth/exchange`, {
-      method: "POST",
-      headers: {
-        Origin: "http://localhost:1234",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ token }),
-    });
-    expect(wrongOrigin.status).toBe(403);
-  });
-
-  it("exchanges the token for a session cookie, CSRF token and server caller", async () => {
-    const { server, credentials, cookie } = await start();
-    expect(credentials).toEqual({
-      csrf: expect.any(String),
-      caller: { id: expect.any(String) },
-    });
-    expect(cookie).not.toBe("");
-    expect(cookie).not.toContain("token=");
-    expect(cookie).not.toContain(credentials.csrf);
-    expect(credentials.caller.id).not.toBe("");
-    expect(new URL(server.url).hash).toContain("token=");
-  });
-
-  it("returns authorized runtime context for the authenticated caller", async () => {
-    const { server, cookie } = await start();
-    const anonymous = await fetch(`${server.origin}/__local/context`, {
-      headers: { Origin: server.origin },
-    });
-    expect(anonymous.status).toBe(401);
-    const response = await fetch(`${server.origin}/__local/context`, {
-      headers: { Origin: server.origin, Cookie: cookie },
-    });
-    expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({
-      instanceId,
-      mode: "e2e",
-      projects: await localDirectory(
+  it("returns complete runtime context and the fixed caller without credentials", async () => {
+    const { server } = await start();
+    for (const headers of [{}, { Origin: server.origin }]) {
+      const response = await fetch(`${server.origin}/__local/context`, {
+        headers,
+      });
+      expect(response.status).toBe(200);
+      expect(response.headers.get("Cache-Control")).toBe("no-store");
+      expect(response.headers.getSetCookie()).toEqual([]);
+      expect(await response.json()).toEqual({
         instanceId,
-        scope,
-        runtimeService().service,
-      ).listProjects(),
-    });
+        mode: "e2e",
+        caller,
+        projects: await localDirectory(
+          instanceId,
+          scope,
+          runtimeService().service,
+        ).listProjects(),
+      });
+    }
   });
 
   it.each([
@@ -1287,122 +1173,153 @@ describe("startLocalServer", () => {
     "getSubmission",
     "cancel",
     "compact",
-  ])("forwards %s with server scope and authenticated caller", async (name) => {
-    const { server, cookie, credentials, runtime } = await start();
-    const input =
-      name === "createConversation"
-        ? { roleId: "reviewer" }
-        : name === "submit"
-          ? {
-              conversationId: 17,
-              submission: {
-                type: "input",
-                content: "Hello",
-                requestId: "request-1",
-                whenBusy: "followUp",
-              },
-            }
-          : name === "getSubmission"
-            ? { submissionId: 23 }
-            : name === "cancel" || name === "compact"
-              ? { conversationId: 17 }
-              : {};
-    const response = await post(
-      server.origin,
-      operationPath(name),
-      cookie,
-      credentials.csrf,
-      { scope, input },
-    );
-    expect(response.status, await response.clone().text()).toBe(200);
-    const expectedValue =
-      await runtime.calls[name as keyof typeof runtime.calls].mock.results[0]
-        ?.value;
-    expect(await response.json()).toEqual({
-      scope,
-      value: expectedValue ?? null,
-    });
-    const call =
-      runtime.calls[name as keyof typeof runtime.calls].mock.calls[0]?.[0];
-    expect(call).toMatchObject({ scope, input, caller: credentials.caller });
-  });
+  ] as const)(
+    "forwards %s with server scope and fixed local caller without credentials",
+    async (name) => {
+      const { server, runtime } = await start();
+      const input =
+        name === "createConversation"
+          ? { roleId: "reviewer" }
+          : name === "submit"
+            ? {
+                conversationId: 17,
+                submission: {
+                  type: "input",
+                  content: "Hello",
+                  requestId: "request-1",
+                  whenBusy: "followUp",
+                },
+              }
+            : name === "getSubmission"
+              ? { submissionId: 23 }
+              : name === "cancel" || name === "compact"
+                ? { conversationId: 17 }
+                : {};
+      const response = await post(server.origin, operationPath(name), {
+        scope,
+        input,
+      });
+      expect(response.status, await response.clone().text()).toBe(200);
+      const expectedValue = await runtime.calls[name].mock.results[0]?.value;
+      expect(await response.json()).toEqual({
+        scope,
+        value: expectedValue ?? null,
+      });
+      expect(runtime.calls[name].mock.calls[0]?.[0]).toMatchObject({
+        scope,
+        input,
+        caller,
+      });
+    },
+  );
 
-  it("rejects scope mismatch with 409 without calling the runtime", async () => {
-    const { server, cookie, credentials, runtime } = await start();
-    const response = await post(
-      server.origin,
-      operationPath("describe"),
-      cookie,
-      credentials.csrf,
-      { scope: { ...scope, harnessId: "other" }, input: {} },
-    );
-    expect(response.status).toBe(409);
+  it.each(["projectId", "environmentId", "squadId", "harnessId"] as const)(
+    "rejects a mismatched %s with 409 without runtime calls",
+    async (field) => {
+      const { server, runtime } = await start();
+      expect(
+        (
+          await post(server.origin, operationPath("describe"), {
+            scope: { ...scope, [field]: "other" },
+            input: {},
+          })
+        ).status,
+      ).toBe(409);
+      expect(runtime.calls.describe).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([{}, { Origin: "null" }, { Origin: "http://localhost:1234" }])(
+    "rejects POST without an exact Origin %# before runtime access",
+    async (headers) => {
+      const { server, runtime } = await start();
+      expect(
+        (
+          await post(
+            server.origin,
+            operationPath("describe"),
+            { scope, input: {} },
+            headers,
+          )
+        ).status,
+      ).toBe(403);
+      expect(runtime.calls.describe).not.toHaveBeenCalled();
+    },
+  );
+
+  it("rejects spoofed Host on local reads and writes before directory access", async () => {
+    const runtime = runtimeService();
+    const directory = localDirectory(instanceId, scope, runtime.service);
+    const listProjects = vi.spyOn(directory, "listProjects");
+    const runtimeLookup = vi.spyOn(directory, "runtime");
+    const { server } = await start(undefined, directory);
+    expect(
+      (
+        await rawRequest(server.origin, "/__local/context", "GET", {
+          Host: "attacker.example",
+          Origin: server.origin,
+        })
+      ).status,
+    ).toBe(403);
+    expect(listProjects).not.toHaveBeenCalled();
+    expect(
+      (
+        await post(
+          server.origin,
+          operationPath("describe"),
+          { scope, input: {} },
+          { Host: "attacker.example", Origin: server.origin },
+        )
+      ).status,
+    ).toBe(403);
+    expect(runtimeLookup).not.toHaveBeenCalled();
     expect(runtime.calls.describe).not.toHaveBeenCalled();
   });
 
-  it("rejects a POST with no session cookie", async () => {
-    const { server, credentials } = await start();
-    const response = await fetch(
-      `${server.origin}${operationPath("describe")}`,
-      {
-        method: "POST",
-        headers: {
-          Origin: server.origin,
-          "Content-Type": "application/json",
-          "X-Frogie-CSRF": credentials.csrf,
-        },
-        body: JSON.stringify({ scope, input: {} }),
-      },
-    );
-    expect(response.status).toBe(401);
-  });
+  it.each(["null", "http://localhost:1234"])(
+    "rejects a context read with non-exact Origin: %s",
+    async (origin) => {
+      const directory = localDirectory(
+        instanceId,
+        scope,
+        runtimeService().service,
+      );
+      const listProjects = vi.spyOn(directory, "listProjects");
+      const { server } = await start(undefined, directory);
+      expect(
+        (
+          await fetch(`${server.origin}/__local/context`, {
+            headers: { Origin: origin },
+          })
+        ).status,
+      ).toBe(403);
+      expect(listProjects).not.toHaveBeenCalled();
+    },
+  );
 
-  it("rejects an invalid session cookie", async () => {
-    const { server, credentials } = await start();
-    const response = await fetch(
-      `${server.origin}${operationPath("describe")}`,
-      {
-        method: "POST",
-        headers: {
-          Origin: server.origin,
-          "Content-Type": "application/json",
-          Cookie: "frogie_session=invalid",
-          "X-Frogie-CSRF": credentials.csrf,
-        },
-        body: JSON.stringify({ scope, input: {} }),
-      },
-    );
-    expect(response.status).toBe(401);
-  });
-
-  it("rejects a valid session cookie without a CSRF token", async () => {
-    const { server, cookie } = await start();
-    const response = await fetch(
-      `${server.origin}${operationPath("describe")}`,
-      {
-        method: "POST",
-        headers: {
-          Origin: server.origin,
-          "Content-Type": "application/json",
-          Cookie: cookie,
-        },
-        body: JSON.stringify({ scope, input: {} }),
-      },
-    );
-    expect(response.status).toBe(403);
-  });
-
-  it("rejects a valid session and CSRF token from a different Origin", async () => {
-    const { server, cookie, credentials } = await start();
-    const response = await post(
-      server.origin,
-      operationPath("describe"),
-      cookie,
-      credentials.csrf,
-      { scope, input: {} },
-      "http://localhost:1234",
-    );
-    expect(response.status).toBe(403);
+  it("keeps credential-free access available beyond startup and session expiry windows", async () => {
+    const { server, runtime } = await start();
+    const now = Date.now();
+    const clock = vi.spyOn(Date, "now").mockReturnValue(now);
+    try {
+      for (const elapsed of [5 * 60 * 1000, 8 * 60 * 60 * 1000]) {
+        clock.mockReturnValue(now + elapsed);
+        expect((await fetch(`${server.origin}/__local/context`)).status).toBe(
+          200,
+        );
+        expect(
+          (
+            await post(server.origin, operationPath("describe"), {
+              scope,
+              input: {},
+            })
+          ).status,
+        ).toBe(200);
+      }
+      expect(runtime.calls.describe).toHaveBeenCalledTimes(2);
+    } finally {
+      clock.mockRestore();
+    }
   });
 
   it.each([
@@ -1410,15 +1327,10 @@ describe("startLocalServer", () => {
     ["unknown body field", { scope, input: {}, extra: true }],
     ["scope injection", { scope: { ...scope, admin: true }, input: {} }],
   ])("rejects strict schema violation: %s", async (_case, body) => {
-    const { server, cookie, credentials, runtime } = await start();
-    const response = await post(
-      server.origin,
-      operationPath("describe"),
-      cookie,
-      credentials.csrf,
-      body,
-    );
-    expect(response.status).toBeGreaterThanOrEqual(400);
+    const { server, runtime } = await start();
+    expect(
+      (await post(server.origin, operationPath("describe"), body)).status,
+    ).toBe(400);
     expect(runtime.calls.describe).not.toHaveBeenCalled();
   });
 
@@ -1433,50 +1345,43 @@ describe("startLocalServer", () => {
       { type: "input", content: "hello", admin: true },
     ],
   ])("rejects non-MVP Pi submit shape: %s", async (_case, submission) => {
-    const { server, cookie, credentials, runtime } = await start();
-    const response = await post(
-      server.origin,
-      operationPath("submit"),
-      cookie,
-      credentials.csrf,
-      { scope, input: { conversationId: 17, submission } },
-    );
-    expect(response.status).toBeGreaterThanOrEqual(400);
+    const { server, runtime } = await start();
+    expect(
+      (
+        await post(server.origin, operationPath("submit"), {
+          scope,
+          input: { conversationId: 17, submission },
+        })
+      ).status,
+    ).toBe(400);
     expect(runtime.calls.submit).not.toHaveBeenCalled();
   });
 
   it("rejects JSON without an application/json content type", async () => {
-    const { server, cookie, credentials, runtime } = await start();
+    const { server, runtime } = await start();
     const response = await fetch(
       `${server.origin}${operationPath("describe")}`,
       {
         method: "POST",
-        headers: {
-          Origin: server.origin,
-          Cookie: cookie,
-          "X-Frogie-CSRF": credentials.csrf,
-        },
-        body: JSON.stringify({ scope, input: {} }),
+        headers: { Origin: server.origin },
+        body: Buffer.from(JSON.stringify({ scope, input: {} })),
       },
     );
     expect(response.status).toBe(400);
     expect(runtime.calls.describe).not.toHaveBeenCalled();
   });
 
-  it("rejects a chunked request body over 1 MiB without calling the runtime", async () => {
-    const { server, cookie, credentials, runtime } = await start();
-    const port = Number(new URL(server.origin).port);
+  it("rejects a chunked body over 1 MiB without runtime calls", async () => {
+    const { server, runtime } = await start();
     const result = await new Promise<number>((resolve, reject) => {
       const request = httpRequest(
         {
           host: "127.0.0.1",
-          port,
+          port: Number(new URL(server.origin).port),
           path: operationPath("describe"),
           method: "POST",
           headers: {
             Origin: server.origin,
-            Cookie: cookie,
-            "X-Frogie-CSRF": credentials.csrf,
             "Content-Type": "application/json",
           },
         },
@@ -1494,75 +1399,141 @@ describe("startLocalServer", () => {
     expect(runtime.calls.describe).not.toHaveBeenCalled();
   });
 
-  it("rejects malformed content type, invalid JSON and bodies over 1 MiB", async () => {
-    const { server, cookie, credentials, runtime } = await start();
-    const headers = {
-      Origin: server.origin,
-      Cookie: cookie,
-      "X-Frogie-CSRF": credentials.csrf,
-    };
-    const contentType = await fetch(
-      `${server.origin}${operationPath("describe")}`,
-      {
-        method: "POST",
-        headers: { ...headers, "Content-Type": "text/plain" },
-        body: JSON.stringify({ scope, input: {} }),
-      },
-    );
-    const malformed = await fetch(
-      `${server.origin}${operationPath("describe")}`,
-      {
-        method: "POST",
-        headers: { ...headers, "Content-Type": "application/json" },
-        body: "{",
-      },
-    );
-    const oversized = await fetch(
-      `${server.origin}${operationPath("describe")}`,
-      {
-        method: "POST",
-        headers: { ...headers, "Content-Type": "application/json" },
-        body: JSON.stringify({
+  it("rejects malformed content type, JSON and bodies over 1 MiB", async () => {
+    const { server, runtime } = await start();
+    for (const [contentType, body] of [
+      ["text/plain", JSON.stringify({ scope, input: {} })],
+      ["application/json", "{"],
+      [
+        "application/json",
+        JSON.stringify({ scope, input: { padding: "x".repeat(1_048_577) } }),
+      ],
+    ] as const) {
+      const response = await fetch(
+        `${server.origin}${operationPath("describe")}`,
+        {
+          method: "POST",
+          headers: { Origin: server.origin, "Content-Type": contentType },
+          body,
+        },
+      );
+      expect(response.status).toBe(400);
+    }
+    expect(runtime.calls.describe).not.toHaveBeenCalled();
+  });
+
+  it("rejects unsupported paths and stale instance IDs", async () => {
+    const { server, runtime } = await start();
+    expect(
+      (
+        await post(server.origin, operationPath("executeShell"), {
           scope,
-          input: { padding: "x".repeat(1_048_577) },
-        }),
-      },
-    );
-    expect(contentType.status).toBeGreaterThanOrEqual(400);
-    expect(malformed.status).toBeGreaterThanOrEqual(400);
-    expect(oversized.status).toBeGreaterThanOrEqual(400);
+          input: {},
+        })
+      ).status,
+    ).toBe(404);
+    expect(
+      (
+        await post(
+          server.origin,
+          "/__local/instances/old-instance/operations/describe",
+          { scope, input: {} },
+        )
+      ).status,
+    ).toBe(409);
     expect(runtime.calls.describe).not.toHaveBeenCalled();
   });
 
-  it("rejects unsupported operation paths and stale instance IDs", async () => {
-    const { server, cookie, credentials, runtime } = await start();
-    const unknownOperation = await post(
-      server.origin,
-      operationPath("executeShell"),
-      cookie,
-      credentials.csrf,
-      { scope, input: {} },
-    );
-    const staleInstance = await post(
-      server.origin,
-      "/__local/instances/old-instance/operations/describe",
-      cookie,
-      credentials.csrf,
-      { scope, input: {} },
-    );
-    expect(unknownOperation.status).toBe(404);
-    expect(staleInstance.status).toBe(409);
-    expect(runtime.calls.describe).not.toHaveBeenCalled();
+  it("rejects malformed instance encoding without affecting later requests", async () => {
+    const { server } = await start();
+    expect(
+      (
+        await post(
+          server.origin,
+          "/__local/instances/%zz/operations/describe",
+          { scope, input: {} },
+        )
+      ).status,
+    ).toBe(400);
+    expect(
+      (
+        await post(server.origin, operationPath("describe"), {
+          scope,
+          input: {},
+        })
+      ).status,
+    ).toBe(200);
   });
 
-  it("streams observeConversation as fetchable snapshot/update SSE and stops the Pi watch on close", async () => {
-    const { server, cookie, credentials, runtime, watch } = await start();
+  it.each([
+    [
+      Object.assign(new Error("credential-value"), { code: "not_found" }),
+      404,
+      "not_found",
+    ],
+    [
+      Object.assign(new Error("credential-value"), { code: "EPRIVATE" }),
+      500,
+      "runtime_unavailable",
+    ],
+    [new Error("credential-value"), 500, "runtime_unavailable"],
+    [null, 500, "runtime_unavailable"],
+  ] as const)("sanitizes runtime errors %#", async (error, status, code) => {
+    const { server, runtime } = await start();
+    runtime.calls.describe.mockRejectedValueOnce(error);
+    const response = await post(server.origin, operationPath("describe"), {
+      scope,
+      input: {},
+    });
+    expect(response.status).toBe(status);
+    const result = await response.json();
+    expect(result).toMatchObject({ error: { code } });
+    expect(JSON.stringify(result)).not.toContain("credential-value");
+  });
+
+  it.each([null, [], {}, { scope }, { input: {}, extra: true }])(
+    "rejects malformed envelope %#",
+    async (body) => {
+      const { server, runtime } = await start();
+      expect(
+        (await post(server.origin, operationPath("describe"), body)).status,
+      ).toBe(400);
+      expect(runtime.calls.describe).not.toHaveBeenCalled();
+    },
+  );
+
+  it("rejects an occupied port without closing its owner", async () => {
+    const { server } = await start();
+    await expect(
+      startLocalServer({
+        directory: localDirectory(instanceId, scope, runtimeService().service),
+        context: BACKGROUND_CONTEXT,
+        port: Number(new URL(server.origin).port),
+      }),
+    ).rejects.toMatchObject({ code: "EADDRINUSE" });
+    expect((await fetch(`${server.origin}/__local/context`)).status).toBe(200);
+  });
+
+  it("rejects unsupported HTTP methods", async () => {
+    const { server } = await start();
+    expect(
+      (
+        await fetch(`${server.origin}/__local/context`, {
+          method: "PATCH",
+          headers: { Origin: server.origin },
+        })
+      ).status,
+    ).toBe(405);
+  });
+});
+
+describe("local observation transport", () => {
+  it("streams snapshot/update SSE and stops the Pi watch on server close", async () => {
+    const { server, runtime, watch } = await start();
     const response = await post(
       server.origin,
       operationPath("observeConversation"),
-      cookie,
-      credentials.csrf,
-      { scope, input: { conversationId: 17 } },
+      { scope, input: { conversationId } },
     );
     expect(response.headers.get("content-type")).toContain("text/event-stream");
     const reader = response.body?.getReader();
@@ -1585,33 +1556,11 @@ describe("startLocalServer", () => {
     }
   });
 
-  it("rejects malformed instance encoding without affecting subsequent requests", async () => {
-    const { server, cookie, credentials } = await start();
-    const invalid = await post(
-      server.origin,
-      "/__local/instances/%zz/operations/describe",
-      cookie,
-      credentials.csrf,
-      { scope, input: {} },
-    );
-    expect(invalid.status).toBe(400);
-    const healthy = await post(
-      server.origin,
-      operationPath("describe"),
-      cookie,
-      credentials.csrf,
-      { scope, input: {} },
-    );
-    expect(healthy.status).toBe(200);
-  });
-
   it("ends the HTTP stream when the native watch closes", async () => {
-    const { server, cookie, credentials, watch } = await start();
+    const { server, watch } = await start();
     const response = await post(
       server.origin,
       operationPath("observeConversation"),
-      cookie,
-      credentials.csrf,
       { scope, input: { conversationId } },
     );
     expect(response.headers.get("content-type")).toContain("text/event-stream");
@@ -1628,8 +1577,8 @@ describe("startLocalServer", () => {
     }
   });
 
-  it("stops a late-acquired watch after its client disconnects", async () => {
-    const { server, cookie, credentials, runtime, watch } = await start();
+  it("stops a late-acquired watch after client disconnect", async () => {
+    const { server, runtime, watch } = await start();
     let resolveWatch!: (value: Watch) => void;
     let entered!: () => void;
     const entering = new Promise<void>((resolve) => {
@@ -1646,12 +1595,7 @@ describe("startLocalServer", () => {
       `${server.origin}${operationPath("observeConversation")}`,
       {
         method: "POST",
-        headers: {
-          Origin: server.origin,
-          Cookie: cookie,
-          "X-Frogie-CSRF": credentials.csrf,
-          "Content-Type": "application/json",
-        },
+        headers: { Origin: server.origin, "Content-Type": "application/json" },
         body: JSON.stringify({ scope, input: { conversationId } }),
         signal: controller.signal,
       },
@@ -1677,125 +1621,49 @@ describe("startLocalServer", () => {
     }
   });
 
-  it.each([
-    [
-      Object.assign(new Error("credential-value"), { code: "not_found" }),
-      404,
-      "not_found",
-    ],
-    [
-      Object.assign(new Error("credential-value"), { code: "EPRIVATE" }),
-      500,
-      "runtime_unavailable",
-    ],
-    [new Error("credential-value"), 500, "runtime_unavailable"],
-    [null, 500, "runtime_unavailable"],
-  ] as const)("sanitizes runtime errors %#", async (error, status, code) => {
-    const { server, cookie, credentials, runtime } = await start();
-    runtime.calls.describe.mockRejectedValueOnce(error);
-    const response = await post(
-      server.origin,
-      operationPath("describe"),
-      cookie,
-      credentials.csrf,
-      { scope, input: {} },
-    );
-    expect(response.status).toBe(status);
-    const result = await response.json();
-    expect(result).toMatchObject({ error: { code } });
-    expect(JSON.stringify(result)).not.toContain("credential-value");
-  });
-
-  it.each([null, [], {}, { scope }, { input: {}, extra: true }])(
-    "rejects malformed envelope %#",
-    async (body) => {
-      const { server, cookie, credentials } = await start();
-      const response = await post(
-        server.origin,
-        operationPath("describe"),
-        cookie,
-        credentials.csrf,
-        body,
-      );
-      expect(response.status).toBe(400);
-    },
-  );
-
-  it("rejects a port already owned by another server without closing that server", async () => {
-    const { server } = await launch();
-    await expect(
-      startLocalServer({
-        directory: localDirectory(instanceId, scope, runtimeService().service),
-        context: BACKGROUND_CONTEXT,
-        port: Number(new URL(server.origin).port),
-      }),
-    ).rejects.toMatchObject({ code: "EADDRINUSE" });
-    const response = await fetch(`${server.origin}/__local/context`);
-    expect(response.status).toBe(401);
-  });
-
-  it("rejects malformed exchange requests and unsupported HTTP methods", async () => {
-    const { server } = await launch();
-    for (const body of [{}, { token: "unknown", injected: true }]) {
-      const response = await fetch(`${server.origin}/__local/auth/exchange`, {
-        method: "POST",
-        headers: { Origin: server.origin, "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      expect(response.status).toBe(400);
-    }
-    const unsupported = await fetch(`${server.origin}/__local/context`, {
-      method: "PATCH",
-    });
-    expect(unsupported.status).toBe(405);
-  });
-
-  it("reports acquisition failures without leaving an observation open", async () => {
-    const { server, cookie, credentials, runtime } = await start();
+  it("reports acquisition failures without leaving observations open", async () => {
+    const { server, runtime } = await start();
     runtime.calls.observeConversation.mockRejectedValueOnce(
       new Error("internal secret"),
     );
     const response = await post(
       server.origin,
       operationPath("observeConversation"),
-      cookie,
-      credentials.csrf,
       { scope, input: { conversationId } },
     );
     expect(response.status).toBe(500);
     expect(await response.text()).not.toContain("internal secret");
   });
 
-  it("cleans up a watch whose start fails after HTTP headers were committed", async () => {
-    const { server, cookie, credentials, runtime, watch } = await start();
-    vi.mocked(watch.start).mockImplementationOnce(() => {
-      throw new Error("start failure");
-    });
-    runtime.calls.observeConversation.mockResolvedValueOnce(watch);
-    await post(
-      server.origin,
-      operationPath("observeConversation"),
-      cookie,
-      credentials.csrf,
-      { scope, input: { conversationId } },
-    )
-      .then((response) => response.text())
-      .catch(() => undefined);
-    await vi.waitFor(() => expect(watch.stop).toHaveBeenCalled(), {
-      timeout: 2_000,
-    });
-  });
+  it.each([false, true])(
+    "cleans up when watch start fails after headers, including stop failure: %s",
+    async (stopFails) => {
+      const { server, watch } = await start();
+      vi.mocked(watch.start).mockImplementationOnce(() => {
+        throw new Error("start failure");
+      });
+      if (stopFails)
+        vi.mocked(watch.stop).mockRejectedValue(new Error("stop failure"));
+      await post(server.origin, operationPath("observeConversation"), {
+        scope,
+        input: { conversationId },
+      })
+        .then((response) => response.text())
+        .catch(() => undefined);
+      await vi.waitFor(() => expect(watch.stop).toHaveBeenCalled(), {
+        timeout: 2_000,
+      });
+    },
+  );
 
   it("closes within five seconds when a watch refuses to stop", async () => {
-    const { server, cookie, credentials, watch } = await start();
+    const { server, watch } = await start();
     vi.mocked(watch.stop).mockImplementation(
       () => new Promise(() => undefined),
     );
     const response = await post(
       server.origin,
       operationPath("observeConversation"),
-      cookie,
-      credentials.csrf,
       { scope, input: { conversationId } },
     );
     expect(response.status).toBe(200);
@@ -1820,8 +1688,8 @@ describe("startLocalServer", () => {
     }
   });
 
-  it("ends an observation whose native watch fails and still stops it", async () => {
-    const { server, cookie, credentials, runtime, watch } = await start();
+  it("ends a failed native watch and still stops it", async () => {
+    const { server, runtime, watch } = await start();
     let rejectWatch!: (reason: Error) => void;
     const closed = new Promise<Awaited<Watch["closed"]>>((_, reject) => {
       rejectWatch = reject;
@@ -1835,8 +1703,6 @@ describe("startLocalServer", () => {
     const response = await post(
       server.origin,
       operationPath("observeConversation"),
-      cookie,
-      credentials.csrf,
       { scope, input: { conversationId } },
     );
     expect(response.status).toBe(200);
@@ -1845,41 +1711,8 @@ describe("startLocalServer", () => {
     await vi.waitFor(() => expect(watch.stop).toHaveBeenCalled());
   });
 
-  it("settles cleanup when starting and stopping an observation both fail", async () => {
-    const { server, cookie, credentials, watch } = await start();
-    vi.mocked(watch.start).mockImplementationOnce(() => {
-      throw new Error("start failure");
-    });
-    vi.mocked(watch.stop).mockRejectedValue(new Error("stop failure"));
-    await post(
-      server.origin,
-      operationPath("observeConversation"),
-      cookie,
-      credentials.csrf,
-      { scope, input: { conversationId } },
-    )
-      .then((response) => response.text())
-      .catch(() => undefined);
-    await vi.waitFor(() => expect(watch.stop).toHaveBeenCalled());
-  });
-
-  it.each(["environmentId", "squadId"] as const)(
-    "rejects a different %s",
-    async (key) => {
-      const { server, cookie, credentials } = await start();
-      const response = await post(
-        server.origin,
-        operationPath("describe"),
-        cookie,
-        credentials.csrf,
-        { scope: { ...scope, [key]: "different" }, input: {} },
-      );
-      expect(response.status).toBe(409);
-    },
-  );
-
-  it("stops snapshots exceeding the writable buffer instead of queueing an unbounded stream", async () => {
-    const { server, cookie, credentials, runtime, watch } = await start();
+  it("stops oversized snapshots instead of queueing an unbounded stream", async () => {
+    const { server, runtime, watch } = await start();
     runtime.calls.observeConversation.mockResolvedValueOnce({
       ...watch,
       value: {
@@ -1887,21 +1720,19 @@ describe("startLocalServer", () => {
         docs: { large: { text: "x".repeat(2 * 1024 * 1024) } },
       },
     });
-    await post(
+    const response = await post(
       server.origin,
       operationPath("observeConversation"),
-      cookie,
-      credentials.csrf,
       { scope, input: { conversationId } },
-    )
-      .then((response) => response.text())
-      .catch(() => undefined);
+    );
+    expect(response.status).toBe(413);
+    await response.text();
     await vi.waitFor(() => expect(watch.stop).toHaveBeenCalled());
     expect(watch.start).not.toHaveBeenCalled();
   });
 
-  it("terminates an SSE stream when a later update exceeds the frame limit", async () => {
-    const { server, cookie, credentials, runtime, watch } = await start();
+  it("terminates SSE when a later update exceeds the frame limit", async () => {
+    const { server, runtime, watch } = await start();
     const oversized: View = {
       ...snapshot,
       docs: { large: { text: "x".repeat(1_048_576) } },
@@ -1926,8 +1757,6 @@ describe("startLocalServer", () => {
     const response = await post(
       server.origin,
       operationPath("observeConversation"),
-      cookie,
-      credentials.csrf,
       { scope, input: { conversationId } },
     );
     expect(response.status).toBe(200);
@@ -1954,8 +1783,8 @@ describe("startLocalServer", () => {
     }
   });
 
-  it("does not send a late Pi watch callback after the native watch closes", async () => {
-    const { server, cookie, credentials, runtime, watch } = await start();
+  it("does not send a late Pi callback after native watch close", async () => {
+    const { server, runtime, watch } = await start();
     let listener: Parameters<Watch["start"]>[0] | undefined;
     let closeNativeWatch!: (end: Awaited<Watch["closed"]>) => void;
     const nativeClosed = new Promise<Awaited<Watch["closed"]>>((resolve) => {
@@ -1972,8 +1801,6 @@ describe("startLocalServer", () => {
     const response = await post(
       server.origin,
       operationPath("observeConversation"),
-      cookie,
-      credentials.csrf,
       { scope, input: { conversationId } },
     );
     expect(response.status).toBe(200);
@@ -1994,8 +1821,8 @@ describe("startLocalServer", () => {
     }
   });
 
-  it("delivers a bounded large snapshot across normal HTTP backpressure", async () => {
-    const { server, cookie, credentials, runtime, watch } = await start();
+  it("delivers a bounded large snapshot across HTTP backpressure", async () => {
+    const { server, runtime, watch } = await start();
     const value: View = {
       ...snapshot,
       docs: { large: { text: "x".repeat(128 * 1024) } },
@@ -2007,8 +1834,6 @@ describe("startLocalServer", () => {
     const response = await post(
       server.origin,
       operationPath("observeConversation"),
-      cookie,
-      credentials.csrf,
       { scope, input: { conversationId } },
     );
     expect(response.status).toBe(200);

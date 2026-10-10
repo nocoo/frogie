@@ -36,7 +36,7 @@ beforeEach(async () => {
     >);
   vi.mocked(startLocalServer).mockReset().mockResolvedValue({
     origin: "https://frogie.dev.hexly.ai",
-    url: "https://frogie.dev.hexly.ai/#token=local-test",
+    url: "https://frogie.dev.hexly.ai/",
     close: serverClose,
   });
 });
@@ -130,7 +130,7 @@ it("validates direct startLocal model input before touching its directory", asyn
   expect(startLocalServer).not.toHaveBeenCalled();
 });
 
-it("starts one daemon and shares its directory with the authenticated server", async () => {
+it("starts one daemon and shares its directory with the local server", async () => {
   const directory = join(root, "local");
   const local = await startLocal({ directory, model, port: 0 });
   expect(startDaemon).toHaveBeenCalledWith({
@@ -147,7 +147,9 @@ it("starts one daemon and shares its directory with the authenticated server", a
     }),
   );
   expect(local.origin).toBe("https://frogie.dev.hexly.ai");
-  expect(local.url).toContain("#token=local-test");
+  expect(local.url).toBe(`${local.origin}/`);
+  expect(new URL(local.url).hash).toBe("");
+  expect(new URL(local.url).search).toBe("");
   await local.close();
   await local.close();
   expect(serverClose).toHaveBeenCalledOnce();

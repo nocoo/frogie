@@ -8,7 +8,7 @@
 
 | 目录或文件 | 初步职责 |
 | --- | --- |
-| `apps/daemon/` | 本机常驻服务、项目登记、Harness 工作进程、存储、模型、沙箱、认证与出站连接 |
+| `apps/daemon/` | 本机常驻服务、项目登记、Harness 工作进程、存储、模型、沙箱、本地访问边界与认证出站连接 |
 | `apps/dashboard/` | 本地 MVVM 客户端，提供项目管理、定义设计、聊天、完整执行观察与调试 |
 | `packages/core/` | 私有定义解析、Pi 接入、角色装配、执行权限和运行投影；由 daemon 使用 |
 | `packages/sdk/` | 公开 npm 通信包，包含数据契约、客户端、Gateway 适配和协议符合性测试 |
@@ -28,7 +28,7 @@
 
 目标依赖方向为：Dashboard 与业务项目依赖 SDK；daemon 依赖 Core、SDK 和明确登记的私有项目扩展；Core 依赖 Pi 并将其状态映射为 SDK 的数据契约。Pi 相关依赖统一版本。SDK 的运行和类型依赖都与 Pi、私有 Core、Squad 文件及本机凭据分离。
 
-本地阶段先以现有 Core 协议完成实际闭环，通信阶段将验证后的纯数据与客户端契约收敛到 SDK，内部入口同步调整。`apps/dashboard/src/server/` 中的执行、认证和文件服务按职责归入 daemon，ViewModel 继续通过客户端访问。
+本地阶段先以现有 Core 协议完成实际闭环，通信阶段将验证后的纯数据与客户端契约收敛到 SDK，内部入口同步调整。`apps/dashboard/src/server/` 中的执行、本地访问边界和文件服务按职责归入 daemon，ViewModel 继续通过客户端访问。
 
 上述目录按 [MVP 实施](08-mvp-implementation.md) 逐步建立。daemon 和 SDK 的模块边界分别见 [本地 Daemon](10-local-daemon.md) 与 [通信 SDK](11-communication-sdk.md)。私有仓库和公开包分别管理交付范围，发布只包含 SDK 的明确文件清单。
 

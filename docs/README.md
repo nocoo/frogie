@@ -9,7 +9,7 @@
 | [01 - 项目定位](01-project-positioning.md) | 个人多 Agent 管理平台、Pi 术语、Squad 与 Harness 关系、本地集中执行和两端独立闭环 |
 | [02 - 仓库结构与开发约定](02-repository-and-workflow.md) | Daemon／Dashboard／Core／SDK 的 monorepo 划分、MVVM、TDD、原子提交和质量门禁 |
 | [03 - Core](03-core.md) | 私有定义装配、Pi 接入、权限、持久预算、恢复及分页执行投影 |
-| [04 - Dashboard](04-dashboard.md) | Basalt 与 React Flow、项目全景、定义编排、任务与历史观察、预算授权、聊天、认证管理与本地调试 |
+| [04 - Dashboard](04-dashboard.md) | Basalt 与 React Flow、项目全景、定义编排、任务与历史观察、预算授权、聊天、本地访问边界与调试 |
 | [05 - Squads](05-squads.md) | 私有 MD 与步骤图规范、Skill 与脚本契约、zeppelin 定义和多 Squad 验证材料 |
 | [06 - Tests](06-tests.md) | 6DQ L1、多 Harness 和恢复、SDK 符合性、完整搭建及双端自治 E2E |
 | [07 - Evals](07-evals.md) | 真实模型协作与恢复、本地双项目历史检查、his.fm 完整作品及回执验收 |

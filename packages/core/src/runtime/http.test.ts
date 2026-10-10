@@ -17,7 +17,7 @@ import { loadDefinition } from "../definitions/index.js";
 import type { RuntimeScope, SubmitOutput } from "../protocol/index.js";
 import { openRuntime } from "./index.js";
 
-it("submits through authenticated HTTP and reopens actual SQLite history", async () => {
+it("submits through credential-free local HTTP and reopens actual SQLite history", async () => {
   const directory = await mkdtemp(join(tmpdir(), "frogie-http-pi-"));
   const definition = loadDefinition(
     fileURLToPath(
@@ -67,18 +67,13 @@ it("submits through authenticated HTTP and reopens actual SQLite history", async
       directory: localDirectory("http-instance", scope, runtime.service),
       context: BACKGROUND_CONTEXT,
     });
-    const token = new URLSearchParams(new URL(server.url).hash.slice(1)).get(
-      "token",
-    );
-    const exchange = await fetch(`${server.origin}/__local/auth/exchange`, {
-      method: "POST",
-      headers: { Origin: server.origin, "Content-Type": "application/json" },
-      body: JSON.stringify({ token }),
+    expect(server.url).toBe(`${server.origin}/`);
+    const context = await fetch(`${server.origin}/__local/context`);
+    expect(context.status).toBe(200);
+    expect(await context.json()).toMatchObject({
+      caller: { id: "local-user" },
     });
-    expect(exchange.status).toBe(200);
-    const { csrf } = (await exchange.json()) as { csrf: string };
-    const cookie = exchange.headers.getSetCookie()[0]?.split(";")[0];
-    if (!cookie) throw new Error("No session cookie");
+    expect(context.headers.getSetCookie()).toEqual([]);
     const submit = await fetch(
       `${server.origin}/__local/instances/http-instance/operations/submit`,
       {
@@ -86,8 +81,6 @@ it("submits through authenticated HTTP and reopens actual SQLite history", async
         headers: {
           Origin: server.origin,
           "Content-Type": "application/json",
-          Cookie: cookie,
-          "X-Frogie-CSRF": csrf,
         },
         body: JSON.stringify({
           scope,
