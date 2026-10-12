@@ -30,9 +30,9 @@ const definitions = [
 async function choose(page: Page, name: string, label: string) {
   const selector = page.getByRole("combobox", { name, exact: true });
   await expect(selector).toBeEnabled();
-  await selector.fill(label);
+  await selector.click();
   await page.getByRole("option", { name: label, exact: true }).click();
-  await expect(selector).toHaveValue(label);
+  await expect(selector).toHaveText(label);
 }
 
 async function chat(page: Page, title: string, content: string) {
@@ -168,9 +168,8 @@ test("real daemon keeps two project histories, Role conversations and lifecycle 
     });
     expect(await context.cookies(initial.server.origin)).toEqual([]);
     await page.goto(initial.server.url);
-    await expect(
-      page.getByRole("combobox", { name: "Squad", exact: true }),
-    ).toBeEnabled();
+    const squad = page.getByRole("combobox", { name: "Squad", exact: true });
+    await expect(squad).toBeEnabled();
     expect(new URL(page.url()).hash).toBe("");
     const table = page.getByRole("table", {
       name: "本机项目列表",
@@ -178,6 +177,93 @@ test("real daemon keeps two project histories, Role conversations and lifecycle 
     });
     await expect(table).toContainText("Alpha Squad");
     await expect(table).toContainText("Beta Squad");
+    await test.step("Squad dropdown exposes every option and restores keyboard focus", async () => {
+      expect(await squad.evaluate((element) => element.tagName)).toBe("BUTTON");
+      await expect(squad.locator("svg.lucide-chevron-down")).toBeVisible();
+      const selected = await squad.textContent();
+      await squad.focus();
+      await squad.press("Enter");
+      const listbox = page.getByRole("listbox");
+      await expect(listbox.getByRole("textbox")).toHaveCount(0);
+      await expect(listbox.getByRole("option")).toHaveText(
+        definitions.map(({ title }) => title),
+      );
+      for (const { title } of definitions)
+        await expect(
+          listbox.getByRole("option", { name: title, exact: true }),
+        ).toBeVisible();
+      await page.keyboard.press("b");
+      await expect(
+        listbox.getByRole("option", { name: "Beta Squad", exact: true }),
+      ).toBeFocused();
+      await page.keyboard.press("Escape");
+      await expect(listbox).toHaveCount(0);
+      await expect(squad).toBeFocused();
+      await expect(squad).toHaveText(selected ?? "");
+      await squad.press("Enter");
+      await page.keyboard.press("b");
+      await expect(
+        listbox.getByRole("option", { name: "Beta Squad", exact: true }),
+      ).toBeFocused();
+      await page.keyboard.press("Enter");
+      await expect(squad).toHaveText("Beta Squad");
+      await expect(squad).toBeEnabled();
+    });
+    await test.step("Project action labels fit and remain reachable at desktop and tablet widths", async () => {
+      await expect(table.getByRole("columnheader")).toHaveText([
+        "项目 / Squad",
+        "运行状态",
+        "模型 / 定义版本",
+        "操作",
+      ]);
+      const viewport = page.getByRole("region", {
+        name: "项目列表",
+        exact: true,
+      });
+      for (const width of [1440, 1024]) {
+        await page.setViewportSize({ width, height: 1000 });
+        for (const { title } of definitions) {
+          for (const name of [
+            `停用项目 ${title}`,
+            `进入项目 ${title}`,
+            `为项目 ${title} 绑定最新定义`,
+          ]) {
+            const button = table.getByRole("button", { name, exact: true });
+            await button.click({ trial: true });
+            const geometry = await button.evaluate((element) => {
+              const range = document.createRange();
+              range.selectNodeContents(element);
+              const text = range.getBoundingClientRect();
+              const bounds = element.getBoundingClientRect();
+              return {
+                lines: range.getClientRects().length,
+                textHeight: text.height,
+                lineHeight: Number.parseFloat(
+                  getComputedStyle(element).lineHeight,
+                ),
+                height: bounds.height,
+                contained:
+                  text.left >= bounds.left && text.right <= bounds.right,
+              };
+            });
+            expect(geometry.lines, name).toBe(1);
+            expect(geometry.textHeight, name).toBeLessThanOrEqual(
+              geometry.lineHeight + 1,
+            );
+            expect(geometry.height, name).toBeGreaterThanOrEqual(34);
+            expect(geometry.contained, name).toBe(true);
+          }
+        }
+        expect(
+          await page.evaluate(() => document.documentElement.scrollWidth),
+        ).toBe(width);
+        if (width === 1024)
+          expect(
+            await viewport.evaluate((element) => element.scrollLeft),
+          ).toBeGreaterThan(0);
+      }
+      await page.setViewportSize({ width: 1440, height: 1000 });
+    });
     await chat(page, "Alpha Squad", "Alpha root history is private");
     await chat(page, "Beta Squad", "Beta root history is private");
     const log = page.getByRole("log", { name: "消息记录", exact: true });
@@ -192,7 +278,7 @@ test("real daemon keeps two project histories, Role conversations and lifecycle 
       .click();
     await expect(
       page.getByRole("combobox", { name: "选择会话", exact: true }),
-    ).not.toHaveValue(`会话 ${alpha.rootConversationId}`);
+    ).not.toHaveText(`会话 ${alpha.rootConversationId}`);
     await chat(
       page,
       "Alpha Squad",
@@ -231,7 +317,7 @@ test("real daemon keeps two project histories, Role conversations and lifecycle 
     await page.getByRole("button", { name: "定义", exact: true }).click();
     await expect(
       page.getByRole("textbox", { name: "Markdown 源码", exact: true }),
-    ).toHaveValue(/Alpha Squad/);
+    ).toContainText(/Alpha Squad/);
     await page.getByRole("button", { name: "对话", exact: true }).click();
     await expect(
       page.getByRole("textbox", { name: "消息", exact: true }),

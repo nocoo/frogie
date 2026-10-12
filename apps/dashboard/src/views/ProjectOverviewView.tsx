@@ -29,7 +29,7 @@ const states = {
 export function ProjectOverviewView(props: ProjectOverviewViewProps) {
   return (
     <LayerCard aria-label="本机项目" aria-busy={props.busy}>
-      <LayerCard.Header>
+      <LayerCard.Header className="frogie-card-heading">
         <Text as="h2" size="sm" bold>
           本机项目
         </Text>
@@ -51,11 +51,9 @@ export function ProjectOverviewView(props: ProjectOverviewViewProps) {
           <Table className="frogie-project-table" aria-label="本机项目列表">
             <TableHeader>
               <TableRow>
-                <TableHead scope="col">项目</TableHead>
-                <TableHead scope="col">Squad / Harness</TableHead>
-                <TableHead scope="col">本机状态 / 远端</TableHead>
-                <TableHead scope="col">Model / Thinking</TableHead>
-                <TableHead scope="col">定义摘要</TableHead>
+                <TableHead scope="col">项目 / Squad</TableHead>
+                <TableHead scope="col">运行状态</TableHead>
+                <TableHead scope="col">模型 / 定义版本</TableHead>
                 <TableHead scope="col">操作</TableHead>
               </TableRow>
             </TableHeader>
@@ -87,14 +85,13 @@ export function ProjectOverviewView(props: ProjectOverviewViewProps) {
                     >
                       {project.projectId}
                     </Text>
-                  </TableCell>
-                  <TableCell>
                     <Text
                       as="span"
-                      variant="mono"
+                      size="sm"
+                      tone="muted"
                       className="frogie-project-value"
                     >
-                      {project.scope.squadId}
+                      Squad: {project.scope.squadId}
                     </Text>
                     <Text
                       as="span"
@@ -103,7 +100,7 @@ export function ProjectOverviewView(props: ProjectOverviewViewProps) {
                       tone="muted"
                       className="frogie-project-value"
                     >
-                      {project.scope.harnessId}
+                      Harness: {project.scope.harnessId}
                     </Text>
                   </TableCell>
                   <TableCell>
@@ -159,23 +156,20 @@ export function ProjectOverviewView(props: ProjectOverviewViewProps) {
                         </Text>
                       </>
                     )}
-                  </TableCell>
-                  <TableCell>
                     <Text
                       as="span"
                       variant="mono"
                       size="xs"
-                      truncate
+                      tone="muted"
                       title={project.definitionHash}
                       className="frogie-project-hash"
                     >
-                      {project.definitionHash}
+                      定义: {project.definitionHash.slice(0, 12)}
                     </Text>
                   </TableCell>
                   <TableCell>
                     <div className="frogie-project-actions">
                       <Button
-                        size="sm"
                         variant="outline"
                         disabled={props.busy}
                         aria-label={`${project.enabled ? "停用" : "启用"}项目 ${project.title}`}
@@ -186,7 +180,6 @@ export function ProjectOverviewView(props: ProjectOverviewViewProps) {
                         {project.enabled ? "停用" : "启用"}
                       </Button>
                       <Button
-                        size="sm"
                         variant="secondary"
                         disabled={props.busy}
                         aria-label={`进入项目 ${project.title}`}
@@ -195,7 +188,6 @@ export function ProjectOverviewView(props: ProjectOverviewViewProps) {
                         进入
                       </Button>
                       <Button
-                        size="sm"
                         variant="outline"
                         disabled={props.busy}
                         aria-label={`为项目 ${project.title} 绑定最新定义`}

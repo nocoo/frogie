@@ -1,7 +1,7 @@
+import { SelectionField } from "./views/SelectionField.js";
 import "./styles.css";
 import type { DaemonProject, SubmitInput } from "@frogie/core/protocol";
 import { LayerCard } from "@nocoo/basalt";
-import { Combobox } from "@nocoo/basalt/components/combobox";
 import type { ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import { version } from "../../../package.json";
@@ -296,9 +296,8 @@ export function mountDashboard(
             conversationId === undefined ? "新对话" : `会话 ${conversationId}`
           }
           conversationSelector={
-            <Combobox
+            <SelectionField
               aria-label="选择会话"
-              className="frogie-conversation-selector"
               items={[...(conversations?.keys() ?? [])].map((id) => ({
                 value: String(id),
                 label: `会话 ${id}`,
@@ -327,7 +326,7 @@ export function mountDashboard(
             />
           }
           roleSelector={
-            <Combobox
+            <SelectionField
               aria-label="选择角色"
               items={
                 definition?.roles.map((role) => ({

@@ -1,11 +1,11 @@
-import { Button, LayerCard, Text } from "@nocoo/basalt";
+import { Button, Field, LayerCard, Text } from "@nocoo/basalt";
 import { Banner } from "@nocoo/basalt/components/banner";
 import { ChatBubble } from "@nocoo/basalt/components/chat-bubble";
 import { ChatComposer } from "@nocoo/basalt/components/chat-composer";
 import { ChatMarkdown } from "@nocoo/basalt/components/chat-markdown";
 import { Loader } from "@nocoo/basalt/components/loader";
 import { PageHeader } from "@nocoo/basalt/components/page-header";
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 
 export interface ChatViewEntry {
   id: string;
@@ -39,6 +39,11 @@ export interface ChatViewProps {
 }
 
 export function ChatView(props: ChatViewProps) {
+  const [detailsOpen, setDetailsOpen] = useState(
+    () =>
+      typeof matchMedia === "undefined" ||
+      matchMedia("(min-width: 1200px)").matches,
+  );
   const chat = (
     <LayerCard aria-label="对话消息" className="frogie-chat">
       <LayerCard.Body
@@ -128,15 +133,15 @@ export function ChatView(props: ChatViewProps) {
         title={props.title}
         actions={
           <div className="frogie-chat-actions">
-            {props.conversationSelector != null && (
-              <div className="frogie-chat-selector frogie-chat-conversation-slot">
-                {props.conversationSelector}
-              </div>
-            )}
-            {props.roleSelector != null && (
-              <div className="frogie-chat-selector frogie-chat-role-slot">
-                {props.roleSelector}
-              </div>
+            {props.details != null && (
+              <Button
+                variant="outline"
+                aria-expanded={detailsOpen}
+                aria-controls="execution-details"
+                onClick={() => setDetailsOpen(!detailsOpen)}
+              >
+                执行详情
+              </Button>
             )}
             <Button
               variant="outline"
@@ -167,17 +172,43 @@ export function ChatView(props: ChatViewProps) {
             )}
           </div>
         }
+        filters={
+          (props.conversationSelector != null ||
+            props.roleSelector != null) && (
+            <div className="frogie-chat-filters">
+              {props.conversationSelector != null && (
+                <Field label="选择会话" htmlFor="chat-conversation" required>
+                  {props.conversationSelector}
+                </Field>
+              )}
+              {props.roleSelector != null && (
+                <Field label="选择角色" htmlFor="chat-role" required>
+                  {props.roleSelector}
+                </Field>
+              )}
+            </div>
+          )
+        }
       />
-      {props.details == null ? (
-        chat
-      ) : (
-        <div className="frogie-chat-workspace">
-          {chat}
-          <section className="frogie-chat-details" aria-label="任务详情">
+      <div
+        className={
+          props.details != null && detailsOpen
+            ? "frogie-chat-workspace"
+            : "frogie-chat-workspace frogie-chat-workspace-single"
+        }
+      >
+        {chat}
+        {props.details != null && (
+          <section
+            id="execution-details"
+            className="frogie-chat-details"
+            aria-label="任务详情"
+            hidden={!detailsOpen}
+          >
             {props.details}
           </section>
-        </div>
-      )}
+        )}
+      </div>
     </>
   );
 }

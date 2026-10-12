@@ -80,7 +80,7 @@ Workflow 专业画布采用已核实的稳定版 `@xyflow/react@12.12.0`，其 R
 | 场景 | 发布版组件与入口 |
 | --- | --- |
 | 应用框架 | `components/app-shell`、`components/app-header`、`components/sidebar` |
-| 全局上下文 | `components/combobox` 的可搜索选择，`components/segment-control` 的环境模式选择，配合 `Popover` 与 `Badge` |
+| 全局上下文 | `components/select` 的下拉选择，支持键盘输入定位选项；`components/segment-control` 的环境模式选择，配合 `Badge` |
 | 标题与内容层次 | `components/page-header`、`components/section-rule`、`LayerCard` |
 | 表单与动作 | `Field`、`Input`、`Button`、`Checkbox`，`components/input-area`、`components/select`、`components/multi-select` |
 | 目录导航与主从布局 | `components/editable-nav-item` 的 `EditableNavItem`、`FolderNavItem`，`components/responsive-master-detail` |
@@ -104,7 +104,7 @@ Markdown 展示使用 Basalt `ChatMarkdown`，以发布版接口核对 GFM、安
 
 ### 全局 Squad／Harness 上下文
 
-侧栏上方的切换器像工作区选择器一样显示当前 Squad 名称、所属项目、环境与 Harness 简称。展开后可搜索 Squad，查看该模式内已绑定的环境、定义摘要与连接状态，并进入对应 Harness。未绑定的 Squad 也可以进入定义管理，运行入口提供创建绑定动作。
+侧栏上方的切换器像工作区选择器一样显示当前 Squad 名称、所属项目、环境与 Harness 简称。展开后列出 Squad，通过键盘输入定位选项，查看该模式内已绑定的环境、定义摘要与连接状态，并进入对应 Harness。未绑定的 Squad 也可以进入定义管理，运行入口提供创建绑定动作。
 
 全局上下文由模式、项目、环境、Squad 和可选 Harness 组成。更换任一项后，定义导航、Workflow、会话、产物、评估与客户端缓存统一切换；路由记录稳定身份，刷新时由服务端重新校验选择。侧栏收起时仍显示当前 Squad 的可访问名称，窄屏在同一导航 Sheet 中完成切换。右上角 Local／E2E 分段选择保留，两者与远端环境分别标识。
 

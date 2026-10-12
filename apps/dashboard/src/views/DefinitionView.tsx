@@ -17,6 +17,7 @@ import { InputArea } from "@nocoo/basalt/components/input-area";
 import { Loader } from "@nocoo/basalt/components/loader";
 import { PageHeader } from "@nocoo/basalt/components/page-header";
 import { ResponsiveMasterDetail } from "@nocoo/basalt/components/responsive-master-detail";
+import { FileText } from "lucide-react";
 import { useEffect, useState } from "react";
 
 export interface DefinitionViewFile {
@@ -114,25 +115,36 @@ export function DefinitionView(props: DefinitionViewProps) {
           />
         }
         list={
-          <SidebarNav aria-label="定义文件">
-            {props.files.map((file) => (
-              <EditableNavItem
-                key={file.path}
-                label={file.title}
-                selected={props.selectedPath === file.path}
-                disabled={props.loading || props.saving || props.creating}
-                onSelect={() => {
-                  props.onFileSelect(file.path);
-                  setDetailOpen(true);
-                }}
-              />
-            ))}
-            {props.files.length === 0 && (
-              <Text size="sm" tone="muted">
-                暂无定义文件
+          <LayerCard className="frogie-definition-files">
+            <LayerCard.Header className="frogie-card-heading">
+              <Text as="h2" bold>
+                定义文件
               </Text>
-            )}
-          </SidebarNav>
+              <Badge variant="secondary">{props.files.length}</Badge>
+            </LayerCard.Header>
+            <SidebarNav aria-label="定义文件">
+              {props.files.map((file) => (
+                <EditableNavItem
+                  key={file.path}
+                  label={file.title}
+                  icon={
+                    <FileText aria-hidden="true" size={16} strokeWidth={1.5} />
+                  }
+                  selected={props.selectedPath === file.path}
+                  disabled={props.loading || props.saving || props.creating}
+                  onSelect={() => {
+                    props.onFileSelect(file.path);
+                    setDetailOpen(true);
+                  }}
+                />
+              ))}
+              {props.files.length === 0 && (
+                <Text size="sm" tone="muted">
+                  暂无定义文件
+                </Text>
+              )}
+            </SidebarNav>
+          </LayerCard>
         }
       >
         <LayerCard className="frogie-definition-editor">

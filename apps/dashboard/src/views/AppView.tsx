@@ -34,7 +34,6 @@ import {
 } from "@nocoo/basalt/components/app-shell";
 import { Banner } from "@nocoo/basalt/components/banner";
 import { LinkButton } from "@nocoo/basalt/components/button";
-import { Combobox } from "@nocoo/basalt/components/combobox";
 import { PageHeader } from "@nocoo/basalt/components/page-header";
 import { AccentProvider } from "@nocoo/basalt/providers/accent";
 import {
@@ -52,6 +51,7 @@ import {
   UserRound,
 } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
+import { SelectionField } from "./SelectionField.js";
 
 export type Page = "overview" | "definitions" | "workflows" | "chat" | "evals";
 export type Mode = "local" | "e2e";
@@ -202,7 +202,7 @@ export function AppView(props: AppViewProps) {
                         required
                         className="frogie-workspace-selector"
                       >
-                        <Combobox
+                        <SelectionField
                           id="squad-selector"
                           items={props.squads.map((squad) => ({
                             value: squad.id,

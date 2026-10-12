@@ -12,7 +12,6 @@ import {
   Text,
 } from "@nocoo/basalt";
 import { Banner } from "@nocoo/basalt/components/banner";
-import { Combobox } from "@nocoo/basalt/components/combobox";
 import { useTheme } from "@nocoo/basalt/providers/theme";
 import {
   Background,
@@ -27,7 +26,9 @@ import {
   useNodesState,
   useReactFlow,
 } from "@xyflow/react";
+import { Minus, Plus, Scan } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { SelectionField } from "./SelectionField.js";
 import "@xyflow/react/dist/base.css";
 
 export interface WorkflowViewProps {
@@ -69,7 +70,7 @@ function WorkflowStep({ data, isConnectable }: NodeProps<StepNode>) {
         isConnectable={isConnectable}
         aria-label={`${data.title} 输入端口`}
       />
-      <LayerCard padding="sm" className="frogie-workflow-node">
+      <LayerCard padding="md" outlined className="frogie-workflow-node">
         <div className="frogie-workflow-node-heading">
           <Text as="span" size="sm" bold>
             {data.title}
@@ -106,7 +107,7 @@ function WorkflowInspector(
   const role = props.roles.find((item) => item.id === node?.role);
   return (
     <LayerCard aria-label="步骤属性" className="frogie-workflow-inspector">
-      <LayerCard.Header>
+      <LayerCard.Header className="frogie-card-heading">
         <Text as="h2" size="sm" bold>
           步骤属性
         </Text>
@@ -185,7 +186,7 @@ function WorkflowInspector(
               ))}
             </div>
             <Field label="连接到步骤" htmlFor="workflow-connect-target">
-              <Combobox
+              <SelectionField
                 id="workflow-connect-target"
                 items={props.workflow.nodes
                   .filter((item) => item.id !== node.id)
@@ -230,6 +231,14 @@ function WorkflowEditor(
   const { theme } = useTheme();
   const [roleId, setRoleId] = useState("");
   const flow = useReactFlow<StepNode>();
+  const inspectorOpen = props.selectedNodeId !== null;
+  useEffect(() => {
+    if (!inspectorOpen) return;
+    const frame = requestAnimationFrame(
+      () => void flow.fitView({ maxZoom: 1 }),
+    );
+    return () => cancelAnimationFrame(frame);
+  }, [flow, inspectorOpen]);
   const projectedNodes = useMemo<StepNode[]>(
     () =>
       props.workflow.nodes.map((node) => ({
@@ -279,7 +288,7 @@ function WorkflowEditor(
             htmlFor="workflow-add-role"
             className="frogie-workflow-role-selector"
           >
-            <Combobox
+            <SelectionField
               id="workflow-add-role"
               items={props.roles.map((role) => ({
                 value: role.id,
@@ -310,24 +319,24 @@ function WorkflowEditor(
           </Button>
           <div className="frogie-workflow-viewport-actions">
             <Button
-              size="sm"
+              size="icon"
               variant="ghost"
               aria-label="缩小画布"
               onClick={() => void flow.zoomOut()}
             >
-              −
+              <Minus aria-hidden="true" size={16} />
             </Button>
             <Button
-              size="sm"
+              size="icon"
               variant="ghost"
               aria-label="放大画布"
               onClick={() => void flow.zoomIn()}
             >
-              +
+              <Plus aria-hidden="true" size={16} />
             </Button>
             <Button
-              size="sm"
               variant="outline"
+              icon={<Scan aria-hidden="true" size={16} />}
               onClick={() => void flow.fitView()}
             >
               适配全图
@@ -345,6 +354,7 @@ function WorkflowEditor(
             }))}
             nodeTypes={nodeTypes}
             nodesDraggable={!props.busy}
+            selectNodesOnDrag={false}
             nodesConnectable={!props.busy}
             edgesReconnectable={false}
             deleteKeyCode={null}
@@ -387,6 +397,7 @@ function WorkflowEditor(
                 props.onAddNode(droppedRole);
             }}
             fitView
+            fitViewOptions={{ maxZoom: 1 }}
           >
             <Background />
             {nodes.length === 0 && (
@@ -403,7 +414,9 @@ function WorkflowEditor(
           </ReactFlow>
         </div>
       </LayerCard>
-      <WorkflowInspector key={props.selectedNodeId} {...props} />
+      {inspectorOpen && (
+        <WorkflowInspector key={props.selectedNodeId} {...props} />
+      )}
     </div>
   );
 }
@@ -418,7 +431,7 @@ export function WorkflowView(props: WorkflowViewProps) {
             htmlFor="workflow-selector"
             className="frogie-workflow-selector"
           >
-            <Combobox
+            <SelectionField
               id="workflow-selector"
               items={props.workflows.map((workflow) => ({
                 value: workflow.id,

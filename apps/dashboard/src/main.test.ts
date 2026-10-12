@@ -14,7 +14,6 @@ import type {
   RuntimeScope,
   RuntimeTask,
 } from "@frogie/core/protocol";
-import { Combobox } from "@nocoo/basalt/components/combobox";
 import { isValidElement, type ReactElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { LocalRuntimeClient } from "./models/localClient.js";
@@ -23,6 +22,7 @@ import { ChatView } from "./views/ChatView.js";
 import { DefinitionView } from "./views/DefinitionView.js";
 import { ExecutionView } from "./views/ExecutionView.js";
 import { ProjectOverviewView } from "./views/ProjectOverviewView.js";
+import { SelectionField } from "./views/SelectionField.js";
 import { WorkflowView } from "./views/WorkflowView.js";
 
 const rootMock = vi.hoisted(() => ({
@@ -482,7 +482,10 @@ describe("mountDashboard execution lifecycle", () => {
       await chat.onSend("Do not submit while the grant is unconfirmed");
       expect(client.submit).not.toHaveBeenCalled();
       expect(client.createConversation).not.toHaveBeenCalled();
-      const selector = findElement(chat?.conversationSelector, Combobox)?.props;
+      const selector = findElement(
+        chat?.conversationSelector,
+        SelectionField,
+      )?.props;
       selector?.onValueChange?.("18");
       await vi.advanceTimersByTimeAsync(0);
       expect(
@@ -517,9 +520,10 @@ describe("mountDashboard execution lifecycle", () => {
       currentApp(root.render).props.children,
       ChatView,
     )?.props;
-    findElement(chat?.conversationSelector, Combobox)?.props.onValueChange?.(
-      "18",
-    );
+    findElement(
+      chat?.conversationSelector,
+      SelectionField,
+    )?.props.onValueChange?.("18");
     await vi.advanceTimersByTimeAsync(0);
     expect(
       findElement(currentApp(root.render).props.children, ExecutionView)?.props
@@ -746,9 +750,10 @@ describe("mountDashboard execution lifecycle", () => {
       currentApp(root.render).props.children,
       ChatView,
     )?.props;
-    findElement(chat?.conversationSelector, Combobox)?.props.onValueChange?.(
-      "18",
-    );
+    findElement(
+      chat?.conversationSelector,
+      SelectionField,
+    )?.props.onValueChange?.("18");
     await vi.waitFor(() =>
       expect(client.listEntries).toHaveBeenLastCalledWith(
         expect.objectContaining({ conversationId: 18 }),
@@ -1023,7 +1028,8 @@ describe("mountDashboard client wiring", () => {
     const chat = () =>
       findElement(currentApp(root.render).props.children, ChatView)?.props;
     const selector = () =>
-      findElement(currentApp(root.render).props.children, Combobox)?.props;
+      findElement(currentApp(root.render).props.children, SelectionField)
+        ?.props;
     chat()?.onDraftChange("First draft");
     selector()?.onValueChange?.("18");
     expect(chat()?.draft).toBe("");
@@ -1088,7 +1094,7 @@ describe("mountDashboard client wiring", () => {
     currentApp(root.render).props.onPageChange("chat");
     const app = currentApp(root.render).props;
     const chat = findElement(app.children, ChatView)?.props;
-    const selector = findElement(app.children, Combobox)?.props;
+    const selector = findElement(app.children, SelectionField)?.props;
     currentApp(root.render).props.onPageChange("definitions");
     const definition = findElement(
       currentApp(root.render).props.children,
@@ -1155,7 +1161,7 @@ describe("mountDashboard client wiring", () => {
     expect(chat?.canSend).toBe(false);
     findElement(
       currentApp(root.render).props.children,
-      Combobox,
+      SelectionField,
     )?.props.onValueChange?.("missing");
     await chat?.onSend("ignored");
     await chat?.onStop();
@@ -1513,7 +1519,10 @@ describe("mountDashboard client wiring", () => {
     currentApp(root.render).props.onPageChange("chat");
     const chat = () =>
       findElement(currentApp(root.render).props.children, ChatView)?.props;
-    const roleSelector = findElement(chat()?.roleSelector, Combobox)?.props;
+    const roleSelector = findElement(
+      chat()?.roleSelector,
+      SelectionField,
+    )?.props;
     expect(roleSelector?.items).toEqual([
       { value: "command", label: "Command" },
       { value: "reviewer", label: "Reviewer" },
@@ -1666,9 +1675,10 @@ describe("mountDashboard client wiring", () => {
     currentApp(root.render).props.onPageChange("chat");
     const chat = () =>
       findElement(currentApp(root.render).props.children, ChatView)?.props;
-    findElement(chat()?.conversationSelector, Combobox)?.props.onValueChange?.(
-      "18",
-    );
+    findElement(
+      chat()?.conversationSelector,
+      SelectionField,
+    )?.props.onValueChange?.("18");
     expect(chat()?.title).toBe("会话 18");
     currentApp(root.render).props.onSquadChange(otherScope.squadId);
     await vi.waitFor(() =>

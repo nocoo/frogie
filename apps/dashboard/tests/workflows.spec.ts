@@ -125,12 +125,50 @@ test("Workflow graph and source edits persist through refresh without changing t
     await page.getByRole("button", { name: "工作流", exact: true }).click();
     await expect(
       page.getByRole("combobox", { name: "Workflow", exact: true }),
-    ).toHaveValue("Review");
+    ).toContainText("Review");
     const inspect = page.locator('.react-flow__node[data-id="inspect"]');
     const report = page.locator('.react-flow__node[data-id="report"]');
     await expect(inspect).toBeVisible();
     await expect(report).toBeVisible();
     await expect(page.locator(".react-flow__edge")).toHaveCount(1);
+    await test.step("Dragging an unselected node preserves the viewport and keeps the inspector closed", async () => {
+      const viewport = page.locator(".react-flow__viewport");
+      const inspector = page.locator(".frogie-workflow-inspector");
+      await expect(inspect).not.toHaveClass(/\bselected\b/);
+      await expect(inspector).toHaveCount(0);
+      const viewportTransform = await viewport.evaluate(
+        (element) => getComputedStyle(element).transform,
+      );
+      const nodeTransform = await inspect.evaluate(
+        (element) => getComputedStyle(element).transform,
+      );
+      const original = await bounds(inspect);
+      const start = { x: original.x + original.width / 2, y: original.y + 20 };
+      const armed = { x: start.x + 5, y: start.y };
+      await page.mouse.move(start.x, start.y);
+      await page.mouse.down();
+      try {
+        // React Flow anchors the drag at the first move past its threshold.
+        await page.mouse.move(armed.x, armed.y);
+        await page.mouse.move(armed.x + 60, armed.y + 40, { steps: 12 });
+        await expect
+          .poll(async () => (await bounds(inspect)).x - original.x)
+          .toBeCloseTo(60, 0);
+        await expect
+          .poll(async () => (await bounds(inspect)).y - original.y)
+          .toBeCloseTo(40, 0);
+        await expect(viewport).toHaveCSS("transform", viewportTransform);
+        await expect(inspector).toHaveCount(0);
+        await expect(inspect).not.toHaveClass(/\bselected\b/);
+        await page.mouse.move(armed.x, armed.y, { steps: 12 });
+      } finally {
+        await page.mouse.up();
+      }
+      await expect(inspect).toHaveCSS("transform", nodeTransform);
+      await expect(viewport).toHaveCSS("transform", viewportTransform);
+      await expect(inspector).toHaveCount(0);
+      await expect(inspect).not.toHaveClass(/\bselected\b/);
+    });
     await inspect.click();
     const x = page.getByRole("spinbutton", { name: "X 坐标", exact: true });
     const y = page.getByRole("spinbutton", { name: "Y 坐标", exact: true });

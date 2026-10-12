@@ -173,9 +173,9 @@ async function selectConversation(page: Page, id: number) {
     exact: true,
   });
   await expect(selector).toBeEnabled();
-  await selector.fill(`会话 ${id}`);
+  await selector.click();
   await page.getByRole("option", { name: `会话 ${id}`, exact: true }).click();
-  await expect(selector).toHaveValue(`会话 ${id}`);
+  await expect(selector).toContainText(`会话 ${id}`);
 }
 
 test("execution inspection shows native delegation, tool results and persisted history in the real Dashboard", async ({
