@@ -1,4 +1,3 @@
-import { execFileSync } from "node:child_process";
 import {
   chmodSync,
   existsSync,
@@ -15,7 +14,8 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { git } from "../tests/fixtures/git.js";
 import { gate, main } from "./cli.js";
 
 const temporaryRoots: string[] = [];
@@ -36,14 +36,6 @@ function write(root: string, path: string, content: string): void {
   const file = join(root, path);
   mkdirSync(dirname(file), { recursive: true });
   writeFileSync(file, content);
-}
-
-function git(repository: string, ...args: string[]): string {
-  return execFileSync("git", args, {
-    cwd: repository,
-    encoding: "utf8",
-    stdio: "pipe",
-  }).trim();
 }
 
 function commit(repository: string, message: string): string {
@@ -174,8 +166,14 @@ function calls(
     });
 }
 
+beforeEach(() => {
+  for (const name of Object.keys(process.env))
+    if (name.startsWith("GIT_")) vi.stubEnv(name, undefined);
+});
+
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.unstubAllEnvs();
   for (const root of temporaryRoots.splice(0))
     rmSync(root, { recursive: true, force: true });
 });

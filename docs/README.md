@@ -13,7 +13,7 @@
 | [05 - Squads](05-squads.md) | 私有 MD 与步骤图规范、Skill 与脚本契约、zeppelin 定义和多 Squad 验证材料 |
 | [06 - Tests](06-tests.md) | 6DQ L1、多 Harness 和恢复、SDK 符合性、完整搭建及双端自治 E2E |
 | [07 - Evals](07-evals.md) | 真实模型协作与恢复、本地双项目历史检查、his.fm 完整作品及回执验收 |
-| [08 - MVP 实施](08-mvp-implementation.md) | 实现起点、文档审阅、本地闭环、SDK 与 his.fm、其他业务的顺序与阶段门槛 |
+| [08 - MVP 实施](08-mvp-implementation.md) | 实现起点、文档审阅、本地闭环、SDK 与 his.fm 的顺序与阶段门槛 |
 | [09 - 项目集成](09-project-integration.md) | 使用方与 Frogie 的职责、his.fm 调整位置、完整生产路径和后续业务接入 |
 | [10 - 本地 Daemon](10-local-daemon.md) | 项目登记、多 Harness 生命周期、存储、权限、离线自治和观察调试 |
 | [11 - 通信 SDK](11-communication-sdk.md) | 出站 WSS、双向认证、高级接口、实时观察、可靠投递、业务工具和包发布边界 |

@@ -1,4 +1,4 @@
-import { execFileSync, spawnSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import {
   chmodSync,
   existsSync,
@@ -15,7 +15,8 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { fixtureEnv, git } from "../tests/fixtures/git.js";
 
 const roots: string[] = [];
 const sourceRoot = new URL("../", import.meta.url);
@@ -116,26 +117,23 @@ if (tool === "vitest") {
     );
     chmodSync(join(repository, relative), 0o755);
   }
-  execFileSync("git", ["init", "-q"], { cwd: repository, stdio: "pipe" });
-  execFileSync(
-    "git",
-    [
-      "add",
-      "--",
-      ".gitignore",
-      "package.json",
-      "packages/core/package.json",
-      "apps/dashboard/package.json",
-      "apps/daemon/package.json",
-      "pnpm-lock.yaml",
-      "source.txt",
-      "scripts/check.ts",
-      "scripts/gate.ts",
-      "scripts/cli.ts",
-      ".husky/pre-commit",
-      ".husky/pre-push",
-    ],
-    { cwd: repository, stdio: "pipe" },
+  git(repository, "init", "-q");
+  git(
+    repository,
+    "add",
+    "--",
+    ".gitignore",
+    "package.json",
+    "packages/core/package.json",
+    "apps/dashboard/package.json",
+    "apps/daemon/package.json",
+    "pnpm-lock.yaml",
+    "source.txt",
+    "scripts/check.ts",
+    "scripts/gate.ts",
+    "scripts/cli.ts",
+    ".husky/pre-commit",
+    ".husky/pre-push",
   );
   return { root, repository, temporary, log };
 }
@@ -152,7 +150,7 @@ function execute(
     [join(test.repository, `.husky/${hook}`)],
     {
       cwd: test.repository,
-      env: { ...process.env, TMPDIR: test.temporary },
+      env: { ...fixtureEnv(), TMPDIR: test.temporary },
       encoding: "utf8",
       input,
       timeout: 8_000,
@@ -178,7 +176,13 @@ function execute(
   return { result, calls };
 }
 
+beforeEach(() => {
+  for (const name of Object.keys(process.env))
+    if (name.startsWith("GIT_")) vi.stubEnv(name, undefined);
+});
+
 afterEach(() => {
+  vi.unstubAllEnvs();
   for (const root of roots.splice(0))
     rmSync(root, { recursive: true, force: true });
 });
@@ -236,35 +240,26 @@ describe("pre-push shell", () => {
   it("loads checkers from the pushed SHA rather than an unrelated malicious HEAD", () => {
     const test = fixture(true);
     const commit = (message: string) =>
-      execFileSync(
-        "git",
-        [
-          "-c",
-          "user.name=Hook Fixture",
-          "-c",
-          "user.email=hook@example.invalid",
-          "-c",
-          "commit.gpgsign=false",
-          "commit",
-          "-qm",
-          message,
-        ],
-        { cwd: test.repository, stdio: "pipe" },
+      git(
+        test.repository,
+        "-c",
+        "user.name=Hook Fixture",
+        "-c",
+        "user.email=hook@example.invalid",
+        "-c",
+        "commit.gpgsign=false",
+        "commit",
+        "-qm",
+        message,
       );
     commit("Add healthy checkers");
-    const pushedSha = execFileSync("git", ["rev-parse", "HEAD"], {
-      cwd: test.repository,
-      encoding: "utf8",
-    }).trim();
+    const pushedSha = git(test.repository, "rev-parse", "HEAD");
     write(
       test.repository,
       "scripts/cli.ts",
       'throw new Error("Unrelated HEAD checker executed");\nexport async function main() {}\n',
     );
-    execFileSync("git", ["add", "--", "scripts/cli.ts"], {
-      cwd: test.repository,
-      stdio: "pipe",
-    });
+    git(test.repository, "add", "--", "scripts/cli.ts");
     commit("Replace unrelated HEAD checker");
     const { result, calls } = execute(
       test,

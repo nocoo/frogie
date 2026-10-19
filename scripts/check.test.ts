@@ -1,4 +1,3 @@
-import { execFileSync } from "node:child_process";
 import {
   chmodSync,
   existsSync,
@@ -10,7 +9,8 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { git } from "../tests/fixtures/git.js";
 import { materializeIndex, runChecks } from "./check.js";
 
 const temporaryRoots: string[] = [];
@@ -19,10 +19,6 @@ function temporaryDirectory(prefix: string): string {
   const directory = mkdtempSync(join(tmpdir(), prefix));
   temporaryRoots.push(directory);
   return directory;
-}
-
-function git(repository: string, ...args: string[]): void {
-  execFileSync("git", args, { cwd: repository, stdio: "ignore" });
 }
 
 async function waitForFile(path: string): Promise<void> {
@@ -45,6 +41,11 @@ async function expectProcessExited(pid: number): Promise<void> {
   }
   expect(() => process.kill(pid, 0)).toThrow();
 }
+
+beforeEach(() => {
+  for (const name of Object.keys(process.env))
+    if (name.startsWith("GIT_")) vi.stubEnv(name, undefined);
+});
 
 afterEach(() => {
   vi.unstubAllEnvs();

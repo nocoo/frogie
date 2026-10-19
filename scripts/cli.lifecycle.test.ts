@@ -1,4 +1,3 @@
-import { execFileSync } from "node:child_process";
 import {
   chmodSync,
   existsSync,
@@ -10,7 +9,8 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { git } from "../tests/fixtures/git.js";
 import { gate, main } from "./cli.js";
 
 const roots: string[] = [];
@@ -81,21 +81,18 @@ fs.writeFileSync("coverage/vitest.json", JSON.stringify({numTotalTests:1,numPass
     write(repository, relative, body);
     chmodSync(join(repository, relative), 0o755);
   }
-  execFileSync("git", ["init", "-q"], { cwd: repository });
-  execFileSync(
-    "git",
-    [
-      "add",
-      "--",
-      ".gitignore",
-      "package.json",
-      "packages/core/package.json",
-      "apps/dashboard/package.json",
-      "apps/daemon/package.json",
-      "pnpm-lock.yaml",
-      "source.txt",
-    ],
-    { cwd: repository },
+  git(repository, "init", "-q");
+  git(
+    repository,
+    "add",
+    "--",
+    ".gitignore",
+    "package.json",
+    "packages/core/package.json",
+    "apps/dashboard/package.json",
+    "apps/daemon/package.json",
+    "pnpm-lock.yaml",
+    "source.txt",
   );
   return { root, repository, pidFile, childFile };
 }
@@ -184,7 +181,13 @@ async function killStartedProcesses(pids: readonly number[]): Promise<void> {
   await Promise.all(pids.map(expectExited));
 }
 
+beforeEach(() => {
+  for (const name of Object.keys(process.env))
+    if (name.startsWith("GIT_")) vi.stubEnv(name, undefined);
+});
+
 afterEach(() => {
+  vi.unstubAllEnvs();
   if (originalPidFile === undefined) delete process.env.FROGIE_CLI_PID_FILE;
   else process.env.FROGIE_CLI_PID_FILE = originalPidFile;
   if (originalChildFile === undefined) delete process.env.FROGIE_CLI_CHILD_FILE;
