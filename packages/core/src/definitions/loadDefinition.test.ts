@@ -1,4 +1,4 @@
-import { execFileSync, spawnSync } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import {
   chmodSync,
   cpSync,
@@ -533,29 +533,90 @@ describe("loadDefinition", () => {
     }
   });
 
-  it("rejects a FIFO resource without blocking while reading it", () => {
+  it("rejects a FIFO resource without blocking while reading it", async () => {
     const root = copyFixture();
     const resources = join(root, "skills", "planning", "resources");
     mkdirSync(resources);
     execFileSync("mkfifo", [join(resources, "pipe")]);
     const moduleUrl = new URL("./index.ts", import.meta.url).href;
-    const result = spawnSync(
+    const child = spawn(
       process.execPath,
       [
         "--import",
         "tsx",
         "--input-type=module",
         "-e",
-        `const { loadDefinition } = await import(${JSON.stringify(moduleUrl)}); loadDefinition(process.argv[1]);`,
+        `
+          import assert from "node:assert/strict";
+          const { DefinitionError, loadDefinition } = await import(${JSON.stringify(moduleUrl)});
+          process.once("message", (message) => {
+            assert.equal(message, "load");
+            assert.throws(() => loadDefinition(process.argv[1]), (error) => {
+              assert.ok(error instanceof DefinitionError);
+              assert.deepEqual(error.diagnostic, {
+                code: "file",
+                path: "skills/planning/resources/pipe",
+                message: "Only regular files and directories are allowed",
+              });
+              return true;
+            });
+            process.send("rejected", () => process.disconnect());
+          });
+          process.send("ready");
+        `,
         root,
       ],
-      { cwd: process.cwd(), encoding: "utf8", timeout: 2_000 },
+      { cwd: process.cwd(), stdio: ["ignore", "ignore", "pipe", "ipc"] },
     );
-    expect((result.error as NodeJS.ErrnoException | undefined)?.code).not.toBe(
-      "ETIMEDOUT",
-    );
-    expect(result.status).not.toBe(0);
-    expect(`${result.stdout}${result.stderr}`).toMatch(/regular files|file/i);
+    let ready = false;
+    let rejected = false;
+    let stderr = "";
+    child.stderr?.setEncoding("utf8");
+    child.stderr?.on("data", (chunk: string) => {
+      stderr += chunk;
+    });
+    const result = await new Promise<{
+      code: number | null;
+      signal: NodeJS.Signals | null;
+    }>((resolve, reject) => {
+      let failure: Error | undefined;
+      const stop = (error: Error) => {
+        failure ??= error;
+        child.kill("SIGKILL");
+      };
+      let timer = setTimeout(
+        () => stop(new Error("FIFO child startup timed out")),
+        6_000,
+      );
+      child.on("message", (message) => {
+        if (message === "rejected" && ready && !rejected) {
+          rejected = true;
+          return;
+        }
+        if (message !== "ready" || ready) {
+          stop(new Error("Unexpected FIFO child message"));
+          return;
+        }
+        ready = true;
+        clearTimeout(timer);
+        timer = setTimeout(
+          () => stop(new Error("FIFO definition load timed out")),
+          2_000,
+        );
+        child.send("load", (error) => {
+          if (error) stop(error);
+        });
+      });
+      child.once("error", stop);
+      child.once("close", (code, signal) => {
+        clearTimeout(timer);
+        if (failure) reject(failure);
+        else resolve({ code, signal });
+      });
+    });
+    expect(ready, stderr).toBe(true);
+    expect(rejected, stderr).toBe(true);
+    expect(result, stderr).toEqual({ code: 0, signal: null });
   });
 
   it("includes Skill scripts and resources in the sorted file snapshot and hash", () => {
