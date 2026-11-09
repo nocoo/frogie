@@ -37,7 +37,6 @@ body {
 
 .frogie-environment [data-slot="segment-control-viewport"] {
   overflow: visible;
-  padding-bottom: 0;
 }
 
 .frogie-workspace-selector {
