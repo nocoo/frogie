@@ -21,7 +21,7 @@ jobs:
       package-manager: pnpm
       runtime-version: 11.6.0
       node-version: 26.12.1
-      install-policy: trusted
+      install-policy: project
       build: true
       build-command: pnpm run build
       security: true
