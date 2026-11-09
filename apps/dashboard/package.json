@@ -12,7 +12,7 @@
     "@earendil-works/pi-ai": "1.1.0",
     "@earendil-works/pi-durable": "1.1.0",
     "@frogie/core": "workspace:*",
-    "@nocoo/basalt": "3.0.0",
+    "@nocoo/basalt": "3.2.1",
     "@xyflow/react": "12.12.0",
     "eventsource-parser": "4.1.1",
     "lucide-react": "1.54.0",

@@ -59,9 +59,9 @@ ViewModel 接收服务依赖，以普通 TypeScript 状态转换和 React 绑定
 
 ### 发布包
 
-首期锁定已核实的 npm 稳定版 `@nocoo/basalt@3.0.0`，采用 `@nocoo/basalt/styles/standalone`。版本依据为 npm 镜像的 `latest`、独立 CDN 元数据及相同版本发布产物。
+首期锁定已核实的 npm 稳定版 `@nocoo/basalt@3.2.1`，采用 `@nocoo/basalt/styles/standalone`。版本依据为 npm 镜像的 `latest`、独立 CDN 元数据及相同版本发布产物。
 
-本地 `../basalt` 用于理解设计体系，组件能力以 `3.0.0` 产物内的 `ai/registry.json`、类型声明与 `ai/INTEGRATION.md` 为准。布局、表单、列表和聊天展示使用该版本公开组件。
+本地 `../basalt` 用于理解设计体系，组件能力以 `3.2.1` 产物内的 `ai/registry.json`、类型声明与 `ai/INTEGRATION.md` 为准。布局、表单、列表和聊天展示使用该版本公开组件。
 
 Workflow 专业画布采用已核实的稳定版 `@xyflow/react@12.12.0`，其 React peer 范围支持 React 19。React Flow 提供节点拖动、连线、坐标变换与缩放；Basalt 提供节点内容、属性编辑、菜单和动作控件。
 
@@ -73,7 +73,7 @@ Workflow 专业画布采用已核实的稳定版 `@xyflow/react@12.12.0`，其 R
 
 使用 `ThemeProvider`、`AccentProvider`、`LinkProvider`、`TooltipProvider` 和单个全局 `Toaster`。品牌采用淡绿色，通过 `AccentProvider.paletteOverrides` 定义 `green`，用于导航选中态与用户消息。语义按钮颜色沿用 Basalt 的对比度推导。保留 Frogie 现有图稿，使用合适尺寸的衍生资产。
 
-应用壳、页面容器、卡片、分栏、弹窗、按钮和表单统一使用 Basalt 3.0.0 公开组件及官方 Recipes，按参考项目的结构组装。React Flow 仅承担专业画布布局与交互，节点内容、工具栏和属性面板采用 Basalt。字体、控件尺寸、圆角、间距和表面遵循发布版 Design Tokens。内容通过亮度层级区分，状态同时提供文字与图标。界面以紧凑的横向信息组织为主，浅色与深色主题均可使用。
+应用壳、页面容器、卡片、分栏、弹窗、按钮和表单统一使用 Basalt 3.2.1 公开组件及官方 Recipes，按参考项目的结构组装。React Flow 仅承担专业画布布局与交互，节点内容、工具栏和属性面板采用 Basalt。字体、控件尺寸、圆角、间距和表面遵循发布版 Design Tokens。内容通过亮度层级区分，状态同时提供文字与图标。界面以紧凑的横向信息组织为主，浅色与深色主题均可使用。
 
 ### 控件选择
 
@@ -94,7 +94,7 @@ Workflow 专业画布采用已核实的稳定版 `@xyflow/react@12.12.0`，其 R
 
 React Flow 使用 `@xyflow/react/dist/base.css` 提供必要布局，画布背景、节点表面、端口、连线与焦点样式映射 Basalt Tokens，主题跟随应用。编辑面板和工具条继续组合 Basalt 控件，复用画布库的交互与无障碍能力。
 
-聊天输入使用 Basalt 3.0.0 的受控 `ChatComposer`，通过 `value`、`onValueChange` 和异步 `onSend` 绑定 ViewModel。每个会话的草稿、失败重试和发送意图由 ViewModel 持有，输入法、附件展示及停止动作采用控件公开接口。
+聊天输入使用 Basalt 3.2.1 的受控 `ChatComposer`，通过 `value`、`onValueChange` 和异步 `onSend` 绑定 ViewModel。每个会话的草稿、失败重试和发送意图由 ViewModel 持有，输入法、附件展示及停止动作采用控件公开接口。
 
 Markdown 展示使用 Basalt `ChatMarkdown`，以发布版接口核对 GFM、安全链接及代码与表格能力。HTML 按文本处理，图片通过用户明确操作读取，产物引用走授权接口。
 
@@ -331,9 +331,9 @@ Harness 由 daemon 持有，页面卸载只解除观察。启动、关闭和自�
 ## 组件依据
 
 - [Basalt npm 镜像元数据](https://mirrors.tencent.com/npm/@nocoo%2fbasalt) 与 [CDN 版本目录](https://data.jsdelivr.com/v1/package/npm/@nocoo/basalt)
-- [Basalt 3.0.0 包清单](https://unpkg.com/@nocoo/basalt@3.0.0/package.json)
-- [Basalt 3.0.0 集成指南](https://unpkg.com/@nocoo/basalt@3.0.0/ai/INTEGRATION.md)
-- [Basalt 3.0.0 组件注册表](https://unpkg.com/@nocoo/basalt@3.0.0/ai/registry.json)
-- [Basalt 3.0.0 ChatComposer 类型](https://unpkg.com/@nocoo/basalt@3.0.0/dist/components/chat-composer.d.ts)
+- [Basalt 3.2.1 包清单](https://unpkg.com/@nocoo/basalt@3.2.1/package.json)
+- [Basalt 3.2.1 集成指南](https://unpkg.com/@nocoo/basalt@3.2.1/ai/INTEGRATION.md)
+- [Basalt 3.2.1 组件注册表](https://unpkg.com/@nocoo/basalt@3.2.1/ai/registry.json)
+- [Basalt 3.2.1 ChatComposer 类型](https://unpkg.com/@nocoo/basalt@3.2.1/dist/components/chat-composer.d.ts)
 - [React Flow 12.12.0 包清单](https://unpkg.com/@xyflow/react@12.12.0/package.json)
 - [React Flow 拖放](https://reactflow.dev/examples/interaction/drag-and-drop)与[保存恢复](https://reactflow.dev/examples/interaction/save-and-restore)

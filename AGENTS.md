@@ -35,7 +35,7 @@
 - 连接状态、Pi 执行状态与业务交付回执分别呈现；本地阶段先验证至少两个独立 Squad，再验证 SDK 和真实业务集成。
 - Dashboard 采用 MVVM，Model、ViewModel、服务和运行逻辑接受四项至少 95% 的覆盖率检查；纯展示 View 可单独排除。
 - TypeScript 使用严格类型检查，Biome 执行零错误、零警告的只读检查。
-- Dashboard 使用 Basalt 3.0.0 发布组件、Tokens 和官方 Recipes。所有容器、按钮与表单优先按参考模板组合；专业画布使用 React Flow，外围和节点内容继续使用 Basalt。
+- Dashboard 使用 Basalt 3.2.1 发布组件、Tokens 和官方 Recipes。所有容器、按钮与表单优先按参考模板组合；专业画布使用 React Flow，外围和节点内容继续使用 Basalt。
 - 独立测试 agent 根据行为契约建立红灯，实现 agent 负责使其通过；主控协调文件归属、接口、依赖与提交。
 
 ## 开发命令
