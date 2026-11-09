@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import {
   cpSync,
   mkdirSync,
@@ -42,23 +43,31 @@ export async function runL1(
   verifyTestReport(report);
 }
 
+function readStagedFile(repository: string, path: string): Buffer {
+  return execFileSync("git", ["show", `:${path}`], {
+    cwd: repository,
+    stdio: "pipe",
+  });
+}
+
 export async function prepareSnapshot(
   repository: string,
   directory: string,
 ): Promise<void> {
-  const identical = (source: string, target: string) => {
-    if (!readFileSync(source).equals(readFileSync(target)))
+  const identical = (source: Buffer | string, target: string) => {
+    const left = typeof source === "string" ? readFileSync(source) : source;
+    if (!left.equals(readFileSync(target)))
       throw new Error(`Dependency metadata differs: ${target}`);
   };
   identical(
     join(repository, "node_modules/.pnpm/lock.yaml"),
     join(directory, "pnpm-lock.yaml"),
   );
-  for (const workspace of workspaces)
-    identical(
-      join(repository, workspace, "package.json"),
-      join(directory, workspace, "package.json"),
-    );
+  for (const workspace of workspaces) {
+    const manifest =
+      workspace === "" ? "package.json" : join(workspace, "package.json");
+    identical(readStagedFile(repository, manifest), join(directory, manifest));
+  }
   const localPackages = new Map(
     workspaces.map((workspace) => [
       realpathSync(join(repository, workspace)),

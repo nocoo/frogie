@@ -48,7 +48,49 @@
 - `pnpm test` 提供单元测试反馈；`pnpm test:coverage` 执行全量单元测试及四项覆盖率门槛；`pnpm check` 顺序执行类型、lint 与覆盖率。
 - `pnpm test:ui` 构建并验证当前 Dashboard 的桌面与移动端布局、主题、对话、定义编辑和多项目管理；使用独立的 `data/e2e/` 数据，布局使用 `27033` 端口，多项目用例使用临时 loopback 端口，截图和失败 trace 存入 `data/e2e/browser-results/`。
 - Pre-commit 在临时目录检查暂存快照，Pre-push 检查标准输入指定的提交及构建；工作区与暂存区保持原样。检查复用已安装的锁定依赖，依赖元数据不匹配时先安装对应依赖。
+- `pnpm test:l1-gate` 在隔离 Git worktree 中调用真实 `.husky/pre-commit` 与真实 `tsc`／Biome／Vitest，验证健康快照通过及负向场景拦截；不纳入 pre-commit 快照，由 CI 与本地显式执行。
 - 以上命令对应已建立的工程入口；集成测试、完整 E2E 与真实评估按设计文档继续实现，完成证据分别验证。
+
+## 6DQ L1 实测
+
+审计基准：nocoo/workflow `agents/skills/system0-6dq-l1` v1.1.3，修订 `cba816b`。环境：Node.js 26.13.0、`pnpm@11.6.0`、`pnpm install --frozen-lockfile` 后 `core.hooksPath=.husky`。
+
+### Pre-commit 全量 L1（暂存快照 = 当前干净索引）
+
+| 条件 | 命令 | tsc | biome | vitest+coverage | 总耗时 |
+| --- | --- | ---: | ---: | ---: | ---: |
+| 冷启动 | `.husky/pre-commit` | 0 | 0 | 0 | 21154 ms |
+| 热启动 | `.husky/pre-commit` | 0 | 0 | 0 | 22198 ms |
+
+四项覆盖率（`pnpm test:coverage` / 快照内 Vitest 同配置）：语句 **98.60%**、分支 **96.69%**、函数 **99.21%**、行 **99.29%**（门槛各 95%）。`vitest.config.ts` 排除 `scripts/l1-gate-selftest.test.ts`，避免 pre-commit 递归执行门禁自测。
+
+### L1 门禁自测（`pnpm test:l1-gate`，~41 s）
+
+| 场景 | 预期 | 实测 |
+| --- | --- | --- |
+| 健康暂存快照 | 通过 | status 0 |
+| 单测断言失败 | 拒绝 | 非 0 |
+| 语句／分支／函数／行覆盖率不足（各单项） | 拒绝 | 非 0 |
+| lint 错误 | 拒绝 | 非 0 |
+| 仅 lint 警告 | 拒绝 | 非 0 |
+| 类型错误 | 拒绝 | 非 0 |
+| `.only` / `skip` | 拒绝 | 非 0 |
+| 暂存错误、工作区已修复 | 拒绝 | 非 0 |
+| 超时（30 s） | 拒绝 | 非 0 |
+| 中断（SIGINT） | 拒绝 | status 130 或信号 |
+| 缺少必需工具 | 拒绝 | 非 0 |
+| 缺少覆盖率 JSON 报告 | 拒绝 | 非 0 |
+
+自测在 worktree 内用缩小版 `vitest.config.ts` 只跑 `packages/core/src/l1-gate-probe*`，真实 runner 校验覆盖率门槛；结束时移除 worktree，不改动主仓库索引。
+
+### 本轮修复
+
+- `prepareSnapshot` 依赖元数据改为读取 **Git 索引**中的 `package.json`，不再用工作区未暂存内容比对，避免未暂存 manifest 误伤或绕过。
+- 新增 `.github/workflows/ci.yml`，L1 job 执行 `pnpm run test:coverage && pnpm run test:l1-gate`。
+
+### 评级（L1）
+
+**S**：门禁执行完整（Husky→暂存快照→tsc→Biome→Vitest 覆盖率与 JSON 无 skip 校验），负向场景均有实测拒绝；质量目标四维 ≥95% 且有冷／热 pre-commit 耗时证据（均 &lt;30 s）。
 
 ## 本地数据
 

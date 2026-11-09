@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: frogie-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    uses: nocoo/base-ci/.github/workflows/quality.yml@ac635753a869cb85fad1f52aae4ccbd6119f3cae
+    with:
+      package-manager: pnpm
+      runtime-version: 11.6.0
+      node-version: 26.12.1
+      install-policy: project
+      build: true
+      build-command: pnpm run build
+      security: true
+      coverage-path: coverage/
+      prepare-command: pnpm exec husky
+      test-command: pnpm run test:coverage && pnpm run test:l1-gate

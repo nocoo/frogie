@@ -11,6 +11,7 @@
   "scripts": {
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
+    "test:l1-gate": "vitest run --config vitest.l1-gate.config.ts",
     "test:ui": "pnpm build && playwright test",
     "typecheck": "tsc --noEmit",
     "lint": "biome check . --error-on-warnings",

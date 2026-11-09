@@ -21,7 +21,11 @@ export default defineConfig({
       "evals/**/*.test.ts",
       "integrations/**/*.test.ts",
     ],
-    exclude: ["**/node_modules/**", "**/dist/**"],
+    exclude: [
+      "**/node_modules/**",
+      "**/dist/**",
+      "scripts/l1-gate-selftest.test.ts",
+    ],
     allowOnly: false,
     passWithNoTests: false,
     testTimeout: 10000,

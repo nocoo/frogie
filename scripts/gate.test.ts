@@ -16,6 +16,7 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { describe, expect, it, onTestFinished } from "vitest";
+import { git } from "../tests/fixtures/git.js";
 import {
   prepareSnapshot,
   pushTargets,
@@ -122,6 +123,8 @@ function fixture(): { repository: string; directory: string } {
     "packages/core/index.cjs",
     'module.exports = "staged broken core";\n',
   );
+  git(repository, "init", "-q");
+  git(repository, "add", "-A");
   return { repository, directory };
 }
 
@@ -246,6 +249,16 @@ describe("prepareSnapshot", () => {
     expect(tree(repository)).toEqual(before);
   });
 
+  it("checks staged manifests instead of unstaged working-tree package.json", async () => {
+    const { repository, directory } = fixture();
+    write(repository, "package.json", '{"name":"working-tree-only"}');
+    const before = tree(repository);
+    await expect(
+      prepareSnapshot(repository, directory),
+    ).resolves.toBeUndefined();
+    expect(tree(repository)).toEqual(before);
+  });
+
   it.each(manifests)(
     "rejects a changed staged manifest at %s without writing the repository",
     async (path) => {
@@ -267,7 +280,13 @@ describe("prepareSnapshot", () => {
     ),
   )("rejects a missing %s manifest at %s", async (location, path) => {
     const { repository, directory } = fixture();
-    rmSync(join(location === "repository" ? repository : directory, path));
+    const target = join(
+      location === "repository" ? repository : directory,
+      path,
+    );
+    rmSync(target);
+    if (location === "repository")
+      git(repository, "rm", "--cached", "-f", path);
     const before = tree(repository);
     await expect(prepareSnapshot(repository, directory)).rejects.toThrow();
     expect(tree(repository)).toEqual(before);
