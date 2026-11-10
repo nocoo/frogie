@@ -339,40 +339,50 @@ export function AppView(props: AppViewProps) {
                             处理中
                           </Text>
                         )}
-                        <LinkButton
-                          href="https://github.com/nocoo/frogie"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          size="icon"
-                          variant="ghost"
-                          aria-label="Frogie GitHub 仓库"
-                        >
-                          <Github
-                            aria-hidden="true"
-                            size={16}
-                            strokeWidth={1.5}
-                          />
-                          <Text as="span" className="sr-only">
-                            GitHub
-                          </Text>
-                        </LinkButton>
-                        <LinkButton
-                          href="https://hexly.ai/projects/frogie"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          size="icon"
-                          variant="ghost"
-                          aria-label="Frogie on Hexly"
-                        >
-                          <Hexagon
-                            aria-hidden="true"
-                            size={16}
-                            strokeWidth={1.5}
-                          />
-                          <Text as="span" className="sr-only">
-                            Frogie on Hexly
-                          </Text>
-                        </LinkButton>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <LinkButton
+                              href="https://github.com/nocoo/frogie"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              size="icon"
+                              variant="ghost"
+                              aria-label="Frogie GitHub 仓库"
+                            >
+                              <Github
+                                aria-hidden="true"
+                                size={16}
+                                strokeWidth={1.5}
+                              />
+                              <Text as="span" className="sr-only">
+                                GitHub
+                              </Text>
+                            </LinkButton>
+                          </TooltipTrigger>
+                          <TooltipContent>GitHub</TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <LinkButton
+                              href="https://hexly.ai/projects/frogie"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              size="icon"
+                              variant="ghost"
+                              aria-label="Frogie on Hexly"
+                            >
+                              <Hexagon
+                                aria-hidden="true"
+                                size={16}
+                                strokeWidth={1.5}
+                              />
+                              <Text as="span" className="sr-only">
+                                Frogie on Hexly
+                              </Text>
+                            </LinkButton>
+                          </TooltipTrigger>
+                          <TooltipContent>Frogie on Hexly</TooltipContent>
+                        </Tooltip>
                         <ThemeToggle aria-label="切换浅色与深色主题" />
                       </>
                     }

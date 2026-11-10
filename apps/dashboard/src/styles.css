@@ -405,20 +405,6 @@ body {
 }
 
 @media (max-width: 767px) {
-  .frogie-shell .basalt-action {
-    min-height: var(--basalt-size-touch);
-  }
-
-  .frogie-app-header {
-    flex-wrap: wrap;
-    height: auto;
-    padding-block: var(--basalt-space-sm);
-  }
-
-  .frogie-app-header [data-basalt-header-actions] {
-    justify-content: flex-end;
-  }
-
   .frogie-island-wrap {
     padding: 0 var(--basalt-space-nav-inset) var(--basalt-space-nav-inset);
   }
