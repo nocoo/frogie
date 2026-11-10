@@ -213,7 +213,6 @@ export function AppView(props: AppViewProps) {
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="mb-basalt-space-sm self-center"
                       aria-label="展开导航"
                       onClick={() => setCollapsed(false)}
                     >
