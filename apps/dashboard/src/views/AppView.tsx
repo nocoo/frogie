@@ -297,7 +297,6 @@ export function AppView(props: AppViewProps) {
                 </Sidebar>
                 <AppMain aria-busy={props.busy}>
                   <AppHeader
-                    className="frogie-app-header"
                     density="compact"
                     title={title}
                     {...(!compact && squadTitle
