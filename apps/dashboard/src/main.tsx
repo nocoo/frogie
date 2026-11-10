@@ -254,6 +254,7 @@ export function mountDashboard(
     } else if (page === "workflows") {
       content = (
         <WorkflowView
+          title="工作流"
           workflow={definition ? workflow?.workflow : undefined}
           workflows={definition ? (workflow?.workflows ?? []) : []}
           roles={definition?.roles ?? []}
