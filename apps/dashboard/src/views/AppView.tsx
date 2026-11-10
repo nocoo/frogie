@@ -213,7 +213,6 @@ export function AppView(props: AppViewProps) {
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="mb-basalt-space-sm self-center"
                       aria-label="展开导航"
                       onClick={() => setCollapsed(false)}
                     >
@@ -251,7 +250,6 @@ export function AppView(props: AppViewProps) {
                         <Tooltip key={id}>
                           <TooltipTrigger asChild>
                             <Item
-                              className="frogie-nav-item"
                               active={props.page === id}
                               aria-label={title}
                               onClick={() => {
@@ -265,11 +263,7 @@ export function AppView(props: AppViewProps) {
                                 strokeWidth={1.5}
                               />
                               {expanded && (
-                                <Text
-                                  as="span"
-                                  truncate
-                                  className="frogie-nav-label"
-                                >
+                                <Text as="span" truncate>
                                   {title}
                                 </Text>
                               )}

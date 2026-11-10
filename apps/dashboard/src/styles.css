@@ -48,19 +48,13 @@ body {
   flex-wrap: wrap;
 }
 
-.frogie-nav-item[aria-current="page"],
 .frogie-chat-user {
   background-color: hsl(var(--basalt-accent-4));
   color: hsl(var(--basalt-foreground));
 }
 
-.dark .frogie-nav-item[aria-current="page"],
 .dark .frogie-chat-user {
   color: hsl(var(--basalt-primary-foreground));
-}
-
-.frogie-nav-label {
-  color: inherit;
 }
 
 .frogie-island-wrap {
