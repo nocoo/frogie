@@ -251,7 +251,6 @@ export function AppView(props: AppViewProps) {
                         <Tooltip key={id}>
                           <TooltipTrigger asChild>
                             <Item
-                              className="frogie-nav-item"
                               active={props.page === id}
                               aria-label={title}
                               onClick={() => {
@@ -265,11 +264,7 @@ export function AppView(props: AppViewProps) {
                                 strokeWidth={1.5}
                               />
                               {expanded && (
-                                <Text
-                                  as="span"
-                                  truncate
-                                  className="frogie-nav-label"
-                                >
+                                <Text as="span" truncate>
                                   {title}
                                 </Text>
                               )}

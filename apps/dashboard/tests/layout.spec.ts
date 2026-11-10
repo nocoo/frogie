@@ -111,34 +111,6 @@ async function surfaceLuminance(locator: Locator) {
   });
 }
 
-async function readableGreen(locator: Locator) {
-  const colors = await locator.evaluate((element) => {
-    const style = getComputedStyle(element);
-    return { foreground: style.color, background: style.backgroundColor };
-  });
-  const rgb = (value: string) => value.match(/[\d.]+/g)?.map(Number) ?? [];
-  const background = rgb(colors.background);
-  expect(background[1]).toBeGreaterThan(background[0] ?? 255);
-  expect(background[1]).toBeGreaterThan(background[2] ?? 255);
-  expect(Math.min(...background.slice(0, 3))).toBeGreaterThan(120);
-  const luminance = (value: string) =>
-    rgb(value)
-      .slice(0, 3)
-      .reduce((sum, channel, index) => {
-        const normalized = channel / 255;
-        const linear =
-          normalized <= 0.04045
-            ? normalized / 12.92
-            : ((normalized + 0.055) / 1.055) ** 2.4;
-        return sum + linear * ([0.2126, 0.7152, 0.0722][index] ?? 0);
-      }, 0);
-  const a = luminance(colors.background);
-  const b = luminance(colors.foreground);
-  expect(
-    (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05),
-  ).toBeGreaterThanOrEqual(4.5);
-}
-
 async function readableControl(locator: Locator) {
   await expect
     .poll(async () =>
@@ -294,7 +266,9 @@ test("desktop shell geometry, bounded chat, editor and theme retain real interac
   ).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath("overview-desktop.png") });
   await page.getByRole("button", { name: "对话", exact: true }).click();
-  await readableGreen(page.getByRole("button", { name: "对话", exact: true }));
+  await readableControl(
+    page.getByRole("button", { name: "对话", exact: true }),
+  );
   const conversation = await box(
     page.getByRole("combobox", { name: "选择会话", exact: true }),
   );
@@ -359,7 +333,9 @@ test("desktop shell geometry, bounded chat, editor and theme retain real interac
     .getByRole("button", { name: "切换浅色与深色主题", exact: true })
     .click();
   await expect(page.locator("html")).toHaveClass(/dark/);
-  await readableGreen(page.getByRole("button", { name: "对话", exact: true }));
+  await readableControl(
+    page.getByRole("button", { name: "对话", exact: true }),
+  );
   await page.getByRole("button", { name: "定义", exact: true }).click();
   await expect(editor).toBeInViewport();
   await page.screenshot({ path: testInfo.outputPath("definitions-dark.png") });
