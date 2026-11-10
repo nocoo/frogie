@@ -15,22 +15,6 @@ body {
   font-family: var(--basalt-font-sans);
 }
 
-.frogie-brand-mark {
-  display: inline-flex;
-  flex: 0 0 calc(var(--basalt-size-rail) - 2 * var(--basalt-space-nav-inset));
-  align-items: center;
-  justify-content: center;
-}
-
-.frogie-brand-mark img {
-  display: block;
-}
-
-.frogie-sidebar-collapse {
-  margin-inline-start: auto;
-  flex-shrink: 0;
-}
-
 .frogie-environment > legend {
   margin: 0;
 }

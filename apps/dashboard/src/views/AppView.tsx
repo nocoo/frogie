@@ -159,41 +159,71 @@ export function AppView(props: AppViewProps) {
                     </>
                   )}
                   <SidebarHeader>
-                    <Text
-                      as="span"
-                      className={expanded ? "frogie-brand-mark" : undefined}
-                    >
+                    {expanded ? (
+                      <div className="flex w-full items-center justify-between">
+                        <div className="flex min-w-0 items-center gap-basalt-space-lg">
+                          <img
+                            src={props.logoSrc}
+                            alt="Frogie"
+                            width={20}
+                            height={20}
+                            className="h-5 w-5 shrink-0"
+                          />
+                          <Text
+                            as="span"
+                            bold
+                            className="truncate text-lg font-semibold text-basalt-foreground md:text-xl"
+                          >
+                            Frogie
+                          </Text>
+                          <Badge
+                            variant="secondary"
+                            className="shrink-0 font-mono"
+                          >
+                            v{props.version}
+                          </Badge>
+                        </div>
+                        {!compact && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="shrink-0"
+                            aria-label="收起导航"
+                            onClick={() => setCollapsed(true)}
+                          >
+                            <PanelLeftClose
+                              aria-hidden="true"
+                              size={16}
+                              strokeWidth={1.5}
+                            />
+                          </Button>
+                        )}
+                      </div>
+                    ) : (
                       <img
                         src={props.logoSrc}
                         alt="Frogie"
-                        width={24}
-                        height={24}
+                        width={20}
+                        height={20}
+                        className="h-5 w-5 shrink-0"
                       />
-                    </Text>
-                    {expanded && (
-                      <>
-                        <Text as="strong" bold>
-                          Frogie
-                        </Text>
-                        <Badge variant="secondary" className="font-mono">
-                          v{props.version}
-                        </Badge>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="frogie-sidebar-collapse"
-                          aria-label="收起导航"
-                          onClick={() => setCollapsed(true)}
-                        >
-                          <PanelLeftClose
-                            aria-hidden="true"
-                            size={16}
-                            strokeWidth={1.5}
-                          />
-                        </Button>
-                      </>
                     )}
                   </SidebarHeader>
+                  {!expanded && !compact && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="mb-basalt-space-sm self-center"
+                      aria-label="展开导航"
+                      onClick={() => setCollapsed(false)}
+                    >
+                      <PanelLeftOpen
+                        aria-hidden="true"
+                        size={16}
+                        strokeWidth={1.5}
+                      />
+                    </Button>
+                  )}
                   <SidebarNav aria-label="主要导航">
                     {expanded ? (
                       <Field
@@ -214,23 +244,7 @@ export function AppView(props: AppViewProps) {
                           placeholder="选择 Squad"
                         />
                       </Field>
-                    ) : (
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <SidebarIconItem
-                            aria-label="展开导航"
-                            onClick={() => setCollapsed(false)}
-                          >
-                            <PanelLeftOpen
-                              aria-hidden="true"
-                              size={16}
-                              strokeWidth={1.5}
-                            />
-                          </SidebarIconItem>
-                        </TooltipTrigger>
-                        <TooltipContent side="right">展开导航</TooltipContent>
-                      </Tooltip>
-                    )}
+                    ) : null}
                     {pages.map(({ id, title, icon: Icon }) => {
                       const Item = expanded ? SidebarItem : SidebarIconItem;
                       return (
