@@ -288,9 +288,13 @@ export function AppView(props: AppViewProps) {
                         avatar={avatar}
                       />
                     ) : (
-                      <Tooltip>
-                        <TooltipTrigger asChild>{avatar}</TooltipTrigger>
-                        <TooltipContent side="right">本地用户</TooltipContent>
+                      <Tooltip delayDuration={0}>
+                        <TooltipTrigger asChild>
+                          <span className="inline-flex">{avatar}</span>
+                        </TooltipTrigger>
+                        <TooltipContent side="right" sideOffset={8}>
+                          本地用户
+                        </TooltipContent>
                       </Tooltip>
                     )}
                   </SidebarFooter>
