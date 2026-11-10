@@ -159,41 +159,71 @@ export function AppView(props: AppViewProps) {
                     </>
                   )}
                   <SidebarHeader>
-                    <Text
-                      as="span"
-                      className={expanded ? "frogie-brand-mark" : undefined}
-                    >
+                    {expanded ? (
+                      <div className="flex w-full items-center justify-between">
+                        <div className="flex min-w-0 items-center gap-basalt-space-lg">
+                          <img
+                            src={props.logoSrc}
+                            alt="Frogie"
+                            width={20}
+                            height={20}
+                            className="h-5 w-5 shrink-0"
+                          />
+                          <Text
+                            as="span"
+                            bold
+                            className="truncate text-lg font-semibold text-basalt-foreground md:text-xl"
+                          >
+                            Frogie
+                          </Text>
+                          <Badge
+                            variant="secondary"
+                            className="shrink-0 font-mono"
+                          >
+                            v{props.version}
+                          </Badge>
+                        </div>
+                        {!compact && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="shrink-0"
+                            aria-label="收起导航"
+                            onClick={() => setCollapsed(true)}
+                          >
+                            <PanelLeftClose
+                              aria-hidden="true"
+                              size={16}
+                              strokeWidth={1.5}
+                            />
+                          </Button>
+                        )}
+                      </div>
+                    ) : (
                       <img
                         src={props.logoSrc}
                         alt="Frogie"
-                        width={24}
-                        height={24}
+                        width={20}
+                        height={20}
+                        className="h-5 w-5 shrink-0"
                       />
-                    </Text>
-                    {expanded && (
-                      <>
-                        <Text as="strong" bold>
-                          Frogie
-                        </Text>
-                        <Badge variant="secondary" className="font-mono">
-                          v{props.version}
-                        </Badge>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="frogie-sidebar-collapse"
-                          aria-label="收起导航"
-                          onClick={() => setCollapsed(true)}
-                        >
-                          <PanelLeftClose
-                            aria-hidden="true"
-                            size={16}
-                            strokeWidth={1.5}
-                          />
-                        </Button>
-                      </>
                     )}
                   </SidebarHeader>
+                  {!expanded && !compact && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="mb-basalt-space-sm self-center"
+                      aria-label="展开导航"
+                      onClick={() => setCollapsed(false)}
+                    >
+                      <PanelLeftOpen
+                        aria-hidden="true"
+                        size={16}
+                        strokeWidth={1.5}
+                      />
+                    </Button>
+                  )}
                   <SidebarNav aria-label="主要导航">
                     {expanded ? (
                       <Field
@@ -214,23 +244,7 @@ export function AppView(props: AppViewProps) {
                           placeholder="选择 Squad"
                         />
                       </Field>
-                    ) : (
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <SidebarIconItem
-                            aria-label="展开导航"
-                            onClick={() => setCollapsed(false)}
-                          >
-                            <PanelLeftOpen
-                              aria-hidden="true"
-                              size={16}
-                              strokeWidth={1.5}
-                            />
-                          </SidebarIconItem>
-                        </TooltipTrigger>
-                        <TooltipContent side="right">展开导航</TooltipContent>
-                      </Tooltip>
-                    )}
+                    ) : null}
                     {pages.map(({ id, title, icon: Icon }) => {
                       const Item = expanded ? SidebarItem : SidebarIconItem;
                       return (
@@ -274,16 +288,19 @@ export function AppView(props: AppViewProps) {
                         avatar={avatar}
                       />
                     ) : (
-                      <Tooltip>
-                        <TooltipTrigger asChild>{avatar}</TooltipTrigger>
-                        <TooltipContent side="right">本地用户</TooltipContent>
+                      <Tooltip delayDuration={0}>
+                        <TooltipTrigger asChild>
+                          <span className="inline-flex">{avatar}</span>
+                        </TooltipTrigger>
+                        <TooltipContent side="right" sideOffset={8}>
+                          本地用户
+                        </TooltipContent>
                       </Tooltip>
                     )}
                   </SidebarFooter>
                 </Sidebar>
                 <AppMain aria-busy={props.busy}>
                   <AppHeader
-                    className="frogie-app-header"
                     density="compact"
                     title={title}
                     {...(!compact && squadTitle
@@ -326,40 +343,50 @@ export function AppView(props: AppViewProps) {
                             处理中
                           </Text>
                         )}
-                        <LinkButton
-                          href="https://github.com/nocoo/frogie"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          size="icon"
-                          variant="ghost"
-                          aria-label="Frogie GitHub 仓库"
-                        >
-                          <Github
-                            aria-hidden="true"
-                            size={16}
-                            strokeWidth={1.5}
-                          />
-                          <Text as="span" className="sr-only">
-                            GitHub
-                          </Text>
-                        </LinkButton>
-                        <LinkButton
-                          href="https://hexly.ai/projects/frogie"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          size="icon"
-                          variant="ghost"
-                          aria-label="Frogie on Hexly"
-                        >
-                          <Hexagon
-                            aria-hidden="true"
-                            size={16}
-                            strokeWidth={1.5}
-                          />
-                          <Text as="span" className="sr-only">
-                            Frogie on Hexly
-                          </Text>
-                        </LinkButton>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <LinkButton
+                              href="https://github.com/nocoo/frogie"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              size="icon"
+                              variant="ghost"
+                              aria-label="Frogie GitHub 仓库"
+                            >
+                              <Github
+                                aria-hidden="true"
+                                size={16}
+                                strokeWidth={1.5}
+                              />
+                              <Text as="span" className="sr-only">
+                                GitHub
+                              </Text>
+                            </LinkButton>
+                          </TooltipTrigger>
+                          <TooltipContent>GitHub</TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <LinkButton
+                              href="https://hexly.ai/projects/frogie"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              size="icon"
+                              variant="ghost"
+                              aria-label="Frogie on Hexly"
+                            >
+                              <Hexagon
+                                aria-hidden="true"
+                                size={16}
+                                strokeWidth={1.5}
+                              />
+                              <Text as="span" className="sr-only">
+                                Frogie on Hexly
+                              </Text>
+                            </LinkButton>
+                          </TooltipTrigger>
+                          <TooltipContent>Frogie on Hexly</TooltipContent>
+                        </Tooltip>
                         <ThemeToggle aria-label="切换浅色与深色主题" />
                       </>
                     }
