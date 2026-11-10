@@ -400,7 +400,8 @@ export function AppView(props: AppViewProps) {
                       }
                     >
                       {props.page !== "chat" &&
-                        props.page !== "definitions" && (
+                        props.page !== "definitions" &&
+                        props.page !== "workflows" && (
                           <PageHeader
                             title={title}
                             actions={

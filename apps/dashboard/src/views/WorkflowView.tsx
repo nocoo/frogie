@@ -12,6 +12,7 @@ import {
   Text,
 } from "@nocoo/basalt";
 import { Banner } from "@nocoo/basalt/components/banner";
+import { PageHeader } from "@nocoo/basalt/components/page-header";
 import { useTheme } from "@nocoo/basalt/providers/theme";
 import {
   Background,
@@ -32,6 +33,7 @@ import { SelectionField } from "./SelectionField.js";
 import "@xyflow/react/dist/base.css";
 
 export interface WorkflowViewProps {
+  title: string;
   workflow: WorkflowDefinition | undefined;
   workflows: readonly WorkflowDefinition[];
   roles: readonly RoleDefinition[];
@@ -424,8 +426,23 @@ function WorkflowEditor(
 export function WorkflowView(props: WorkflowViewProps) {
   return (
     <div className="frogie-workflow-view" aria-busy={props.busy}>
-      <LayerCard>
-        <LayerCard.Header className="frogie-workflow-toolbar">
+      <PageHeader
+        title={props.title}
+        actions={
+          <>
+            {props.dirty && <Badge variant="warning">未保存</Badge>}
+            <Button
+              variant="outline"
+              disabled={
+                props.busy || !props.dirty || props.workflow === undefined
+              }
+              onClick={props.onSave}
+            >
+              保存工作流
+            </Button>
+          </>
+        }
+        filters={
           <Field
             label="Workflow"
             htmlFor="workflow-selector"
@@ -443,18 +460,8 @@ export function WorkflowView(props: WorkflowViewProps) {
               placeholder="选择工作流"
             />
           </Field>
-          {props.dirty && <Badge variant="warning">未保存</Badge>}
-          <Button
-            variant="outline"
-            disabled={
-              props.busy || !props.dirty || props.workflow === undefined
-            }
-            onClick={props.onSave}
-          >
-            保存工作流
-          </Button>
-        </LayerCard.Header>
-      </LayerCard>
+        }
+      />
       {props.error !== null && (
         <Banner
           role="alert"

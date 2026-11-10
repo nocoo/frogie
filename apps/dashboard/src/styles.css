@@ -430,14 +430,12 @@ body {
   min-width: 0;
 }
 
-.frogie-workflow-toolbar,
 .frogie-workflow-canvas-toolbar {
   flex-wrap: wrap;
   align-items: flex-end;
   gap: var(--basalt-space-content-gap);
 }
 
-.frogie-workflow-toolbar > button,
 .frogie-workflow-canvas-toolbar > button,
 .frogie-workflow-viewport-actions {
   flex-shrink: 0;
